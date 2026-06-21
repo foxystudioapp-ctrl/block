@@ -106,9 +106,12 @@ jobs:
             -exportOptionsPlist $RUNNER_TEMP/ExportOptions.plist \
             -exportPath $RUNNER_TEMP/export \
             -allowProvisioningUpdates
+          
+          echo "Export klasörünün içi:"
+          ls -R $RUNNER_TEMP/export
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
           name: blockblast-ios
-          path: ${{ runner.temp }}/export/*.ipa
+          path: ${{ runner.temp }}/export
