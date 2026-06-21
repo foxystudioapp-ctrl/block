@@ -115,3 +115,11 @@ jobs:
         with:
           name: blockblast-ios
           path: ${{ runner.temp }}/export
+
+      - name: Upload to TestFlight
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APP_PASSWORD: ${{ secrets.APP_SPECIFIC_PASSWORD }}
+        run: |
+          echo "TestFlight'a yükleniyor..."
+          xcrun altool --upload-app -f $RUNNER_TEMP/export/*.ipa -t ios -u "$APPLE_ID" -p "$APP_PASSWORD"
