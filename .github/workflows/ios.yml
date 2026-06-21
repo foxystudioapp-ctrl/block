@@ -61,7 +61,7 @@ jobs:
         run: |
           cd ios/App
           xcodebuild archive \
-            -workspace App.xcworkspace \
+            -project App.xcodeproj \
             -scheme App \
             -archivePath $RUNNER_TEMP/App.xcarchive \
             -allowProvisioningUpdates \
