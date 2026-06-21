@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CLIENT_ID</key>
+	<string>244495803529-3tp5i6k3p7qaed99l17pc0vmuk7m3fu4.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.244495803529-3tp5i6k3p7qaed99l17pc0vmuk7m3fu4</string>
+	<key>ANDROID_CLIENT_ID</key>
+	<string>244495803529-0s3oioe896q722pfq2vg11i9ss6no3j5.apps.googleusercontent.com</string>
+	<key>API_KEY</key>
+	<string>AIzaSyBRFLFPlCRK1XBiVZhcfn8AQEkVYelTUcY</string>
+	<key>GCM_SENDER_ID</key>
+	<string>244495803529</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>com.askar.blockblast</string>
+	<key>PROJECT_ID</key>
+	<string>bloxy-puzzle</string>
+	<key>STORAGE_BUCKET</key>
+	<string>bloxy-puzzle.firebasestorage.app</string>
+	<key>IS_ADS_ENABLED</key>
+	<false></false>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false></false>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true></true>
+	<key>IS_GCM_ENABLED</key>
+	<true></true>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true></true>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:244495803529:ios:f6506627987ec7bb43d258</string>
+	<key>DATABASE_URL</key>
+	<string>https://bloxy-puzzle-default-rtdb.europe-west1.firebasedatabase.app</string>
+</dict>
+</plist>

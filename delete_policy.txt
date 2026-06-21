@@ -1,0 +1,14 @@
+Block Blast Account Deletion
+
+To request the deletion of your Block Blast (com.askar.blockblast) account and all associated data, you have two options:
+
+Option 1: In-App Deletion
+1. Open the Block Blast app.
+2. Navigate to the Profile / Settings screen.
+3. Click the 'Delete Account' button to immediately and permanently delete your account, email address, and all saved scores from our Firebase servers.
+
+Option 2: Email Request
+You can also request account deletion by emailing the developer.
+
+Data Deleted: Your Google account association, username, authentication records, and all game progress/scores.
+Data Retained: None. All personal data is completely removed upon deletion.

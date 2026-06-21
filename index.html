@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/jpeg" href="/logo.jpg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Bloxy</title>
+    <meta name="description" content="Bloxy - Harika bir blok ve yapboz oyunu." />
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#010102" />
+    <link rel="apple-touch-icon" href="/logo.jpg" />
+    
+    <!-- Preload Splash Screen Assets -->
+    <link rel="preload" as="image" href="/foxstudio.png" />
+    <link rel="preload" as="image" href="/logo.jpg" />
+    
+    <!-- Local Fonts -->
+    <link rel="stylesheet" href="/fonts/fonts.css" />
+  </head>
+  <body class="overflow-x-hidden antialiased bg-bg-light dark:bg-primary">
+    <div id="app" class="w-full min-h-screen flex flex-col items-center justify-start overflow-y-auto no-scrollbar"></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+

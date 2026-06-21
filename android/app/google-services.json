@@ -1,0 +1,56 @@
+{
+  "project_info": {
+    "project_number": "244495803529",
+    "firebase_url": "https://bloxy-puzzle-default-rtdb.europe-west1.firebasedatabase.app",
+    "project_id": "bloxy-puzzle",
+    "storage_bucket": "bloxy-puzzle.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:244495803529:android:e504b5f60c5e4b5343d258",
+        "android_client_info": {
+          "package_name": "com.askar.blockblast"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "244495803529-0s3oioe896q722pfq2vg11i9ss6no3j5.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.askar.blockblast",
+            "certificate_hash": "818f32187571c515d9c53606d690c9dddf1ae18c"
+          }
+        },
+        {
+          "client_id": "244495803529-477i83s9unee9ssjqepnh0tdgrfinnrd.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.askar.blockblast",
+            "certificate_hash": "e7bae9b9f2d418539ab65f108e9bcc3aac2257dc"
+          }
+        },
+        {
+          "client_id": "244495803529-6iro7uhsrf9hkt641ch0cr1v03vrke06.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA9ZIra5ZuKhBRh_4j7r5JO-ubQiqe7E6I"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "244495803529-6iro7uhsrf9hkt641ch0cr1v03vrke06.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

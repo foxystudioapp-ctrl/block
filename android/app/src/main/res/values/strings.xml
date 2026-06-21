@@ -1,0 +1,9 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Bloxy</string>
+    <string name="title_activity_main">Bloxy</string>
+    <string name="package_name">com.askar.blockblast</string>
+    <string name="custom_url_scheme">com.askar.blockblast</string>
+    <string name="default_web_client_id">244495803529-6iro7uhsrf9hkt641ch0cr1v03vrke06.apps.googleusercontent.com</string>
+    <string name="server_client_id">244495803529-6iro7uhsrf9hkt641ch0cr1v03vrke06.apps.googleusercontent.com</string>
+</resources>

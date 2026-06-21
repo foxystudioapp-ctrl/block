@@ -1,0 +1,157 @@
+diff --git a/src/game/2048Engine.js b/src/game/2048Engine.js
+--- a/src/game/2048Engine.js
++++ b/src/game/2048Engine.js
+@@ -76,6 +76,21 @@
+   }
+ 
++  initGame() {
++    this.grid = Array(this.gridSize).fill(null).map(() => Array(this.gridSize).fill(0));
++    this.score = 0;
++    this.levelScore = 0;
++    this.history = [];
++    this.gameOver = false;
++    this.won = false;
++    this.levelUpReady = false;
++    this.undoCount = 0;
++    this.keptPlaying = false;
++    this.init();
++    this.saveGameState();
++  }
++
++  restartCurrentLevel() {
++    this.initGame();
++  }
++
+   init() {
+     this.spawnTile();
+     this.spawnTile();
+diff --git a/src/screens/game2048.js b/src/screens/game2048.js
+--- a/src/screens/game2048.js
++++ b/src/screens/game2048.js
+@@ -25,14 +25,17 @@
+   let engine = new Engine2048(mode, level);
++  let activeBuyDiamondsOverlay = null;
++  let tutorialTimeout = null;
+   
+   const topBar = createTopBar(t('menu_2048') || '2048', true, () => {
+     showQuitConfirmation(router, '#/menu', {
+       text: t('restart') || 'Yeniden Başla',
+       primary: false,
+       onClick: (closeFn) => {
+         closeFn();
+         engine.initGame();
+         updateBoardUI();
+-        updateScoreUI();
++        updateScore();
+       }
+     });
+   });
+@@ -245,8 +248,8 @@
+             <div class="w-20 h-20 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(251,146,60,0.4)] animate-bounce-soft">
+               <span class="text-4xl">⭐</span>
+             </div>
+             <div>
+-              <h3 class="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-rose-500 tracking-tight">Tebrikler!</h3>
+-              <p class="text-sm text-gray-500 dark:text-gray-400 mt-1 font-medium">${engine.level}. Seviyeyi tamamladın.</p>
++              <h3 class="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-rose-500 tracking-tight">${t('congratulations') || 'Tebrikler!'}</h3>
++              <p class="text-sm text-gray-500 dark:text-gray-400 mt-1 font-medium">${(t('level_complete_desc') || '{level}. Seviyeyi tamamladın.').replace('{level}', engine.level)}</p>
+             </div>
+             
+             <div class="w-full bg-black/5 dark:bg-white/5 rounded-2xl p-4 flex justify-between items-center mt-2 border border-black/10 dark:border-white/10">
+               <div class="flex flex-col items-start">
+-                <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Sonraki Seviye</span>
++                <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">${t('next_level') || 'Sonraki Seviye'}</span>
+                 <span class="text-xl font-black text-gray-800 dark:text-gray-200">${engine.level + 1}</span>
+               </div>
+               <span class="material-symbols-outlined text-gray-300 dark:text-gray-600 text-3xl">arrow_forward</span>
+             </div>
+@@ -392,8 +395,7 @@
+             } else {
+               import('./buyDiamonds.js').then(m => {
+             const BuyDiamonds = m.BuyDiamonds;
+-            let overlayContainer = null;
+             const closeOverlay = () => {
+-              if (overlayContainer && overlayContainer.parentNode) {
+-                overlayContainer.parentNode.removeChild(overlayContainer);
++              if (activeBuyDiamondsOverlay && activeBuyDiamondsOverlay.parentNode) {
++                activeBuyDiamondsOverlay.parentNode.removeChild(activeBuyDiamondsOverlay);
++                activeBuyDiamondsOverlay = null;
+               }
+             };
+-            overlayContainer = BuyDiamonds(router, closeOverlay);
+-            overlayContainer.style.position = 'fixed';
+-            overlayContainer.style.top = '0';
+-            overlayContainer.style.left = '0';
+-            overlayContainer.style.width = '100vw';
+-            overlayContainer.style.height = '100vh';
+-            overlayContainer.style.zIndex = '10000';
+-            document.body.appendChild(overlayContainer);
++            activeBuyDiamondsOverlay = BuyDiamonds(router, closeOverlay);
++            activeBuyDiamondsOverlay.style.position = 'fixed';
++            activeBuyDiamondsOverlay.style.top = '0';
++            activeBuyDiamondsOverlay.style.left = '0';
++            activeBuyDiamondsOverlay.style.width = '100vw';
++            activeBuyDiamondsOverlay.style.height = '100vh';
++            activeBuyDiamondsOverlay.style.zIndex = '10000';
++            document.body.appendChild(activeBuyDiamondsOverlay);
+           });
+             }
+@@ -426,5 +428,26 @@
+       } else if (engine.won && !engine.keptPlaying) {
+         engine.keptPlaying = true;
+         Sounds.playSfx('new-record');
+-        alert(t('win') || "Tebrikler! 2048'e ulaştınız!");
++        createModal({
++          title: t('victory') || 'Zafer!',
++          content: `
++            <div class="flex flex-col items-center justify-center text-center gap-4 py-4">
++              <div class="w-20 h-20 bg-gradient-to-br from-yellow-400 to-amber-500 rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(245,158,11,0.4)] animate-bounce-soft">
++                <span class="text-4xl">🏆</span>
++              </div>
++              <div>
++                <h3 class="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-500 to-amber-600 tracking-tight">${t('congratulations') || 'Tebrikler!'}</h3>
++                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1 font-medium">${t('win') || "2048'e ulaştınız!"}</p>
++              </div>
++            </div>
++          `,
++          actions: [
++            {
++              text: t('keep_playing') || 'Devam Et',
++              primary: true,
++              onClick: (closeFn) => {
++                closeFn();
++              }
++            }
++          ]
++        });
+       } else if (mode !== 'adventure') {
+@@ -511,3 +534,3 @@
+-  setTimeout(() => {
++  tutorialTimeout = setTimeout(() => {
+     if (container.isConnected) {
+       checkAndShowTutorial('2048');
+     }
+   }, 300);
+ 
+   container.cleanup = () => {
+     window.removeEventListener('keydown', onKeyDown);
+     if (topBar.cleanup) topBar.cleanup();
+     Sounds.stopMusic();
+     AdService.hideBanner();
++    
++    if (tutorialTimeout) {
++      clearTimeout(tutorialTimeout);
++    }
++    if (activeBuyDiamondsOverlay && activeBuyDiamondsOverlay.parentNode) {
++      activeBuyDiamondsOverlay.parentNode.removeChild(activeBuyDiamondsOverlay);
++      activeBuyDiamondsOverlay = null;
++    }
++    if (typeof window.closeAllModals === 'function') {
++      window.closeAllModals();
++    }
++    
++    boardWrapper.removeEventListener('touchstart', onPointerDown);
++    boardWrapper.removeEventListener('touchend', onPointerUp);
++    boardWrapper.removeEventListener('mousedown', onPointerDown);
++    boardWrapper.removeEventListener('mouseup', onPointerUp);
++  };

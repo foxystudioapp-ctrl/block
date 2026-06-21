@@ -1,0 +1,1 @@
+export default [{ languageOptions: { globals: { window: true, document: true, requestAnimationFrame: true, performance: true, location: true, URLSearchParams: true, setTimeout: true, Math: true, console: true, clearTimeout: true, cancelAnimationFrame: true } } }];

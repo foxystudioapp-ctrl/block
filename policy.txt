@@ -1,0 +1,12 @@
+Privacy Policy for Bloxy
+
+This privacy policy applies to the Bloxy app (package: com.askar.blockblast).
+
+1. Data Collection
+We use Firebase Authentication and Google Sign-In to save your game scores, diamonds, and overall progress to the cloud. This provides a seamless way to recover your data across devices.
+
+2. Data Security
+Your data is encrypted and securely stored by Google Firebase. We do not sell or share your data with any third parties.
+
+3. Contact
+If you have any questions, please contact the developer.

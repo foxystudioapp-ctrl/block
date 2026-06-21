@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sekizgen Tasarim Secenekleri</title>
+    <style>
+        body {
+            background-color: #1e1e2f;
+            color: #ffffff;
+            font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px;
+        }
+        .container {
+            display: flex;
+            gap: 40px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .card {
+            background: #2a2a3f;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            width: 150px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        canvas {
+            background: #1e1e2f;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        h2 { font-size: 16px; margin: 0 0 5px 0; color: #facc15; }
+        p { font-size: 12px; margin: 0; color: #a1a1aa; }
+    </style>
+</head>
+<body>
+    <h1>Lutfen Bir Tasarim Secin</h1>
+    <p style="margin-bottom: 40px; font-size:16px;">Oyun icinde kirmizi balonlar bu sekilde gorunecektir.</p>
+    
+    <div class="container">
+        <!-- Tasarim 1 -->
+        <div class="card">
+            <canvas id="c1" width="100" height="100"></canvas>
+            <h2>1. Modern Flat</h2>
+            <p>Sade, gogsusuz, net.</p>
+        </div>
+        
+        <!-- Tasarim 2 -->
+        <div class="card">
+            <canvas id="c2" width="100" height="100"></canvas>
+            <h2>2. Neumorphic</h2>
+            <p>Yumusak ic golge, modern.</p>
+        </div>
+        
+        <!-- Tasarim 3 -->
+        <div class="card">
+            <canvas id="c3" width="100" height="100"></canvas>
+            <h2>3. Neon Outline</h2>
+            <p>Karanlik ici bos, parlak cizgi.</p>
+        </div>
+        
+        <!-- Tasarim 4 -->
+        <div class="card">
+            <canvas id="c4" width="100" height="100"></canvas>
+            <h2>4. Orijinal Jole</h2>
+            <p>Eski balon gibi ama sekizgen.</p>
+        </div>
+        
+        <!-- Tasarim 5 -->
+        <div class="card">
+            <canvas id="c5" width="100" height="100"></canvas>
+            <h2>5. Matte 3D</h2>
+            <p>Hafif degrade, goz yormaz.</p>
+        </div>
+    </div>
+
+    <script>
+        function pathOctagon(ctx, x, y, r) {
+            const numSides = 8;
+            ctx.beginPath();
+            const offset = Math.PI / 8;
+            for (let i = 0; i < numSides; i++) {
+                const angle = (Math.PI * 2 * i) / numSides + offset;
+                const px = x + r * Math.cos(angle);
+                const py = y + r * Math.sin(angle);
+                if (i === 0) ctx.moveTo(px, py);
+                else ctx.lineTo(px, py);
+            }
+            ctx.closePath();
+        }
+
+        const color = { light: '#FCA5A5', main: '#EF4444', dark: '#B91C1C' }; // Red
+
+        // 1. Modern Flat
+        const ctx1 = document.getElementById('c1').getContext('2d');
+        ctx1.fillStyle = color.main;
+        pathOctagon(ctx1, 50, 50, 40);
+        ctx1.fill();
+
+        // 2. Neumorphic
+        const ctx2 = document.getElementById('c2').getContext('2d');
+        // Base
+        ctx2.fillStyle = color.main;
+        pathOctagon(ctx2, 50, 50, 40);
+        ctx2.fill();
+        // Inner shadow top
+        const gradTop = ctx2.createLinearGradient(50, 10, 50, 50);
+        gradTop.addColorStop(0, 'rgba(0,0,0,0.5)');
+        gradTop.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx2.fillStyle = gradTop;
+        pathOctagon(ctx2, 50, 50, 40);
+        ctx2.fill();
+        // Inner light bottom
+        const gradBot = ctx2.createLinearGradient(50, 50, 50, 90);
+        gradBot.addColorStop(0, 'rgba(255,255,255,0)');
+        gradBot.addColorStop(1, 'rgba(255,255,255,0.4)');
+        ctx2.fillStyle = gradBot;
+        pathOctagon(ctx2, 50, 50, 40);
+        ctx2.fill();
+
+        // 3. Neon Outline
+        const ctx3 = document.getElementById('c3').getContext('2d');
+        ctx3.shadowBlur = 12;
+        ctx3.shadowColor = color.main;
+        ctx3.strokeStyle = color.light;
+        ctx3.lineWidth = 4;
+        pathOctagon(ctx3, 50, 50, 36);
+        ctx3.stroke();
+        ctx3.shadowBlur = 0;
+        ctx3.strokeStyle = '#fff';
+        ctx3.lineWidth = 1.5;
+        pathOctagon(ctx3, 50, 50, 36);
+        ctx3.stroke();
+
+        // 4. Orijinal Jole (Radial)
+        const ctx4 = document.getElementById('c4').getContext('2d');
+        const rGrad = ctx4.createRadialGradient(40, 40, 5, 50, 50, 40);
+        rGrad.addColorStop(0, color.light);
+        rGrad.addColorStop(0.5, color.main);
+        rGrad.addColorStop(1, color.dark);
+        ctx4.fillStyle = rGrad;
+        pathOctagon(ctx4, 50, 50, 40);
+        ctx4.fill();
+        // Highlight
+        ctx4.fillStyle = 'rgba(255,255,255,0.6)';
+        ctx4.beginPath();
+        ctx4.ellipse(40, 30, 18, 8, -Math.PI/8, 0, Math.PI*2);
+        ctx4.fill();
+
+        // 5. Matte 3D
+        const ctx5 = document.getElementById('c5').getContext('2d');
+        const lGrad = ctx5.createLinearGradient(50, 10, 50, 90);
+        lGrad.addColorStop(0, color.light);
+        lGrad.addColorStop(1, color.dark);
+        ctx5.fillStyle = lGrad;
+        pathOctagon(ctx5, 50, 50, 40);
+        ctx5.fill();
+        ctx5.strokeStyle = 'rgba(0,0,0,0.2)';
+        ctx5.lineWidth = 2;
+        pathOctagon(ctx5, 50, 50, 40);
+        ctx5.stroke();
+    </script>
+</body>
+</html>

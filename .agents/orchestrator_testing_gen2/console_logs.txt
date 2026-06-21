@@ -1,0 +1,18 @@
+[2026-06-16T05:24:07.034Z] Launching Puppeteer...
+[2026-06-16T05:24:08.310Z] Navigating to http://localhost:5173/#/menu
+[2026-06-16T05:24:13.361Z] [PAGE-CONSOLE] [debug] [vite] connecting...
+[2026-06-16T05:24:13.474Z] [PAGE-CONSOLE] [debug] [vite] connected.
+[2026-06-16T05:24:13.772Z] [PAGE-CONSOLE] [debug] [vite] connecting...
+[2026-06-16T05:24:13.800Z] [PAGE-CONSOLE] [error] Failed to load resource: the server responded with a status of 500 (Internal Server Error)
+[2026-06-16T05:24:13.801Z] [PAGE-REQUESTFAILED] http://localhost:5173/src/screens/matchMode.js?t=1781587341942 - net::ERR_ABORTED
+[2026-06-16T05:24:13.821Z] [PAGE-CONSOLE] [debug] [vite] connected.
+[2026-06-16T05:24:17.006Z] [PAGE-CONSOLE] [warn] The resource http://localhost:5173/foxstudio.png was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+[2026-06-16T05:24:17.006Z] [PAGE-CONSOLE] [warn] The resource http://localhost:5173/logo.jpg was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+[2026-06-16T05:24:28.821Z] [ERROR DURING TESTS] TimeoutError: Waiting for selector `main` failed
+[2026-06-16T05:24:28.824Z] [PAGE HTML ON ERROR] 
+    <div id="app" class="w-full min-h-screen flex flex-col items-center justify-start overflow-y-auto no-scrollbar"></div>
+    <script type="module" src="/src/main.js?t=1781587345455"></script>
+  
+
+<vite-error-overlay></vite-error-overlay>
+[2026-06-16T05:24:28.824Z] Closing browser...
