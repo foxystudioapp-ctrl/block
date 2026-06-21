@@ -58,36 +58,55 @@ jobs:
         run: npx cap sync ios
 
       - name: Build and Archive
+        env:
+          BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
         run: |
-          cd ios/App
-          xcodebuild archive \
-            -project App.xcodeproj \
-            -scheme App \
-            -archivePath $RUNNER_TEMP/App.xcarchive \
-            -allowProvisioningUpdates \
-            -configuration Release
-
-      - name: Export IPA
-        run: |
-          cd ios/App
-          cat <<EOF > ExportOptions.plist
+          # Extract Team ID and Profile UUID from Provisioning Profile
+          PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
+          UUID=$(/usr/libexec/PlistBuddy -c "Print UUID" /dev/stdin <<< $(security cms -D -i $PP_PATH))
+          TEAM_ID=$(/usr/libexec/PlistBuddy -c "Print TeamIdentifier:0" /dev/stdin <<< $(security cms -D -i $PP_PATH))
+          
+          # Auto-increment Build Number
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $GITHUB_RUN_NUMBER" ios/App/App/Info.plist
+          
+          # Create ExportOptions.plist
+          cat <<EOF > $RUNNER_TEMP/ExportOptions.plist
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
           <dict>
               <key>method</key>
               <string>app-store</string>
-              <key>uploadSymbols</key>
-              <true/>
-              <key>uploadBitcode</key>
-              <false/>
+              <key>teamID</key>
+              <string>$TEAM_ID</string>
+              <key>signingStyle</key>
+              <string>manual</string>
+              <key>provisioningProfiles</key>
+              <dict>
+                  <key>com.askar.blockblast</key>
+                  <string>$UUID</string>
+              </dict>
           </dict>
           </plist>
           EOF
           
+          cd ios/App
+          xcodebuild archive \
+            -project App.xcodeproj \
+            -scheme App \
+            -archivePath $RUNNER_TEMP/App.xcarchive \
+            -configuration Release \
+            DEVELOPMENT_TEAM="$TEAM_ID" \
+            PROVISIONING_PROFILE_SPECIFIER="$UUID" \
+            CODE_SIGN_STYLE="Manual" \
+            CODE_SIGN_IDENTITY="Apple Distribution"
+
+      - name: Export IPA
+        run: |
+          cd ios/App
           xcodebuild -exportArchive \
             -archivePath $RUNNER_TEMP/App.xcarchive \
-            -exportOptionsPlist ExportOptions.plist \
+            -exportOptionsPlist $RUNNER_TEMP/ExportOptions.plist \
             -exportPath $RUNNER_TEMP/export \
             -allowProvisioningUpdates
 
