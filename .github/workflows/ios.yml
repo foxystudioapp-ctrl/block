@@ -121,5 +121,9 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APP_PASSWORD: ${{ secrets.APP_SPECIFIC_PASSWORD }}
         run: |
+          # Boşluk ve alt satır karakterlerini temizle (kopyalama hatalarına karşı)
+          CLEAN_APPLE_ID=$(echo "$APPLE_ID" | tr -d '[:space:]')
+          CLEAN_APP_PASSWORD=$(echo "$APP_PASSWORD" | tr -d '[:space:]')
+          
           echo "TestFlight'a yükleniyor..."
-          xcrun altool --upload-app -f $RUNNER_TEMP/export/*.ipa -t ios -u "$APPLE_ID" -p "$APP_PASSWORD"
+          xcrun altool --upload-app -f $RUNNER_TEMP/export/*.ipa -t ios -u "$CLEAN_APPLE_ID" -p "$CLEAN_APP_PASSWORD"
