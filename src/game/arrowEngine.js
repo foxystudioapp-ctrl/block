@@ -258,7 +258,7 @@ export class ArrowEngine {
   saveState() {
     if (this.win || this.fail) { this.clearSave(); return; }
     try {
-      Storage.set('arrow_save', {
+      Storage.setDebounced('arrow_save', {
         level: this.level,
         rows: this.rows, cols: this.cols,
         grid: this.grid, wall: this.wall,

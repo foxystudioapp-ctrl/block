@@ -5,6 +5,7 @@
 import { Storage } from '../utils/storage.js';
 import { PlayerState } from '../state/playerState.js';
 import { getLevelData } from './matchLevels.js';
+import { debouncedSetItem } from '../utils/persist.js';
 
 export class MatchEngine {
   constructor(mode = 'endless', level = 1) {
@@ -48,7 +49,7 @@ export class MatchEngine {
       score: this.score,
       levelScore: this.levelScore
     };
-    localStorage.setItem(saveKey, JSON.stringify(state));
+    debouncedSetItem(saveKey, JSON.stringify(state));
   }
 
   loadState() {
@@ -58,12 +59,17 @@ export class MatchEngine {
     if (!saved) return false;
     try {
       const state = JSON.parse(saved);
-      this.level = state.level || 1;
-      this.score = state.score || 0;
-      this.levelScore = state.levelScore || 0;
-      // Recalculate target
-      this.targetScore = 2000 + (this.level - 1) * 1000;
-      return false; // Return false to force init() to run and rebuild the grid
+      // ÖNEMLİ: Oynanacak seviyenin tek doğru kaynağı ekrandır (constructor'a
+      // geçilen `level`). Kayıtlı seviye, ekranın seçtiği seviyeyle AYNIYSA
+      // skor sürekliliğini geri yükle; FARKLIYSA (haritadan başka seviye
+      // seçildiyse) kaydı yok say. Eskiden `this.level = state.level` ile kayıt,
+      // seçilen seviyeyi eziyordu (örn. harita L12 derken L5 oynanıyordu).
+      if (state.level === this.level) {
+        this.score = state.score || 0;
+        this.levelScore = state.levelScore || 0;
+        this.targetScore = 2000 + (this.level - 1) * 1000;
+      }
+      return false; // Her durumda init() çalışsın ve tahtayı yeniden kursun
     } catch(e) {
       return false;
     }
@@ -171,7 +177,15 @@ export class MatchEngine {
     const gemType = this.gemColorMap[color];
     const target = this.gemTargets.find(g => g.type === gemType);
     if (!target) return false;
-    return Math.random() < 0.30;
+    // Tamamlanmış hedef için artık gem üretme (israf engeli). Çoklu-gem
+    // seviyelerinde bu, tamamlanmamış renge doğal yönlendirme sağlar: biten
+    // rengin hücreleri normale döner, tahta eşleştirme için açılır.
+    if (target.collected >= target.required) return false;
+    // Taban spawn oranı 0.30 -> 0.50. Eski oran tahtanın yalnızca ~%6'sında
+    // (renk eşleşmesi x %30) gem bırakıyordu; hedefler 55 hamlede toplanamıyordu.
+    // Hedefe son 3 gem kala oranı yükselt ki "son birkaç gem" duvarı oluşmasın.
+    const remaining = target.required - target.collected;
+    return Math.random() < (remaining <= 3 ? 0.62 : 0.50);
   }
 
   _removeInitialMatches() {
@@ -213,6 +227,7 @@ export class MatchEngine {
     // Rainbow swap
     if (a.type === 'rainbow' || b.type === 'rainbow') {
       this.movesLeft--;
+      this.comboCount = 0; // yeni hamle: combo zincirini sıfırla (sonraki cascade temiz başlasın)
       const result = this._executeRainbow(r1, c1, r2, c2);
       return { valid: true, rainbow: true, blasted: result.blasted, specials: [] };
     }
@@ -220,6 +235,7 @@ export class MatchEngine {
     // Special + Special combo
     if (a.type !== 'normal' && b.type !== 'normal') {
       this.movesLeft--;
+      this.comboCount = 0; // yeni hamle: combo zincirini sıfırla
       const result = this._executeSpecialCombo(r1, c1, r2, c2);
       return { valid: true, specialCombo: true, blasted: result.blasted, specials: [] };
     }
@@ -472,6 +488,20 @@ export class MatchEngine {
     this.gameOver = false;
     this.movesLeft += 5;
     this.maxMoves = Math.max(this.maxMoves, this.movesLeft);
+  }
+
+  // Çekiç booster'ı: tek bir hücreyi (normal/özel blok veya tuğla/kafes engeli) kaldırır.
+  // Hamle harcamaz (ücretli booster). Animasyon için patlatılan hücreyi döndürür; çağıran
+  // executeFalls()+cascade akışını çalıştırır. Geçersiz hedefte null döner.
+  useHammer(r, c) {
+    if (this.gameOver) return null;
+    if (r < 0 || r >= this.rows || c < 0 || c >= this.cols) return null;
+    const cell = this.grid[r][c];
+    if (!cell) return null;
+    if (cell.gem) this._collectGem(cell.gem);
+    const blasted = [{ r, c, cell: { ...cell } }];
+    this.grid[r][c] = null;
+    return { blasted };
   }
 
   addScore(pts) {

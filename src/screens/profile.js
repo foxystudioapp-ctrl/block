@@ -13,6 +13,9 @@ import { initSwipeNavigation } from '../utils/swipeNav.js';
 import { FriendService } from '../services/friendService.js';
 import { MultiplayerService } from '../services/multiplayerService.js';
 import { Toast } from '../components/toast.js';
+import { AdService } from '../services/adService.js';
+import { IAP } from '../services/iapService.js';
+import { linkAccountWithGoogle, recoverAccountWithGoogle } from '../services/firebaseSetup.js';
 
 export function Profile(router) {
   const container = document.createElement('div');
@@ -23,6 +26,73 @@ export function Profile(router) {
 
   const content = document.createElement('main');
   content.className = 'flex-1 overflow-y-auto px-4 py-4 space-y-6 no-scrollbar relative z-10';
+
+  // VIP Pass Section
+  const vipSection = document.createElement('div');
+  vipSection.className = 'w-full mb-2';
+
+  const renderVipCard = () => {
+    const vipPackage = IAP.packages.find(p => p.product.identifier.includes('vip'));
+    const isVipActive = PlayerState.state.isVip;
+    
+    vipSection.innerHTML = `
+      <div id="vip-card-container" class="p-5 rounded-3xl shadow-xl border-2 flex flex-col justify-between items-center transition-all cursor-pointer relative overflow-hidden mb-4 ${isVipActive ? 'bg-gradient-to-br from-green-500 to-emerald-700 border-green-400' : 'bg-gradient-to-br from-amber-400 to-orange-600 border-amber-300 active:scale-[0.98]'}">
+        <div class="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPgo8cmVjdCB3aWR0aD0iOCIgaGVpZ2h0PSI4IiBmaWxsPSIjZmZmIiBmaWxsLW9wYWNpdHk9IjAuMSIvPgo8L3N2Zz4=')] opacity-20 pointer-events-none"></div>
+        <div class="flex items-center gap-3 w-full mb-3 z-10">
+          <div class="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center text-2xl shadow-inner backdrop-blur-sm">👑</div>
+          <div class="flex flex-col text-white drop-shadow-md flex-1">
+            <span class="font-black text-xl tracking-wide uppercase">${t('vip_pass_title') || 'VIP PASS'}</span>
+            ${isVipActive 
+              ? `<span class="text-sm font-medium text-white/90 mt-1">${t('vip_active') || 'Aboneliğiniz Aktif'}</span>`
+              : `<div class="flex flex-col gap-1 mt-1">
+                   <span class="text-sm font-medium text-white/90 flex items-center gap-1.5"><span class="material-symbols-outlined text-[16px]">block</span> ${t('vip_desc_no_ads') || 'Reklamları Kaldır'}</span>
+                   <span class="text-sm font-medium text-white/90 flex items-center gap-1.5"><span class="material-symbols-outlined text-[16px] fill">diamond</span> ${t('vip_desc_diamonds') || 'Her Ay 5000 Elmas'}</span>
+                 </div>`
+            }
+          </div>
+        </div>
+        ${!isVipActive ? `
+        <button class="w-full bg-white text-orange-600 font-black py-3 px-6 rounded-xl shadow-lg hover:bg-gray-50 transition-colors z-10 mt-1">
+          ${vipPackage ? vipPackage.product.priceString : (t('btn_buy') || 'Satın Al')}
+        </button>
+        ` : `
+        <div class="w-full bg-white/20 text-white font-black py-3 px-6 rounded-xl shadow-inner text-center z-10 mt-1 backdrop-blur-sm">
+          ${t('vip_enjoy') || 'VIP Ayrıcalıklarının Tadını Çıkarın!'}
+        </div>
+        `}
+      </div>
+    `;
+
+    if (!isVipActive) {
+      const card = vipSection.querySelector('#vip-card-container');
+      card.addEventListener('click', async () => {
+        Sounds.playSfx('button-tap');
+        if (vipPackage && IAP.isInitialized) {
+          Toast.show('Mağaza ile bağlantı kuruluyor...', 'info');
+          await IAP.purchasePackage(vipPackage);
+          if (PlayerState.state.isVip) renderVipCard();
+        } else {
+          // Web Modu Test
+          PlayerState.state.isVip = true;
+          PlayerState.addDiamonds(5000);
+          PlayerState.state.lastVipRewardTime = Date.now();
+          PlayerState.save();
+          Toast.show('👑 VIP Aktifleşti! (TEST) +5000 Elmas', 'success');
+          renderVipCard();
+          
+          // Header update
+          const header = document.querySelector('header');
+          if (header) {
+            const diamondSpan = header.querySelector('.text-cyan-400.font-black');
+            if (diamondSpan) diamondSpan.textContent = PlayerState.state.diamonds.toLocaleString();
+          }
+        }
+      });
+    }
+  };
+  
+  renderVipCard();
+  content.appendChild(vipSection);
 
   // 0. Diamond Purchase Section
   const buyDiamondsSection = document.createElement('div');
@@ -81,9 +151,7 @@ export function Profile(router) {
     if (btnWatchAd && isAdAvailable) {
       btnWatchAd.addEventListener('click', async () => {
         Sounds.playSfx('button-tap');
-        const m = await import('../services/adService.js');
-        // Kullanıcının isteği üzerine tam ekran geçiş reklamı (interstitial) çağrılıyor
-        const success = await m.AdService.showInterstitial();
+        const success = await AdService.showRewardVideoAd();
         if (success) {
           PlayerState.addDiamonds(200);
           Storage.set('ad_diamonds_count', adCount + 1);
@@ -132,17 +200,19 @@ export function Profile(router) {
     <div class="absolute -top-10 -right-10 w-32 h-32 bg-secondary/10 rounded-full blur-2xl"></div>
     <div class="absolute -bottom-10 -left-10 w-32 h-32 bg-accent-cyan/10 rounded-full blur-2xl"></div>
     
-    <div class="relative w-24 h-24 mb-4 cursor-pointer active:scale-95 transition-transform" id="avatar-container">
-      <img id="profile-avatar" src="" class="w-full h-full rounded-full border-4 border-white dark:border-primary-container shadow-xl bg-white/10" style="object-fit: cover;" />
+    <div class="relative w-24 h-24 mb-4 cursor-pointer active:scale-95 transition-transform ${PlayerState.state.isVip ? 'premium-avatar-frame' : ''}" id="avatar-container">
+      <img loading="lazy" decoding="async" id="profile-avatar" src="" class="w-full h-full rounded-full ${PlayerState.state.isVip ? '' : 'border-4 border-white dark:border-primary-container'} shadow-xl bg-white/10" style="object-fit: cover;" />
       <div class="absolute -bottom-2 -right-2 w-8 h-8 bg-gradient-to-br from-yellow-400 to-amber-600 rounded-full flex items-center justify-center border-2 border-white dark:border-primary-container shadow-md z-10">
         <span class="text-white text-xs font-black">${PlayerState.state.level}</span>
       </div>
       <div class="absolute top-0 right-0 w-6 h-6 bg-white dark:bg-primary-container rounded-full flex items-center justify-center shadow-md border border-gray-200 dark:border-gray-700">
         <span class="material-symbols-outlined text-[14px] text-gray-500">edit</span>
       </div>
+      ${PlayerState.state.isVip ? '<div class="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-yellow-400 to-yellow-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-md border border-yellow-200 z-20 whitespace-nowrap">VIP</div>' : ''}
     </div>
     
     <h2 class="text-2xl font-black tracking-tight mb-1 cursor-pointer hover:opacity-80 transition-opacity flex items-center gap-1" id="profile-name-edit">
+      ${PlayerState.state.isVip ? '<span class="text-2xl" title="VIP Üye">👑</span>' : ''}
       <span id="profile-name-display">${PlayerState.state.profileName}</span>
       <span class="material-symbols-outlined text-sm text-gray-400">edit</span>
     </h2>
@@ -439,16 +509,14 @@ export function Profile(router) {
       `;
 
       accountCard.querySelector('#btn-link-google').onclick = () => {
-        import('../components/toast.js').then(({ Toast }) => Toast.show(t('connecting') || 'Bağlanıyor...', 'info'));
-        import('../services/firebaseSetup.js').then(({ linkAccountWithGoogle }) => {
-          linkAccountWithGoogle().then(res => {
-            if (res.success) {
-              import('../components/toast.js').then(({ Toast }) => Toast.show(t('google_linked_success') || "Hesap başarıyla Google'a bağlandı!", 'success'));
-              renderAccountCard();
-            } else {
-              import('../components/toast.js').then(({ Toast }) => Toast.show(res.msg, 'error'));
-            }
-          });
+        Toast.show(t('connecting') || 'Bağlanıyor...', 'info');
+        linkAccountWithGoogle().then(res => {
+          if (res.success) {
+            Toast.show(t('google_linked_success') || "Hesap başarıyla Google'a bağlandı!", 'success');
+            renderAccountCard();
+          } else {
+            Toast.show(res.msg, 'error');
+          }
         });
       };
     }
@@ -496,9 +564,7 @@ export function Profile(router) {
     myCodeCard.querySelector('#btn-copy-code').onclick = () => {
       if (!PlayerState.state.friendCode || PlayerState.state.firebaseError) return;
       navigator.clipboard.writeText(PlayerState.state.friendCode || '');
-      import('../components/toast.js').then(({ Toast }) => {
-        Toast.show(t('code_copied') || 'Kod Kopyalandı!', 'success');
-      });
+      Toast.show(t('code_copied') || 'Kod Kopyalandı!', 'success');
     };
   };
 
@@ -528,6 +594,15 @@ export function Profile(router) {
   friendsListContainer.className = 'w-full flex flex-col gap-2 pb-8';
   friendsSection.appendChild(friendsListContainer);
 
+  // --- Presence dinleyici yönetimi (RTDB sızıntısını önler) ---
+  // Her render'da açılan onValue dinleyicilerini topla; yeniden render'dan
+  // ÖNCE ve ekran kapanırken hepsini kapat.
+  const presenceUnsubs = [];
+  const clearPresence = () => {
+    presenceUnsubs.forEach(u => { try { u && u(); } catch (_) {} });
+    presenceUnsubs.length = 0;
+  };
+
   const renderRequests = () => {
     const requests = PlayerState.state.friendRequests || [];
     requestsContainer.innerHTML = '';
@@ -545,7 +620,7 @@ export function Profile(router) {
       
       el.innerHTML = `
         <div class="flex items-center gap-2">
-          <img src="/avatars/${req.senderAvatar || 'akita'}.png" onerror="this.src='/avatars/akita.png'" class="w-8 h-8 rounded-full border border-secondary/50 bg-white/10" />
+          <img loading="lazy" decoding="async" src="/avatars/${req.senderAvatar || 'akita'}.png" onerror="this.src='/avatars/akita.png'" class="w-8 h-8 rounded-full border border-secondary/50 bg-white/10" />
           <div class="flex flex-col">
             <span class="text-xs font-bold text-primary dark:text-white leading-none">${req.senderName}</span>
             <span class="text-[9px] font-black text-secondary tracking-widest mt-0.5">${t('level_abbr') || 'Sv.'} ${req.senderLevel || 1}</span>
@@ -562,122 +637,215 @@ export function Profile(router) {
       `;
 
       el.querySelector('.btn-accept').onclick = () => {
+        if (el.dataset.busy) return;       // çift-tık koruması
+        el.dataset.busy = '1';
         el.style.opacity = '0.5';
         el.style.pointerEvents = 'none';
         FriendService.acceptFriendRequest(req.senderUid).then(res => {
-          if (res.success) {
-            import('../components/toast.js').then(({ Toast }) => Toast.show(t('request_accepted') || 'İstek kabul edildi!', 'success'));
-            renderFriendsList();
+          if (res && res.success) {
+            Toast.show(t('request_accepted') || 'İstek kabul edildi!', 'success');
+            // Canlı dinleyici listeyi otomatik günceller — manuel fetch yok.
+          } else {
+            // Başarısız: butonu geri aç + bilgilendir (aksi halde kilitli kalırdı)
+            delete el.dataset.busy;
+            el.style.opacity = '1';
+            el.style.pointerEvents = 'auto';
+            Toast.show(t('action_failed') || 'İşlem başarısız. Tekrar deneyin.', 'error');
           }
+        }).catch(() => {
+          delete el.dataset.busy;
+          el.style.opacity = '1';
+          el.style.pointerEvents = 'auto';
+          Toast.show(t('action_failed') || 'İşlem başarısız. Tekrar deneyin.', 'error');
         });
       };
 
       el.querySelector('.btn-reject').onclick = () => {
+        if (el.dataset.busy) return;
+        el.dataset.busy = '1';
         el.style.opacity = '0.5';
         el.style.pointerEvents = 'none';
-        FriendService.rejectFriendRequest(req.senderUid);
+        FriendService.rejectFriendRequest(req.senderUid).then(res => {
+          if (!res || !res.success) {
+            delete el.dataset.busy;
+            el.style.opacity = '1';
+            el.style.pointerEvents = 'auto';
+            Toast.show(t('action_failed') || 'İşlem başarısız. Tekrar deneyin.', 'error');
+          }
+        }).catch(() => {
+          delete el.dataset.busy;
+          el.style.opacity = '1';
+          el.style.pointerEvents = 'auto';
+        });
       };
 
       requestsContainer.appendChild(el);
     });
   };
 
-  // Listen for changes in requests
+  // Listen for changes in requests AND friends (canlı state — main.js'teki
+  // birleşik dinleyici PlayerState'i güncelledikçe ekran otomatik tazelenir).
   const unsubscribeRequests = PlayerState.subscribe(() => {
     renderRequests();
+    drawFriends(PlayerState.state.friends || []);
   });
   const ogCleanup2 = container.cleanup;
   container.cleanup = () => {
     unsubscribeRequests();
+    clearPresence();              // açık kalan tüm presence dinleyicilerini kapat
     if (ogCleanup2) ogCleanup2();
   };
 
   // Render initially
   renderRequests();
 
-  const renderFriendsList = async () => {
-    friendsListContainer.innerHTML = `
-      <div class="w-full flex justify-center py-4">
-        <span class="material-symbols-outlined animate-spin text-secondary">autorenew</span>
-      </div>
-    `;
+  // Tek bir arkadaş listesini DOM'a çizer (ağ çağrısı YAPMAZ).
+  const drawFriends = (friends) => {
+    clearPresence(); // önceki render'ın presence dinleyicilerini kapat
 
-    try {
-      const friends = await FriendService.getFriendsList();
-      
-      if (friends.length === 0) {
-        friendsListContainer.innerHTML = `
-          <div class="w-full text-center p-6 bg-black/5 dark:bg-white/5 rounded-2xl flex flex-col items-center gap-2">
-            <span class="material-symbols-outlined text-3xl text-gray-400">group_off</span>
-            <p class="text-xs font-medium text-gray-500">${t('no_friends_yet') || 'Henüz arkadaşın yok.'}</p>
+    if (!friends || friends.length === 0) {
+      friendsListContainer.innerHTML = `
+        <div class="w-full text-center p-6 bg-black/5 dark:bg-white/5 rounded-2xl flex flex-col items-center gap-2">
+          <span class="material-symbols-outlined text-3xl text-gray-400">group_off</span>
+          <p class="text-xs font-medium text-gray-500">${t('no_friends_yet') || 'Henüz arkadaşın yok.'}</p>
+        </div>
+      `;
+      return;
+    }
+
+    friendsListContainer.innerHTML = '';
+    friends.forEach((friend) => {
+      const item = document.createElement('div');
+      item.className = 'glass-panel p-3 rounded-2xl flex items-center justify-between ring-1 ring-black/5 dark:ring-white/10 relative overflow-hidden';
+
+      const presenceDotId = 'profile-presence-' + friend.uid;
+
+      item.innerHTML = `
+        <div class="flex items-center gap-3">
+          <div class="relative">
+            <img loading="lazy" decoding="async" src="/avatars/${friend.avatar}.png" onerror="this.src='/avatars/akita.png'" class="w-12 h-12 rounded-full border-2 border-white dark:border-primary shadow-sm" />
+            <div id="${presenceDotId}" class="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-primary bg-gray-400 transition-colors duration-300"></div>
           </div>
-        `;
-        return;
-      }
-
-      friendsListContainer.innerHTML = '';
-      friends.forEach((friend) => {
-        const item = document.createElement('div');
-        item.className = 'glass-panel p-3 rounded-2xl flex items-center justify-between ring-1 ring-black/5 dark:ring-white/10 relative overflow-hidden';
-        
-        const presenceDotId = 'profile-presence-' + friend.uid;
-
-        item.innerHTML = `
-          <div class="flex items-center gap-3">
-            <div class="relative">
-              <img src="/avatars/${friend.avatar}.png" onerror="this.src='/avatars/akita.png'" class="w-12 h-12 rounded-full border-2 border-white dark:border-primary shadow-sm" />
-              <div id="${presenceDotId}" class="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-primary bg-gray-400 transition-colors duration-300"></div>
-            </div>
-            <div class="flex flex-col">
-              <span class="font-black text-sm text-primary dark:text-white leading-tight">${friend.name}</span>
-              <span class="text-[10px] font-bold text-gray-500">${t('level')} ${friend.level}</span>
-            </div>
+          <div class="flex flex-col">
+            <span class="font-black text-sm text-primary dark:text-white leading-tight">${friend.name}</span>
+            <span class="text-[10px] font-bold text-gray-500">${t('level')} ${friend.level}</span>
           </div>
-          <button class="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-400 to-blue-500 text-white shadow-md shadow-cyan-500/20 flex items-center justify-center hover:scale-110 active:scale-95 transition-all" id="duel-btn-${friend.uid}">
+        </div>
+        <div class="flex items-center gap-2">
+          <button class="remove-friend-btn w-9 h-9 rounded-full bg-black/5 dark:bg-white/10 text-gray-400 hover:text-red-500 hover:bg-red-500/10 flex items-center justify-center active:scale-95 transition-all">
+            <span class="material-symbols-outlined text-sm">person_remove</span>
+          </button>
+          <button class="duel-friend-btn w-10 h-10 rounded-full bg-gradient-to-br from-cyan-400 to-blue-500 text-white shadow-md shadow-cyan-500/20 flex items-center justify-center hover:scale-110 active:scale-95 transition-all">
             <span class="material-symbols-outlined text-sm">swords</span>
           </button>
-        `;
+        </div>
+      `;
 
-        FriendService.listenToPresence(friend.uid, (status) => {
-          const dot = item.querySelector('#' + presenceDotId);
-          if (dot) {
-            dot.className = 'absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-primary transition-colors duration-300';
-            if (status.state === 'online') dot.classList.add('bg-green-500');
-            else if (status.state === 'playing') dot.classList.add('bg-orange-500');
-            else dot.classList.add('bg-gray-400');
-          }
-        });
+      // Presence dinleyicisi — dönen unsubscribe SAKLANIR (sızıntı yok).
+      const unsub = FriendService.listenToPresence(friend.uid, (status) => {
+        const dot = item.querySelector('#' + presenceDotId);
+        if (dot) {
+          dot.className = 'absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-primary transition-colors duration-300';
+          if (status.state === 'online') dot.classList.add('bg-green-500');
+          else if (status.state === 'playing') dot.classList.add('bg-orange-500');
+          else dot.classList.add('bg-gray-400');
+        }
+      });
+      presenceUnsubs.push(unsub);
 
-        item.querySelector(`#duel-btn-${friend.uid}`).onclick = async () => {
+      // Düello — await süresince disable + try/catch (çoklu challenge önlenir).
+      const duelBtn = item.querySelector('.duel-friend-btn');
+      duelBtn.onclick = async () => {
+        if (duelBtn.disabled) return;
+        duelBtn.disabled = true;
+        duelBtn.style.opacity = '0.6';
+        try {
           const roomId = await MultiplayerService.sendChallenge(friend.uid);
           if (roomId) {
-            import('../utils/storage.js').then(({ Storage }) => {
-              Storage.set('duel_multiplayer', true);
-              Storage.set('duel_multiplayer_action', 'create');
-              Storage.set('duel_room_code', roomId);
-              router.navigate('#/duel');
-            });
+            Storage.set('duel_multiplayer', true);
+            Storage.set('duel_multiplayer_action', 'create');
+            Storage.set('duel_room_code', roomId);
+            router.navigate('#/duel');
+          } else {
+            duelBtn.disabled = false;
+            duelBtn.style.opacity = '1';
+            Toast.show(t('challenge_failed') || 'Meydan okuma gönderilemedi.', 'error');
+          }
+        } catch (e) {
+          duelBtn.disabled = false;
+          duelBtn.style.opacity = '1';
+          Toast.show(t('challenge_failed') || 'Meydan okuma gönderilemedi.', 'error');
+        }
+      };
+
+      // Arkadaşlıktan çıkar / engelle — onay modalı + optimistic UI.
+      const removeBtn = item.querySelector('.remove-friend-btn');
+      removeBtn.onclick = () => {
+        // Optimistic kaldırma + servis çağrısı ortak yardımcı.
+        const optimisticRemoveThen = async (serviceCall, okMsg) => {
+          const next = (PlayerState.state.friends || []).filter(f => f.uid !== friend.uid);
+          PlayerState.state.friends = next;
+          PlayerState.save();
+          drawFriends(next);
+          const res = await serviceCall();
+          if (res && res.success) {
+            Toast.show(okMsg, 'success');
+          } else {
+            Toast.show(t('action_failed') || 'İşlem başarısız. Tekrar deneyin.', 'error');
+            drawFriends(PlayerState.state.friends || []); // canlı dinleyici reconcile eder
           }
         };
 
-        friendsListContainer.appendChild(item);
-      });
-    } catch (e) {
-      friendsListContainer.innerHTML = `
-        <div class="w-full text-center p-4 bg-red-500/10 text-red-500 rounded-2xl text-xs font-bold">
-          ${t('friend_list_error') || 'Arkadaş listesi yüklenemedi. (Bağlantı hatası)'}
-        </div>
-      `;
-    }
+        const confirmModal = createModal({
+          title: t('remove_friend') || 'Arkadaşı Çıkar',
+          content: `<p class="text-sm text-center text-gray-500 px-2 py-2">${
+            (t('remove_friend_confirm') || '{name} arkadaşlıktan çıkarılsın mı?').replace('{name}', friend.name)
+          }</p>`,
+          actions: [
+            { text: t('cancel') || 'İptal', onClick: (close) => close() },
+            {
+              text: t('block_user') || 'Engelle',
+              onClick: async (close) => {
+                close();
+                await optimisticRemoveThen(
+                  () => FriendService.blockUser(friend.uid),
+                  t('user_blocked') || 'Kullanıcı engellendi.'
+                );
+              }
+            },
+            {
+              text: t('remove') || 'Çıkar',
+              primary: true,
+              onClick: async (close) => {
+                close();
+                await optimisticRemoveThen(
+                  () => FriendService.removeFriend(friend.uid),
+                  t('friend_removed') || 'Arkadaş çıkarıldı.'
+                );
+              }
+            }
+          ]
+        });
+        document.body.appendChild(confirmModal);
+      };
+
+      friendsListContainer.appendChild(item);
+    });
+  };
+
+  // Arkadaş listesi artık main.js'teki BİRLEŞİK CANLI DİNLEYİCİ üzerinden
+  // PlayerState.state.friends'e canlı gelir. Bu ekran 0 ek okuma yapar; yalnızca
+  // state'ten çizer. (TTL/fetch mantığı kaldırıldı — dinleyici tek kaynak.)
+  const renderFriendsList = () => {
+    drawFriends(PlayerState.state.friends || []);
   };
 
   friendsHeader.querySelector('#btn-add-friend').onclick = () => {
     if (PlayerState.state.firebaseError) {
-      import('../components/toast.js').then(({ Toast }) => {
-        Toast.show(t('no_server_connection') || 'Sunucu Bağlantısı Yok (Anonim Girişi Açın)', 'error');
-      });
+      Toast.show(t('no_server_connection') || 'Sunucu Bağlantısı Yok (Anonim Girişi Açın)', 'error');
       return;
     }
+    let submitting = false; // çift-gönderim / çoklu Write koruması
     const modal = createModal({
       title: t('add_friend') || 'Arkadaş Ekle',
       content: `
@@ -692,19 +860,34 @@ export function Profile(router) {
           text: t('add_friend_btn') || 'Ekle', 
           primary: true, 
           onClick: (close) => {
+            if (submitting) return;            // çift-tık koruması
             const input = document.getElementById('friend-code-input');
             const code = input.value.toUpperCase();
             if (code.length === 6 || code.length === 7) {
+              submitting = true;
               FriendService.addFriend(code).then(res => {
-                import('../components/toast.js').then(({ Toast }) => {
                   if (res.success) {
-                    Toast.show(t('friend_added') || 'Arkadaş Eklendi!', 'success');
-                    renderFriendsList();
+                    // Kod ile ekleme artık İSTEK gönderir (rıza + simetri).
+                    // Karşı taraf zaten istek attıysa servis otomatik kabul eder.
+                    const msg = res.accepted
+                      ? (t('friend_added') || 'Arkadaş Eklendi!')
+                      : (t('friend_request_sent') || 'Arkadaşlık isteği gönderildi!');
+                    Toast.show(msg, 'success');
+                    // Liste/istek durumu canlı dinleyiciyle otomatik güncellenir.
                     close();
                   } else {
-                    Toast.show(res.msg, 'error');
+                    submitting = false;
+                    const errMap = {
+                      self: t('cannot_add_self') || 'Kendini ekleyemezsin.',
+                      not_found: t('player_not_found') || 'Oyuncu bulunamadı.',
+                      already_friends: t('already_friends') || 'Zaten arkadaşsınız!',
+                      blocked: t('user_is_blocked') || 'Bu kullanıcı engelli.'
+                    };
+                    Toast.show(errMap[res.msg] || (t('action_failed') || 'İşlem başarısız.'), 'error');
                   }
-                });
+              }).catch(() => {
+                submitting = false;
+                Toast.show(t('action_failed') || 'İşlem başarısız. Tekrar deneyin.', 'error');
               });
             } else {
               input.classList.add('animate-shake', 'border-red-500');
@@ -816,7 +999,7 @@ export function Profile(router) {
           
           previewContainer.innerHTML = `
             <div class="relative w-28 h-28 mb-2">
-              <img src="${getAvatarUrl(previewingAvatar.id)}" class="w-full h-full rounded-full border-4 border-white dark:border-primary shadow-xl ${!isUnlocked ? 'grayscale-[50%] opacity-80' : ''}" style="object-fit: cover;" />
+              <img loading="lazy" decoding="async" src="${getAvatarUrl(previewingAvatar.id)}" class="w-full h-full rounded-full border-4 border-white dark:border-primary shadow-xl ${!isUnlocked ? 'grayscale-[50%] opacity-80' : ''}" style="object-fit: cover;" />
               ${!isUnlocked ? `
               <div class="absolute -top-2 -right-2 bg-red-500 rounded-full w-8 h-8 flex items-center justify-center shadow-md border-2 border-white dark:border-gray-800">
                 <span class="material-symbols-outlined text-white text-[16px] font-bold">lock</span>
@@ -855,9 +1038,7 @@ export function Profile(router) {
                 const success = PlayerState.unlockAvatar(previewingAvatar.id, previewingAvatar.cost);
                 if (success) {
                   Sounds.playSfx('success');
-                  import('../components/toast.js').then(({ Toast }) => {
                     Toast.show(t('avatar_bought') || 'Avatar unlocked!', 'success');
-                  });
                   PlayerState.setAvatar(previewingAvatar.id);
                   Storage.set('player_avatar_seed', previewingAvatar.id);
                   avatarImg.src = getAvatarUrl(previewingAvatar.id);
@@ -868,9 +1049,7 @@ export function Profile(router) {
                 const btn = previewContainer.querySelector('#btn-preview-action');
                 btn.classList.add('animate-shake', 'bg-red-500');
                 setTimeout(() => btn.classList.remove('animate-shake', 'bg-red-500'), 400);
-                import('../components/toast.js').then(({ Toast }) => {
-                  Toast.show(t('insufficient_funds') || 'Yetersiz Elmas', 'error');
-                });
+                Toast.show(t('insufficient_funds') || 'Yetersiz Elmas', 'error');
               }
             }
           };
@@ -900,7 +1079,7 @@ export function Profile(router) {
         const wrapper = document.createElement('div');
         wrapper.className = `relative w-14 h-14 rounded-full p-1 cursor-pointer transition-all ${isSelected ? 'bg-cyan-500 scale-110 shadow-lg z-10' : 'bg-gray-100 dark:bg-gray-800 hover:scale-105'}`;
         
-        let innerHtml = `<img src="${getAvatarUrl(avatar.id)}" class="w-full h-full rounded-full ${!isUnlocked ? 'opacity-80 grayscale-[30%]' : ''}" style="object-fit: cover;" />`;
+        let innerHtml = `<img loading="lazy" decoding="async" src="${getAvatarUrl(avatar.id)}" class="w-full h-full rounded-full ${!isUnlocked ? 'opacity-80 grayscale-[30%]' : ''}" style="object-fit: cover;" />`;
         
         if (!isUnlocked) {
           innerHtml += `

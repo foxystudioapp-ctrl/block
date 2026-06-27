@@ -1,0 +1,48 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "rooms": {
+      "$roomId": {
+        ".read": "auth != null",
+        ".write": "auth != null",
+        "players": {
+          "$pid": {
+            "score": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000000"
+            }
+          }
+        }
+      }
+    },
+
+    "challenges": {
+      "$uid": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      }
+    },
+
+    "status": {
+      "$uid": {
+        ".read": "auth != null",
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    },
+
+    "leaderboards": {
+      "global": {
+        ".read": "auth != null",
+        ".indexOn": ["globalTrophies"],
+        "$uid": {
+          ".write": "auth != null && auth.uid === $uid",
+          "globalTrophies": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000 && (!data.exists() || newData.val() <= data.val() + 50000)"
+          },
+          "uid": { ".validate": "newData.val() === $uid" }
+        }
+      }
+    }
+  }
+}

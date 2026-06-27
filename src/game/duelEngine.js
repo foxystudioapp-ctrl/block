@@ -219,17 +219,17 @@ export class DuelEngine {
     return true;
   }
 
-  checkClears() {
+  checkClears(board = this.board) {
     const rows = [];
     const cols = [];
 
     for (let r = 0; r < this.gridSize; r++) {
-      if (this.board[r].every(cell => cell !== null)) rows.push(r);
+      if (board[r].every(cell => cell !== null)) rows.push(r);
     }
     for (let c = 0; c < this.gridSize; c++) {
       let isColFull = true;
       for (let r = 0; r < this.gridSize; r++) {
-        if (this.board[r][c] === null) {
+        if (board[r][c] === null) {
           isColFull = false; break;
         }
       }
@@ -319,19 +319,22 @@ export class DuelEngine {
     let score = 0;
     const pr = pieceMatrix.length;
     const pc = pieceMatrix[0].length;
-    
+
+    // Gerçek board'a hiç dokunmadan derin kopya üzerinde simüle et
+    const temp = this.board.map(row => [...row]);
+
     // Simulate placement
     for (let i = 0; i < pr; i++) {
       for (let j = 0; j < pc; j++) {
         if (pieceMatrix[i][j] === 1) {
-          this.board[r + i][c + j] = 'temp'; // mark temporarily
+          temp[r + i][c + j] = 'temp'; // mark temporarily (kopyada)
           score += 10; // basic point for placing blocks
         }
       }
     }
 
-    // Simulate clears
-    const clears = this.checkClears();
+    // Simulate clears (kopya board üzerinde)
+    const clears = this.checkClears(temp);
     const lines = clears.rows.length + clears.cols.length;
     if (lines > 0) {
       score += lines * 1000; // Heavily prioritize clearing lines
@@ -347,24 +350,15 @@ export class DuelEngine {
           const tc = c + j;
           if (tr === 0 || tr === this.gridSize - 1) touching++;
           if (tc === 0 || tc === this.gridSize - 1) touching++;
-          
-          if (tr > 0 && this.board[tr-1][tc] && this.board[tr-1][tc] !== 'temp') touching++;
-          if (tr < this.gridSize-1 && this.board[tr+1][tc] && this.board[tr+1][tc] !== 'temp') touching++;
-          if (tc > 0 && this.board[tr][tc-1] && this.board[tr][tc-1] !== 'temp') touching++;
-          if (tc < this.gridSize-1 && this.board[tr][tc+1] && this.board[tr][tc+1] !== 'temp') touching++;
+
+          if (tr > 0 && temp[tr-1][tc] && temp[tr-1][tc] !== 'temp') touching++;
+          if (tr < this.gridSize-1 && temp[tr+1][tc] && temp[tr+1][tc] !== 'temp') touching++;
+          if (tc > 0 && temp[tr][tc-1] && temp[tr][tc-1] !== 'temp') touching++;
+          if (tc < this.gridSize-1 && temp[tr][tc+1] && temp[tr][tc+1] !== 'temp') touching++;
         }
       }
     }
     score += touching * 5;
-
-    // Undo simulation
-    for (let i = 0; i < pr; i++) {
-      for (let j = 0; j < pc; j++) {
-        if (pieceMatrix[i][j] === 1) {
-          this.board[r + i][c + j] = null;
-        }
-      }
-    }
 
     return score;
   }

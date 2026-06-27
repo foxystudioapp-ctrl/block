@@ -44,7 +44,7 @@ export function ColorSort(router) {
         <span class="material-symbols-outlined text-[18px] md:text-[22px]">help</span>
       </button>
       <div class="flex flex-col items-start justify-center">
-        <span class="text-[10px] md:text-[12px] font-black text-gray-400 tracking-wider leading-none mb-0.5">${mode === 'endless' ? (t('x2_endless_mode') || 'Sonsuz Mod').toUpperCase() : t('level').toUpperCase()}</span>
+        <span class="text-[10px] md:text-[12px] font-black text-gray-400 tracking-wider leading-none mb-0.5">${mode === 'endless' ? `<span class="material-symbols-outlined text-[16px] align-middle">all_inclusive</span>` : t('level').toUpperCase()}</span>
         <span id="sort-lvl" class="text-xl md:text-2xl font-black text-primary dark:text-white leading-none">${engine.level}</span>
       </div>
     </div>

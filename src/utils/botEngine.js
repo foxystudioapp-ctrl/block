@@ -87,20 +87,18 @@ class BotEngine {
     // Aylık sezonda taban puan yok, herkes sıfırdan başlar
     const baseScore = 0; 
     
-    // Günde oynadıkları tahmini saat (Aylık 150k hedefi için artırıldı)
-    // Günde 10 saat * 30 gün * 500 puan = 150.000 puan
-    let simulatedHoursPerDay = 1;
-    if (index < 50) simulatedHoursPerDay = 10;
-    else if (index < 550) simulatedHoursPerDay = 6;
-    else if (index < 3050) simulatedHoursPerDay = 4;
-    else if (index < 8050) simulatedHoursPerDay = 2;
+    // Günde oynadıkları tahmini saat (Logaritmik/Üstel bir eğri kullanıyoruz)
+    // Bu sayede 1. olan çok daha fazla oynarken, 50. olan ona göre biraz daha az oynar.
+    // Herkesin puanı birbirinden organik şekilde ayrılır.
+    let simulatedHoursPerDay = 1 + (12 * Math.pow(0.98, index));
     
     const daysPassed = hoursPassed / 24;
     const totalSimulatedHours = daysPassed * simulatedHoursPerDay;
     let progressiveScore = totalSimulatedHours * 500;
     
-    const currentHourSeed = Math.floor(hoursPassed);
-    const jitterMultiplier = 0.8 + (seededRandom(botSeed + currentHourSeed) * 0.4); 
+    // Her bota ay boyunca sabit kalacak bir yetenek/şans çarpanı atıyoruz
+    // Bu sayede botların kendi aralarındaki hızı sabit kalır ve liderler hep ilerler
+    const jitterMultiplier = 0.8 + (seededRandom(botSeed + 99) * 0.4); 
     progressiveScore *= jitterMultiplier;
     
     return Math.floor(baseScore + progressiveScore);

@@ -13,6 +13,7 @@
 import { createTopBar } from '../components/topBar.js';
 import { PlayerState } from '../state/playerState.js';
 import { Sounds } from '../utils/sounds.js';
+import { Haptics } from '../utils/haptics.js';
 import { Toast } from '../components/toast.js';
 import { t } from '../utils/i18n.js';
 
@@ -126,7 +127,7 @@ export function AdventureMap(router) {
         ${t('level') || 'Seviye'} <span class="text-transparent bg-clip-text" style="background-image:linear-gradient(to right, ${config.accentFrom}, ${config.accentTo});-webkit-background-clip:text;">${currentLevel}</span>
         ${config.isEndless ? '' : `<span class="text-gray-400 dark:text-gray-500">/ ${config.total}</span>`}
       </span>
-      ${config.isEndless ? `<span class="text-xs font-bold text-gray-500 dark:text-gray-400">${t('x2_endless_mode') || 'Sonsuz'}</span>` : `<span class="text-xs font-bold text-gray-500 dark:text-gray-400">${pct}%</span>`}
+      ${config.isEndless ? `<span class="material-symbols-outlined text-[18px] text-gray-500 dark:text-gray-400">all_inclusive</span>` : `<span class="text-xs font-bold text-gray-500 dark:text-gray-400">${pct}%</span>`}
     </div>
     <div class="w-full h-2 bg-black/10 dark:bg-white/10 rounded-full overflow-hidden">
       <div class="h-full rounded-full transition-all duration-500 shadow-[0_0_8px_rgba(0,201,255,0.5)]"
@@ -155,20 +156,26 @@ export function AdventureMap(router) {
   lineLayer.style.borderRadius = '4px';
   list.appendChild(lineLayer);
 
-  // Seviye butonları
-  // Üstte küçük (1) → altta büyük (total). Doğal dikey sıra.
-  const buttonRefs = []; // current level'a scroll için
-  let currentLevelEl = null;
+  // ---- Windowed (sanal) seviye render'ı ----
+  // 100-320 satırı bir anda DOM'a basmak low-end'de açılış hitch'i + bellek yaratıyordu.
+  // Satırlar absolute konumlandırılır; yalnız görünür pencere (+ buffer) render edilir.
+  // `list` tam yüksekliği koruduğundan scroll bar doğru kalır.
+  const ROW_H = 90;
+  const TOP_PAD = 140;
+  const BUFFER = 6; // viewport üstü/altı tampon satır sayısı
+  const rowTop = (i) => TOP_PAD + (i - 1) * ROW_H;
 
-  for (let i = 1; i <= displayTotal; i++) {
+  // Tek bir seviye satırı üretir (absolute konumlandırılmış).
+  function createRow(i) {
     const isCompleted = i < currentLevel;
     const isCurrent = i === currentLevel;
     const isLocked = i > currentLevel;
     const isMilestone = i % 10 === 0 || i === 1 || i === displayTotal;
 
     const rowWrap = document.createElement('div');
-    rowWrap.className = 'relative flex items-center';
+    rowWrap.className = 'absolute left-0 right-0 flex items-center';
     rowWrap.style.height = '90px';
+    rowWrap.style.top = rowTop(i) + 'px';
 
     // Connector noktası (çizgi üzerinde)
     const dot = document.createElement('div');
@@ -266,27 +273,19 @@ export function AdventureMap(router) {
     num.style.zIndex = '2';
     if (!isLocked) btn.appendChild(num);
 
-    // Click handler
-    btn.addEventListener('click', () => {
-      Sounds.playSfx?.('button-tap');
-      if (isLocked) {
-        Toast.show(t('level_locked_msg') || 'Önce kaldığın seviyeyi bitir!', 'info');
-        return;
-      }
-      router.navigate(`${config.gameRoute}&level=${i}`);
-    });
-
     rowWrap.appendChild(btn);
-    list.appendChild(rowWrap);
-
-    buttonRefs.push({ level: i, el: btn, row: rowWrap });
-    if (isCurrent) currentLevelEl = rowWrap;
+    return rowWrap;
   }
-  
+
+  // Liste yüksekliği: satırlar absolute olduğundan scroll bar doğru olsun diye full yükseklik.
+  list.style.paddingTop = '0px';
+  list.style.minHeight = `${rowTop(displayTotal) + ROW_H + 160}px`;
+
+  // Sonsuz mod göstergesi (en altta, absolute).
   if (config.isEndless) {
     const infWrap = document.createElement('div');
-    infWrap.className = 'relative flex items-center justify-center pt-8 pb-12';
-    infWrap.style.minHeight = '120px';
+    infWrap.className = 'absolute left-0 right-0 flex items-center justify-center pointer-events-none';
+    infWrap.style.top = `${rowTop(displayTotal) + ROW_H}px`;
     infWrap.innerHTML = `
       <div class="flex flex-col items-center opacity-80 animate-pulse">
         <span class="material-symbols-outlined" style="font-size: 56px; color: ${config.accentFrom}">all_inclusive</span>
@@ -295,6 +294,50 @@ export function AdventureMap(router) {
     `;
     list.appendChild(infWrap);
   }
+
+  // B4: tüm seviye butonları için TEK delege click (her satıra ayrı listener yok).
+  list.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-level]');
+    if (!btn) return;
+    const lvl = parseInt(btn.dataset.level, 10);
+    Sounds.playSfx?.('button-tap');
+    if (lvl > currentLevel) {
+      Toast.show(t('level_locked_msg') || 'Önce kaldığın seviyeyi bitir!', 'info');
+      return;
+    }
+    Sounds.playSfx('button-tap');
+    Haptics.vibrate('light');
+    const separator = config.gameRoute.includes('?') ? '&' : '?';
+    router.navigate(`${config.gameRoute}${separator}level=${lvl}`);
+  });
+
+  // Windowing: yalnız görünür pencereyi (+ buffer) DOM'da tut.
+  const rendered = new Map(); // level -> rowWrap
+  function updateWindow() {
+    const scrollTop = scrollWrap.scrollTop;
+    const vh = scrollWrap.clientHeight || window.innerHeight;
+    let first = Math.floor((scrollTop - TOP_PAD) / ROW_H) - BUFFER;
+    let last = Math.ceil((scrollTop + vh - TOP_PAD) / ROW_H) + BUFFER;
+    first = Math.max(1, first);
+    last = Math.min(displayTotal, last);
+    for (const [lvl, el] of rendered) {
+      if (lvl < first || lvl > last) { el.remove(); rendered.delete(lvl); }
+    }
+    for (let i = first; i <= last; i++) {
+      if (!rendered.has(i)) {
+        const row = createRow(i);
+        list.appendChild(row);
+        rendered.set(i, row);
+      }
+    }
+  }
+
+  let scrollRaf = false;
+  scrollWrap.addEventListener('scroll', () => {
+    if (scrollRaf) return;
+    scrollRaf = true;
+    requestAnimationFrame(() => { scrollRaf = false; updateWindow(); });
+  }, { passive: true });
 
   scrollWrap.appendChild(list);
   container.appendChild(scrollWrap);
@@ -313,11 +356,12 @@ export function AdventureMap(router) {
     document.head.appendChild(style);
   }
 
-  // İlk açılışta current level'ı tam ortada göster
+  // İlk açılış: current level'ı ortala (aritmetik), sonra ilk pencereyi render et.
   setTimeout(() => {
-    if (currentLevelEl) {
-      currentLevelEl.scrollIntoView({ block: 'center', behavior: 'instant' });
-    }
+    const vh = scrollWrap.clientHeight || window.innerHeight;
+    const target = rowTop(currentLevel) + ROW_H / 2 - vh / 2;
+    scrollWrap.scrollTop = Math.max(0, target);
+    updateWindow();
   }, 0);
 
   return container;

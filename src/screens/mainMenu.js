@@ -11,6 +11,7 @@ import { createClassicHint, createAdventureHint, createHexHint, createSortHint, 
 import { showDailyRewardModal } from '../components/dailyReward.js';
 import { showConsentModal } from '../components/consentModal.js';
 import { createModal } from '../components/modal.js';
+import { Toast } from '../components/toast.js';
 
 export function MainMenu(router) {
   // Reset duel request ignore flag when returning to main menu
@@ -47,9 +48,7 @@ export function MainMenu(router) {
           { text: t('claim') || 'Ödülü Al', primary: true, onClick: (close) => {
               PlayerState.claimSeasonRewards();
               close();
-              import('../components/toast.js').then(({ Toast }) => {
-                Toast.show(t('diamonds_earned', { amount: rewards.diamonds }) || `+${rewards.diamonds} Elmas kazandın!`, 'success');
-              });
+              Toast.show(t('diamonds_earned', { amount: rewards.diamonds }) || `+${rewards.diamonds} Elmas kazandın!`, 'success');
           }}
         ]
       });
@@ -541,12 +540,10 @@ export function MainMenu(router) {
       Sounds.playSfx('button-tap');
       // Her zaman 1. seviyeden başlat
       Storage.remove('sort_endless_state');
-      import('../state/playerState.js').then(({ PlayerState }) => {
-        PlayerState.state.sortEndlessLevel = 1;
-        Storage.set('player_sort_endless_level', 1);
-        modal.close();
-        router.navigate('#/sort?mode=endless');
-      });
+      PlayerState.state.sortEndlessLevel = 1;
+      Storage.set('player_sort_endless_level', 1);
+      modal.close();
+      router.navigate('#/sort?mode=endless');
     });
 
     modal.querySelector('#btn-sort-adventure').addEventListener('click', () => {

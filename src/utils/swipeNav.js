@@ -1,3 +1,5 @@
+import { Haptics } from './haptics.js';
+
 export function initSwipeNavigation(container, router, currentTab) {
   const tabs = ['menu', 'leaderboard', 'tasks', 'profile'];
   const currentIndex = tabs.indexOf(currentTab);
@@ -29,10 +31,9 @@ export function initSwipeNavigation(container, router, currentTab) {
     
     // Check if swipe is horizontal enough and long enough
     if (Math.abs(deltaX) > minSwipeDistance && Math.abs(deltaY) < maxVerticalDev) {
-      // Import Haptics dynamically if needed to vibrate
-      import('./haptics.js').then(({ Haptics }) => {
+      try {
         Haptics.vibrate('light');
-      }).catch(() => {});
+      } catch (e) {}
 
       if (deltaX < 0) {
         // Swipe Left (finger moves left) -> Go to Next Tab

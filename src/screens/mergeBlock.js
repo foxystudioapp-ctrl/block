@@ -184,7 +184,7 @@ export function MergeBlock(router) {
       const row = [];
       for (let c = 0; c < engine.gridSize; c++) {
         const cell = document.createElement('div');
-        cell.className = 'w-full h-full rounded-2xl grid-cell-empty relative overflow-hidden flex items-center justify-center font-black transition-all duration-200';
+        cell.className = 'w-full h-full rounded-2xl grid-cell-empty relative overflow-hidden flex items-center justify-center font-black transition duration-200';
         boardEl.appendChild(cell);
         row.push(cell);
       }
@@ -198,11 +198,15 @@ export function MergeBlock(router) {
       for (let c = 0; c < engine.gridSize; c++) {
         const val = engine.grid[r][c];
         const cell = domGrid[r][c];
+        
+        if (cell.dataset.cachedVal === String(val)) continue;
+        cell.dataset.cachedVal = val;
+
         if (val > 0) {
-          cell.className = `w-full h-full rounded-2xl relative overflow-hidden flex items-center justify-center font-black transition-all duration-200 transform scale-100 ${getTileColor(val)} ${getTileFontSize(val)}`;
+          cell.className = `w-full h-full rounded-2xl relative overflow-hidden flex items-center justify-center font-black transition duration-200 transform scale-100 ${getTileColor(val)} ${getTileFontSize(val)}`;
           cell.textContent = val;
         } else {
-          cell.className = 'w-full h-full rounded-2xl grid-cell-empty relative overflow-hidden flex items-center justify-center font-black transition-all duration-200 transform scale-95';
+          cell.className = 'w-full h-full rounded-2xl grid-cell-empty relative overflow-hidden flex items-center justify-center font-black transition duration-200 transform scale-95';
           cell.textContent = '';
         }
       }
@@ -210,8 +214,13 @@ export function MergeBlock(router) {
   };
 
   let dragGhost = null;
+  let lastTraySignature = '';
 
   const renderTray = () => {
+    const currentSignature = JSON.stringify(engine.tray);
+    if (lastTraySignature === currentSignature) return;
+    lastTraySignature = currentSignature;
+
     trayContainer.innerHTML = '';
     engine.tray.forEach((val, idx) => {
       const blockWrap = document.createElement('div');
@@ -299,6 +308,7 @@ export function MergeBlock(router) {
             Haptics.vibrate('block-place');
             
             if (res.merged) {
+              TaskState.updateProgress('merge_count', res.merged.length);
               setTimeout(() => {
                 const finalMerge = res.merged[res.merged.length - 1];
                 const mergeVal = finalMerge ? finalMerge.newVal : 2;
@@ -386,7 +396,7 @@ export function MergeBlock(router) {
 
                 modal.querySelector('#modal-revive-ad').addEventListener('click', async () => {
                   Sounds.playSfx('button-tap');
-                  const success = await AdService.showInterstitial();
+                  const success = await AdService.showRewardVideoAd();
                   if (success) {
                     doRevive();
                   }
@@ -474,50 +484,46 @@ export function MergeBlock(router) {
 
   function showLevelUpModal() {
     AdService.showForcedInterstitial('levelup');
-    import('../components/modal.js').then(({ createModal }) => {
-      import('../utils/sounds.js').then(({ Sounds }) => {
-        Sounds.playSfx('level-up');
-      });
-      const modal = createModal({
-        title: t('level_complete') || 'Bölüm Tamamlandı!',
-        onClose: () => {},
-        content: `
-          <div class="flex flex-col items-center justify-center text-center gap-4 py-4">
-            <div class="w-20 h-20 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(251,146,60,0.4)] animate-bounce-soft">
-              <span class="text-4xl">⭐</span>
-            </div>
-            <div>
-              <h3 class="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-rose-500 tracking-tight">Tebrikler!</h3>
-              <p class="text-sm text-gray-500 dark:text-gray-400 mt-1 font-medium">${engine.level}. Seviyeyi tamamladın.</p>
-            </div>
-            
-            <div class="w-full bg-black/5 dark:bg-white/5 rounded-2xl p-4 flex justify-between items-center mt-2 border border-black/10 dark:border-white/10">
-              <div class="flex flex-col items-start">
-                <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Sonraki Seviye</span>
-                <span class="text-xl font-black text-gray-800 dark:text-gray-200">${engine.level + 1}</span>
-              </div>
-              <span class="material-symbols-outlined text-gray-300 dark:text-gray-600 text-3xl">arrow_forward</span>
-            </div>
+    Sounds.playSfx('level-up');
+    const modal = createModal({
+      title: t('level_complete') || 'Bölüm Tamamlandı!',
+      onClose: () => {},
+      content: `
+        <div class="flex flex-col items-center justify-center text-center gap-4 py-4">
+          <div class="w-20 h-20 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(251,146,60,0.4)] animate-bounce-soft">
+            <span class="text-4xl">⭐</span>
           </div>
-        `,
-        actions: [
-          {
-            text: t('next_level') || 'Sonraki Seviye',
-            primary: true,
-            onClick: () => {
-              modal.close();
-              engine.nextLevel();
-              PlayerState.state.mergeAdventureLevel = engine.level;
-              PlayerState.save();
-              const elLvl = container.querySelector('#merge-lvl');
-              if (elLvl) elLvl.textContent = engine.level;
-              const elTarget = container.querySelector('#merge-target');
-              if (elTarget) elTarget.textContent = engine.targetScore.toLocaleString();
-              updateScore();
-            }
+          <div>
+            <h3 class="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-rose-500 tracking-tight">Tebrikler!</h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1 font-medium">${engine.level}. Seviyeyi tamamladın.</p>
+          </div>
+          
+          <div class="w-full bg-black/5 dark:bg-white/5 rounded-2xl p-4 flex justify-between items-center mt-2 border border-black/10 dark:border-white/10">
+            <div class="flex flex-col items-start">
+              <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Sonraki Seviye</span>
+              <span class="text-xl font-black text-gray-800 dark:text-gray-200">${engine.level + 1}</span>
+            </div>
+            <span class="material-symbols-outlined text-gray-300 dark:text-gray-600 text-3xl">arrow_forward</span>
+          </div>
+        </div>
+      `,
+      actions: [
+        {
+          text: t('next_level') || 'Sonraki Seviye',
+          primary: true,
+          onClick: () => {
+            modal.close();
+            engine.nextLevel();
+            PlayerState.state.mergeAdventureLevel = engine.level;
+            PlayerState.save();
+            const elLvl = container.querySelector('#merge-lvl');
+            if (elLvl) elLvl.textContent = engine.level;
+            const elTarget = container.querySelector('#merge-target');
+            if (elTarget) elTarget.textContent = engine.targetScore.toLocaleString();
+            updateScore();
           }
-        ]
-      });
+        }
+      ]
     });
   }
 

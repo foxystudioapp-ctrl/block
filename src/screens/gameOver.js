@@ -54,14 +54,14 @@ export function showGameOverModal({ score, mode = 'classic', isWin, myScore, opp
         <!-- Scores Table -->
         <div class="w-full bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5 p-4 rounded-2xl flex justify-around items-center mb-6 mt-4">
           <div class="flex flex-col items-center">
-            <img src="${myAvatar || '/avatars/akita.png'}" class="w-12 h-12 rounded-full border-2 border-cyan-400 mb-1 object-cover" />
+            <img loading="lazy" decoding="async" src="${myAvatar || '/avatars/akita.png'}" class="w-12 h-12 rounded-full border-2 border-cyan-400 mb-1 object-cover" />
             <span class="text-[10px] font-black truncate w-20 text-center">${myName || t('you') || 'Sen'}</span>
             <span class="text-[9px] font-extrabold text-gray-400 tracking-wider mt-1">${t('your_score')}</span>
             <span class="text-xl font-black text-cyan-400">${myScore.toLocaleString('tr-TR')}</span>
           </div>
           <div class="h-16 w-[1px] bg-black/10 dark:bg-white/10"></div>
           <div class="flex flex-col items-center">
-            <img src="${opponentAvatar || '/avatars/robot.png'}" class="w-12 h-12 rounded-full border-2 border-pink-500 mb-1 object-cover" />
+            <img loading="lazy" decoding="async" src="${opponentAvatar || '/avatars/robot.png'}" class="w-12 h-12 rounded-full border-2 border-pink-500 mb-1 object-cover" />
             <span class="text-[10px] font-black truncate w-20 text-center">${opponentName || t('opponent') || 'Rakip'}</span>
             <span class="text-[9px] font-extrabold text-gray-400 tracking-wider mt-1">${t('opponent_score')}</span>
             <span class="text-xl font-black text-pink-500">${opponentScore.toLocaleString('tr-TR')}</span>
@@ -123,14 +123,14 @@ export function showGameOverModal({ score, mode = 'classic', isWin, myScore, opp
         <!-- Scores Table -->
         <div class="w-full bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5 p-4 rounded-2xl flex justify-around items-center mb-6 mt-4">
           <div class="flex flex-col items-center">
-            <img src="${myAvatar || '/avatars/akita.png'}" class="w-12 h-12 rounded-full border-2 border-cyan-400 mb-1 object-cover" />
+            <img loading="lazy" decoding="async" src="${myAvatar || '/avatars/akita.png'}" class="w-12 h-12 rounded-full border-2 border-cyan-400 mb-1 object-cover" />
             <span class="text-[10px] font-black truncate w-20 text-center">${myName || t('you') || 'Sen'}</span>
             <span class="text-[9px] font-extrabold text-gray-400 tracking-wider mt-1">${t('your_score')}</span>
             <span class="text-xl font-black text-cyan-400">${myScore.toLocaleString('tr-TR')}</span>
           </div>
           <div class="h-16 w-[1px] bg-black/10 dark:bg-white/10"></div>
           <div class="flex flex-col items-center">
-            <img src="${opponentAvatar || '/avatars/robot.png'}" class="w-12 h-12 rounded-full border-2 border-pink-500 mb-1 object-cover" />
+            <img loading="lazy" decoding="async" src="${opponentAvatar || '/avatars/robot.png'}" class="w-12 h-12 rounded-full border-2 border-pink-500 mb-1 object-cover" />
             <span class="text-[10px] font-black truncate w-20 text-center">${opponentName || t('opponent') || 'Rakip'}</span>
             <span class="text-[9px] font-extrabold text-gray-400 tracking-wider mt-1">${t('opponent_score')}</span>
             <span class="text-xl font-black text-pink-500">${opponentScore.toLocaleString('tr-TR')}</span>
@@ -163,14 +163,14 @@ export function showGameOverModal({ score, mode = 'classic', isWin, myScore, opp
         <!-- Scores Table -->
         <div class="w-full bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5 p-4 rounded-2xl flex justify-around items-center mb-6 mt-4">
           <div class="flex flex-col items-center">
-            <img src="${myAvatar || '/avatars/akita.png'}" class="w-12 h-12 rounded-full border-2 border-cyan-400 mb-1 object-cover" />
+            <img loading="lazy" decoding="async" src="${myAvatar || '/avatars/akita.png'}" class="w-12 h-12 rounded-full border-2 border-cyan-400 mb-1 object-cover" />
             <span class="text-[10px] font-black truncate w-20 text-center">${myName || t('you') || 'Sen'}</span>
             <span class="text-[9px] font-extrabold text-gray-400 tracking-wider mt-1">${t('your_score')}</span>
             <span class="text-xl font-black text-cyan-400">${myScore.toLocaleString('tr-TR')}</span>
           </div>
           <div class="h-16 w-[1px] bg-black/10 dark:bg-white/10"></div>
           <div class="flex flex-col items-center">
-            <img src="${opponentAvatar || '/avatars/robot.png'}" class="w-12 h-12 rounded-full border-2 border-pink-500 mb-1 object-cover" />
+            <img loading="lazy" decoding="async" src="${opponentAvatar || '/avatars/robot.png'}" class="w-12 h-12 rounded-full border-2 border-pink-500 mb-1 object-cover" />
             <span class="text-[10px] font-black truncate w-20 text-center">${opponentName || t('opponent') || 'Rakip'}</span>
             <span class="text-[9px] font-extrabold text-gray-400 tracking-wider mt-1">${t('opponent_score')}</span>
             <span class="text-xl font-black text-pink-500">${opponentScore.toLocaleString('tr-TR')}</span>

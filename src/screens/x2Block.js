@@ -13,10 +13,19 @@ import { Storage } from '../utils/storage.js';
 import { createModal } from '../components/modal.js';
 import { AdService } from '../services/adService.js';
 import { Toast } from '../components/toast.js';
+import { createScope } from '../utils/lifecycle.js';
 
 export function X2Block(router) {
   const container = document.createElement('div');
   container.className = 'w-full max-w-full lg:max-w-4xl mx-auto h-[100dvh] flex flex-col bg-bg-light dark:bg-primary text-primary dark:text-white select-none animate-pop-up relative overflow-hidden pb-2 sm:pb-3 md:pb-6 lg:pb-10';
+
+  // --- Yaşam döngüsü kapsamı --------------------------------------------------
+  // Bu satırdan itibaren tüm setTimeout / requestAnimationFrame çağrıları
+  // otomatik olarak izlenir ve scope.destroy()'da eksiksiz iptal edilir.
+  // (Native gölgeleme: çağrı noktalarına dokunmadan tam kapsama.)
+  const scope = createScope({ name: 'x2' });
+  const setTimeout = scope.setT;
+  const requestAnimationFrame = scope.raf;
 
   const queryParams = new URLSearchParams(window.location.hash.split('?')[1] || '');
   const mode = queryParams.get('mode') || 'adventure';
@@ -224,7 +233,7 @@ export function X2Block(router) {
     
     <div class="w-[85%] md:w-[90%] bg-rose-500/10 border border-rose-500/20 rounded-xl py-1 flex flex-col justify-center items-center shadow-sm">
       <span class="text-[8px] md:text-[9px] font-bold text-rose-600/80 dark:text-rose-400/80 uppercase leading-none mb-0.5">${t('target_score') || 'HEDEF'}</span>
-      <span id="x2-target-badge" class="text-[12px] md:text-[14px] font-black text-rose-600 dark:text-rose-400 drop-shadow-sm leading-none">${engine.getTargetScore().toLocaleString()}</span>
+      <span id="x2-target-badge" class="text-[12px] md:text-[14px] font-black text-rose-600 dark:text-rose-400 drop-shadow-sm leading-none">${formatBlockValue(engine.getTargetScore())}</span>
     </div>
     ` : ''}
   `;
@@ -326,16 +335,7 @@ export function X2Block(router) {
 
 
   function applyBlockContent(element, val, style) {
-    if (val >= 1000) {
-      element.innerHTML = `
-        <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none leading-none max-w-full overflow-hidden">
-          <span style="font-size: 1em; white-space: nowrap;">${formatBlockValue(val)}</span>
-          <span class="opacity-75 uppercase tracking-widest mt-0.5" style="font-size: 0.35em; white-space: nowrap;">${style.suffix}</span>
-        </div>
-      `;
-    } else {
-      element.innerHTML = `<div class="absolute inset-0 flex items-center justify-center pointer-events-none leading-none max-w-full overflow-hidden"><span style="white-space: nowrap;">${val}</span></div>`;
-    }
+    element.innerHTML = `<div class="absolute inset-0 flex items-center justify-center pointer-events-none leading-none max-w-full overflow-hidden"><span style="white-space: nowrap;">${formatBlockValue(val)}</span></div>`;
   }
 
   function getBlockFontSize(val) {
@@ -344,6 +344,29 @@ export function X2Block(router) {
     if (len === 3) return 'clamp(1.2rem, 6vw, 2.0rem)';
     if (len === 4) return 'clamp(1rem, 5vw, 1.7rem)';
     return 'clamp(0.8rem, 4vw, 1.4rem)';
+  }
+
+  // ============ DOM POOLS ============
+  const GHOST_POOL = [];
+
+  function getGhostEl() {
+    if (GHOST_POOL.length > 0) {
+      const el = GHOST_POOL.pop();
+      el.style.display = '';
+      return el;
+    }
+    const el = document.createElement('div');
+    el.className = 'absolute flex items-center justify-center font-black rounded-xl shadow-md z-[60]';
+    return el;
+  }
+
+  function releaseGhostEl(el) {
+    if (!el) return;
+    el.style.display = 'none';
+    el.style.transition = 'none';
+    el.style.transform = '';
+    el.innerHTML = '';
+    GHOST_POOL.push(el);
   }
 
   // ============ RENDER ============
@@ -355,7 +378,7 @@ export function X2Block(router) {
       for (let r = 0; r < engine.rows; r++) {
         for (let c = 0; c < engine.cols; c++) {
           const cell = document.createElement('div');
-          cell.className = 'rounded-xl flex items-center justify-center transition-all duration-150 relative overflow-hidden min-w-0 min-h-0';
+          cell.className = 'rounded-xl flex items-center justify-center transition-opacity duration-150 relative overflow-hidden min-w-0 min-h-0';
           cell.dataset.row = r;
           cell.dataset.col = c;
           cell.addEventListener('click', () => handleCellClick(r, c));
@@ -371,8 +394,14 @@ export function X2Block(router) {
         const cell = boardEl.children[idx++];
         const val = gridToRender[r][c];
         
+        // Cache visual update to prevent DOM thrashing
+        if (cell.dataset.cachedVal === String(val) && !customGrid) {
+          continue;
+        }
+        cell.dataset.cachedVal = val;
+
         if (val !== 0) {
-            cell.className = 'rounded-xl flex items-center justify-center transition-all duration-150 relative overflow-hidden min-w-0 min-h-0';
+            cell.className = 'rounded-xl flex items-center justify-center transition-opacity duration-150 relative overflow-hidden min-w-0 min-h-0';
             const style = getBlockStyle(val);
             if (style.bg.includes('gradient')) {
               cell.style.background = style.bg;
@@ -383,7 +412,8 @@ export function X2Block(router) {
             cell.style.fontSize = getBlockFontSize(val);
             cell.style.fontWeight = '900';
             cell.style.fontFamily = 'Inter, sans-serif';
-            cell.style.boxShadow = style.glow || '0 2px 8px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.3)';
+            // box-shadow is too expensive on low end, using simple border
+            cell.style.boxShadow = 'inset 0 1px 0 rgba(255,255,255,0.1)';
             cell.style.border = '1px solid rgba(255,255,255,0.15)';
             applyBlockContent(cell, val, style);
             cell.style.opacity = '1';
@@ -394,7 +424,7 @@ export function X2Block(router) {
               cell.style.animation = 'none';
             }
           } else {
-            cell.className = 'rounded-xl flex items-center justify-center transition-all duration-150 relative overflow-hidden min-w-0 min-h-0';
+            cell.className = 'rounded-xl flex items-center justify-center transition-opacity duration-150 relative overflow-hidden min-w-0 min-h-0';
             cell.style.background = 'transparent';
             cell.style.border = '1px solid transparent';
             cell.style.boxShadow = '';
@@ -411,36 +441,42 @@ export function X2Block(router) {
     const nextEl = container.querySelector('#x2-next-block');
     if (!currentEl || !nextEl) return;
 
-    const cs = getBlockStyle(engine.currentBlock);
-    if (cs.bg.includes('gradient')) {
-      currentEl.style.background = cs.bg;
-    } else {
-      currentEl.style.backgroundColor = cs.bg;
+    if (currentEl.dataset.cachedVal !== String(engine.currentBlock)) {
+      currentEl.dataset.cachedVal = engine.currentBlock;
+      const cs = getBlockStyle(engine.currentBlock);
+      if (cs.bg.includes('gradient')) {
+        currentEl.style.background = cs.bg;
+      } else {
+        currentEl.style.backgroundColor = cs.bg;
+      }
+      currentEl.style.color = cs.text;
+      applyBlockContent(currentEl, engine.currentBlock, cs);
+      currentEl.style.boxShadow = 'inset 0 1px 0 rgba(255,255,255,0.3)';
     }
-    currentEl.style.color = cs.text;
-    applyBlockContent(currentEl, engine.currentBlock, cs);
-    currentEl.style.boxShadow = cs.glow || '0 2px 10px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.3)';
 
-    const ns = getBlockStyle(engine.nextBlock);
-    if (ns.bg.includes('gradient')) {
-      nextEl.style.background = ns.bg;
-    } else {
-      nextEl.style.backgroundColor = ns.bg;
+    if (nextEl.dataset.cachedVal !== String(engine.nextBlock)) {
+      nextEl.dataset.cachedVal = engine.nextBlock;
+      const ns = getBlockStyle(engine.nextBlock);
+      if (ns.bg.includes('gradient')) {
+        nextEl.style.background = ns.bg;
+      } else {
+        nextEl.style.backgroundColor = ns.bg;
+      }
+      nextEl.style.color = ns.text;
+      applyBlockContent(nextEl, engine.nextBlock, ns);
     }
-    nextEl.style.color = ns.text;
-    applyBlockContent(nextEl, engine.nextBlock, ns);
   }
 
   function updateScore() {
     const scoreEl = container.querySelector('#x2-score');
-    if (scoreEl) scoreEl.textContent = engine.score.toLocaleString();
+    if (scoreEl) scoreEl.textContent = formatBlockValue(engine.score);
 
     if (!PlayerState.state.bestScoreX2) PlayerState.state.bestScoreX2 = 0;
     if (engine.score > PlayerState.state.bestScoreX2) {
       PlayerState.state.bestScoreX2 = engine.score;
       PlayerState.save();
       const bestEl = container.querySelector('#x2-best');
-      if (bestEl) bestEl.textContent = PlayerState.state.bestScoreX2.toLocaleString();
+      if (bestEl) bestEl.textContent = formatBlockValue(PlayerState.state.bestScoreX2);
     }
     
     // Update level and target badges
@@ -451,7 +487,7 @@ export function X2Block(router) {
       if (levelBadge) levelBadge.textContent = engine.level;
 
       const targetBadge = container.querySelector('#x2-target-badge');
-      if (targetBadge) targetBadge.textContent = engine.getTargetScore().toLocaleString('tr-TR');
+      if (targetBadge) targetBadge.textContent = formatBlockValue(engine.getTargetScore());
 
       const progressEl = container.querySelector('#x2-level-progress');
       if (progressEl) {
@@ -514,7 +550,7 @@ export function X2Block(router) {
       ghostCell.style.fontSize = getBlockFontSize(engine.currentBlock);
       ghostCell.style.fontWeight = '900';
       ghostCell.style.color = style.text;
-      ghostCell.style.boxShadow = style.glow || '0 2px 8px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.3)';
+      ghostCell.style.boxShadow = 'inset 0 1px 0 rgba(255,255,255,0.3)';
       ghostCell.style.border = '1px solid rgba(255,255,255,0.15)';
     }
   }
@@ -525,7 +561,7 @@ export function X2Block(router) {
       const r = parseInt(ghostCell.dataset.row);
       const c = parseInt(ghostCell.dataset.col);
       if (engine.grid[r][c] === 0) {
-        ghostCell.className = 'rounded-xl flex items-center justify-center transition-all duration-150 relative overflow-hidden min-w-0 min-h-0';
+        ghostCell.className = 'rounded-xl flex items-center justify-center transition-opacity duration-150 relative overflow-hidden min-w-0 min-h-0';
         ghostCell.style.background = 'transparent';
         ghostCell.style.opacity = '1';
         ghostCell.textContent = '';
@@ -667,7 +703,7 @@ export function X2Block(router) {
 
           modal.querySelector('#modal-revive-ad').addEventListener('click', async () => {
             Sounds.playSfx('button-tap');
-            const success = await AdService.showInterstitial();
+            const success = await AdService.showRewardVideoAd();
             if (success) {
               doRevive();
             }
@@ -726,7 +762,9 @@ export function X2Block(router) {
         ghost.style.top = `${boardRect.height + 20}px`;
         boardWrapper.appendChild(ghost);
 
-        await new Promise(resolve => setTimeout(resolve, 20));
+        // Fix 4: setTimeout(20) yerine çift rAF — paint'in gerçekleştiğini garantiler,
+        // alt segmentte transition'ın yanlış konumdan zıplamasını/atlanmasını önler.
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
         ghost.style.transition = 'all 0.15s cubic-bezier(0.25, 1, 0.5, 1)';
         ghost.style.top = `calc(10px + ${step.row} * (${cellHeight}px + 4px))`;
 
@@ -739,8 +777,7 @@ export function X2Block(router) {
         
         const ghosts = [];
         for (const m of step.merges) {
-          const ghost = document.createElement('div');
-          ghost.className = 'absolute flex items-center justify-center font-black rounded-xl shadow-md z-[60]';
+          const ghost = getGhostEl();
           const style = getBlockStyle(m.oldVal);
           ghost.style.background = style.bg;
           ghost.style.color = style.text;
@@ -749,24 +786,31 @@ export function X2Block(router) {
 
           ghost.style.width = `${cellWidth}px`;
           ghost.style.height = `${cellHeight}px`;
-          ghost.style.left = `calc(10px + ${m.fromCol} * (${cellWidth}px + 4px))`;
-          ghost.style.top = `calc(10px + ${m.fromRow} * (${cellHeight}px + 4px))`;
-          boardWrapper.appendChild(ghost);
+          
+          // GPU translation
+          ghost.style.left = '0px';
+          ghost.style.top = '0px';
+          ghost.style.transform = `translate3d(calc(10px + ${m.fromCol} * (${cellWidth}px + 4px)), calc(10px + ${m.fromRow} * (${cellHeight}px + 4px)), 0)`;
+          
+          if (!ghost.parentElement) {
+            boardWrapper.appendChild(ghost);
+          }
           ghosts.push({ el: ghost, toRow: m.toRow, toCol: m.toCol });
           
           const fromIdx = m.fromRow * engine.cols + m.fromCol;
           if (boardEl.children[fromIdx]) boardEl.children[fromIdx].style.opacity = '0';
         }
         
-        await new Promise(resolve => setTimeout(resolve, 20));
+        // Fix 4: çift rAF — birleşme ghost'larının başlangıç konumu boyandıktan
+        // sonra transition başlasın (aksi halde transform'lar batch'lenip zıplıyordu).
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
         for (const g of ghosts) {
-          g.el.style.transition = 'all 0.15s cubic-bezier(0.55, 0.05, 0.68, 0.19)';
-          g.el.style.left = `calc(10px + ${g.toCol} * (${cellWidth}px + 4px))`;
-          g.el.style.top = `calc(10px + ${g.toRow} * (${cellHeight}px + 4px))`;
+          g.el.style.transition = 'transform 0.15s cubic-bezier(0.55, 0.05, 0.68, 0.19)';
+          g.el.style.transform = `translate3d(calc(10px + ${g.toCol} * (${cellWidth}px + 4px)), calc(10px + ${g.toRow} * (${cellHeight}px + 4px)), 0)`;
         }
         
         await new Promise(resolve => setTimeout(resolve, 150));
-        for (const g of ghosts) g.el.remove();
+        for (const g of ghosts) releaseGhostEl(g.el);
         
         renderBoard(step.grid);
         highlightMerges(step.merges);
@@ -934,7 +978,7 @@ export function X2Block(router) {
 
     modal.querySelector('#modal-watch-ad').addEventListener('click', async () => {
       Sounds.playSfx('button-tap');
-      const success = await AdService.showInterstitial();
+      const success = await AdService.showRewardVideoAd();
       if (success) {
         modal.close();
         PlayerState.addDiamonds(cost);
@@ -1089,12 +1133,7 @@ export function X2Block(router) {
         cell.appendChild(ripple);
         setTimeout(() => ripple.remove(), 450);
 
-        // Floating Score
-        const floatText = document.createElement('div');
-        floatText.className = 'absolute top-1/2 left-1/2 text-white font-black text-2xl x2-float-up-effect pointer-events-none z-50 drop-shadow-md';
-        floatText.textContent = '+' + formatBlockValue(m.newVal);
-        cell.appendChild(floatText);
-        setTimeout(() => floatText.remove(), 750);
+
       }
     }
   }
@@ -1119,6 +1158,13 @@ export function X2Block(router) {
   // ============ DRAG AND DROP NEXT BLOCK ============
   let isDraggingBlock = false;
   let ghostDragEl = null;
+  // Aktif "sonraki blok" sürüklemesinin document listener'larını söken fonksiyon.
+  // (Aynı anda tek sürükleme olabildiğinden tek referans yeter.) Ekran sürükleme
+  // ortasında kapanırsa scope cleanup bunu çağırır. NOT: bu listener'lar artık
+  // scope.on ile DEĞİL doğrudan bağlanıyor — scope.on her bırakışta kalıcı diziye
+  // kayıt ekleyip ghost/closure'ları tutarak GC'yi engelliyordu (seviye ilerledikçe
+  // = daha çok bırakış = biriken bellek/kasma kaynağı buydu).
+  let activeDragTeardown = null;
 
   const dragTarget = container.querySelector('#x2-next-container') || nextBoxContainer;
   dragTarget.addEventListener('pointerdown', (e) => {
@@ -1152,12 +1198,14 @@ export function X2Block(router) {
     ghostDragEl.style.fontSize = getBlockFontSize(currentVal);
     
     document.body.appendChild(ghostDragEl);
-    
+    // Sürükleme boyunca kolon alanı sabit kalır — rect'i bir kez oku; her karede
+    // getBoundingClientRect çağırmak forced reflow (layout thrashing) yaratıyordu.
+    const colTouchRect = columnTouchArea.getBoundingClientRect();
+
     const moveGhost = (pageX, pageY) => {
       ghostDragEl.style.left = `${pageX - cellWidth / 2}px`;
       ghostDragEl.style.top = `${pageY - cellHeight - 20}px`;
-      
-      const colTouchRect = columnTouchArea.getBoundingClientRect();
+
       if (pageX >= colTouchRect.left && pageX <= colTouchRect.right &&
           pageY >= colTouchRect.top - 50 && pageY <= colTouchRect.bottom + 50) {
         const relX = pageX - colTouchRect.left;
@@ -1189,13 +1237,18 @@ export function X2Block(router) {
       });
     };
     
+    const removeDragDocListeners = () => {
+      document.removeEventListener('pointermove', onPointerMove);
+      document.removeEventListener('pointerup', onPointerUp);
+      document.removeEventListener('pointercancel', onPointerUp);
+      if (activeDragTeardown === removeDragDocListeners) activeDragTeardown = null;
+    };
+
     const onPointerUp = (ev) => {
       if (!isDraggingBlock) return;
       isDraggingBlock = false;
       
-      document.removeEventListener('pointermove', onPointerMove);
-      document.removeEventListener('pointerup', onPointerUp);
-      document.removeEventListener('pointercancel', onPointerUp);
+      removeDragDocListeners();
       
       if (ghostDragEl) {
         ghostDragEl.remove();
@@ -1220,9 +1273,15 @@ export function X2Block(router) {
       }
     };
     
+    // Per-drag document listener'ları DOĞRUDAN bağlanır (scope.on DEĞİL): scope.on
+    // her bırakışta kalıcı listeners dizisine kayıt ekliyor ve onPointerUp yalnızca
+    // document'ten söküyordu, diziden değil → seviye ilerledikçe biriken kasma. Sökme
+    // onPointerUp'taki removeDragDocListeners ile; ekran sürükleme ortasında kapanırsa
+    // aşağıdaki scope cleanup activeDragTeardown'ı çağırır.
     document.addEventListener('pointermove', onPointerMove, { passive: false });
     document.addEventListener('pointerup', onPointerUp);
     document.addEventListener('pointercancel', onPointerUp);
+    activeDragTeardown = removeDragDocListeners;
   });
 
   const hammerBtn = container.querySelector('#x2-power-hammer');
@@ -1243,10 +1302,15 @@ export function X2Block(router) {
     Sounds.playSfx('game-win');
     Haptics.vibrate('success');
 
-    // Attempt to show forced ad (if cooldown allows)
-    import('../services/adService.js').then(({ AdService }) => {
-      AdService.showForcedInterstitial('levelup');
-    });
+    // Ekonomi faucet'i: SADECE yeni en yüksek seviyede ödül (replay/restart farm engeli).
+    const isNewFrontier = currentLevel >= (PlayerState.state.x2AdventureLevel || 1);
+    const levelReward = isNewFrontier ? engine.getLevelReward(currentLevel) : 0;
+    if (levelReward > 0) {
+      PlayerState.addDiamonds(levelReward);
+      PlayerState.notify(); // üst bardaki elmas sayacını tazele
+    }
+
+    AdService.showForcedInterstitial('levelup');
 
     const overlay = document.createElement('div');
     overlay.className = 'absolute inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in';
@@ -1258,7 +1322,11 @@ export function X2Block(router) {
         <span class="text-5xl">⭐</span>
       </div>
       <h2 class="text-3xl font-black text-white drop-shadow-lg mb-2 uppercase tracking-tight">${t('level_up') || 'SEVİYE ATLADIN!'}</h2>
-      <p class="text-yellow-400 font-bold text-lg mb-6 drop-shadow-md">${currentLevel} ➔ ${currentLevel + 1}</p>
+      <p class="text-yellow-400 font-bold text-lg mb-3 drop-shadow-md">${currentLevel} ➔ ${currentLevel + 1}</p>
+      ${levelReward > 0 ? `<div class="flex items-center gap-1.5 mb-6 px-4 py-2 rounded-full bg-white/10 border border-white/15">
+        <span class="material-symbols-outlined fill text-cyan-300 text-xl">diamond</span>
+        <span class="text-white font-black text-lg">+${levelReward}</span>
+      </div>` : '<div class="mb-3"></div>'}
       <button class="px-8 py-3 rounded-full bg-gradient-to-r from-yellow-400 to-orange-500 text-white font-black text-lg shadow-lg active:scale-95 transition-transform" id="x2-btn-next-level">
         ${t('continue') || 'DEVAM ET'}
       </button>
@@ -1279,11 +1347,18 @@ export function X2Block(router) {
   }
 
   // ============ CLEANUP ============
-  container.cleanup = () => {
+  // Ekrana özgü teardown'lar scope'a kaydedilir; scope.destroy() önce tüm
+  // listener/timer/RAF'ları iptal eder, SONRA bunları ters sırada çalıştırır.
+  // Paylaşılan kaynaklar korunur: Sounds singleton'ı yok edilmez, yalnızca
+  // bu ekranın başlattığı müzik durdurulur (mevcut davranış birebir aynı).
+  scope.onCleanup(() => {
+    if (activeDragTeardown) activeDragTeardown(); // sürükleme ortasında kapanışta document listener'larını sök
     if (topBar.cleanup) topBar.cleanup();
     Sounds.stopMusic();
-  
-    AdService.hideBanner();};
+    AdService.hideBanner();
+    engine = null; // büyük board matrisini GC'ye bırak
+  });
+  container.cleanup = () => scope.destroy();
 
   // Show banner when screen opens
   AdService.showBanner();

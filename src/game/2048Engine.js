@@ -1,6 +1,7 @@
 import { PlayerState } from '../state/playerState.js';
 import { Toast } from '../components/toast.js';
 import { t } from '../utils/i18n.js';
+import { debouncedSetItem } from '../utils/persist.js';
 
 export class Engine2048 {
   constructor(mode = 'endless', level = 1) {
@@ -10,7 +11,7 @@ export class Engine2048 {
     this.grid = Array(this.gridSize).fill(null).map(() => Array(this.gridSize).fill(0));
     this.score = 0;
     this.levelScore = 0;
-    this.targetScore = mode === 'adventure' ? 500 * this.level : Infinity;
+    this.targetScore = mode === 'adventure' ? this.getTargetScore(this.level) : Infinity;
     this.history = [];
     this.gameOver = false;
     this.won = false;
@@ -58,7 +59,7 @@ export class Engine2048 {
       history: this.history,
       undoCount: this.undoCount
     };
-    localStorage.setItem(key, JSON.stringify(state));
+    debouncedSetItem(key, JSON.stringify(state));
   }
 
   clearSave() {
@@ -66,9 +67,21 @@ export class Engine2048 {
     localStorage.removeItem(key);
   }
 
+  // Target score scales exponentially to match tile merge value growth
+  getTargetScore(level) {
+    if (level <= 20) return 500 + level * 500;          // Level 1-20: gentle linear
+    if (level <= 50) return 10500 + (level - 20) * 1500; // Level 21-50: steeper linear
+    // Level 50+: exponential growth (doubles every ~25 levels)
+    const base = 55500; // value at level 50
+    const doublingRate = 25;
+    const target = Math.floor(base * Math.pow(2, (level - 50) / doublingRate));
+    // Cap at 5M — on a 4x4 grid, scores per level are finite
+    return Math.min(target, 5000000);
+  }
+
   nextLevel() {
     this.level++;
-    this.targetScore = 500 * this.level;
+    this.targetScore = this.getTargetScore(this.level);
     this.levelScore = 0;
     this.levelUpReady = false;
     this.history = [];
@@ -145,10 +158,12 @@ export class Engine2048 {
     let original = [...row];
     row = row.filter(val => val !== 0);
     let score = 0;
+    let merges = 0;
     for (let i = 0; i < row.length - 1; i++) {
       if (row[i] !== 0 && row[i] === row[i + 1]) {
         row[i] *= 2;
         score += row[i];
+        merges++;
         if (row[i] === 2048) this.won = true;
         row.splice(i + 1, 1);
       }
@@ -164,62 +179,70 @@ export class Engine2048 {
         break;
       }
     }
-    return { newArray: row, score, changed };
+    return { newArray: row, score, changed, merges };
   }
 
   moveLeft() {
     let changedAny = false;
     let turnScore = 0;
+    let turnMerges = 0;
     for (let r = 0; r < this.gridSize; r++) {
-      const { newArray, score, changed } = this.operate(this.grid[r]);
+      const { newArray, score, changed, merges } = this.operate(this.grid[r]);
       this.grid[r] = newArray;
       if (changed) changedAny = true;
       turnScore += score;
+      turnMerges += merges;
     }
-    return { changed: changedAny, score: turnScore };
+    return { changed: changedAny, score: turnScore, merges: turnMerges };
   }
 
   moveRight() {
     let changedAny = false;
     let turnScore = 0;
+    let turnMerges = 0;
     for (let r = 0; r < this.gridSize; r++) {
       let row = [...this.grid[r]].reverse();
-      const { newArray, score, changed } = this.operate(row);
+      const { newArray, score, changed, merges } = this.operate(row);
       this.grid[r] = newArray.reverse();
       if (changed) changedAny = true;
       turnScore += score;
+      turnMerges += merges;
     }
-    return { changed: changedAny, score: turnScore };
+    return { changed: changedAny, score: turnScore, merges: turnMerges };
   }
 
   moveUp() {
     let changedAny = false;
     let turnScore = 0;
+    let turnMerges = 0;
     for (let c = 0; c < this.gridSize; c++) {
       let col = [this.grid[0][c], this.grid[1][c], this.grid[2][c], this.grid[3][c]];
-      const { newArray, score, changed } = this.operate(col);
+      const { newArray, score, changed, merges } = this.operate(col);
       for (let r = 0; r < this.gridSize; r++) {
         this.grid[r][c] = newArray[r];
       }
       if (changed) changedAny = true;
       turnScore += score;
+      turnMerges += merges;
     }
-    return { changed: changedAny, score: turnScore };
+    return { changed: changedAny, score: turnScore, merges: turnMerges };
   }
 
   moveDown() {
     let changedAny = false;
     let turnScore = 0;
+    let turnMerges = 0;
     for (let c = 0; c < this.gridSize; c++) {
       let col = [this.grid[3][c], this.grid[2][c], this.grid[1][c], this.grid[0][c]];
-      const { newArray, score, changed } = this.operate(col);
+      const { newArray, score, changed, merges } = this.operate(col);
       for (let r = 0; r < this.gridSize; r++) {
         this.grid[3 - r][c] = newArray[r];
       }
       if (changed) changedAny = true;
       turnScore += score;
+      turnMerges += merges;
     }
-    return { changed: changedAny, score: turnScore };
+    return { changed: changedAny, score: turnScore, merges: turnMerges };
   }
 
   move(direction) {
@@ -227,7 +250,7 @@ export class Engine2048 {
     
     this.saveState();
     
-    let result = { changed: false, score: 0 };
+    let result = { changed: false, score: 0, merges: 0 };
     switch (direction) {
       case 'left': result = this.moveLeft(); break;
       case 'right': result = this.moveRight(); break;
@@ -244,10 +267,10 @@ export class Engine2048 {
       this.spawnTile();
       this.checkGameOver();
       this.saveGameState();
-      return { moved: true, score: result.score };
+      return { moved: true, score: result.score, merges: result.merges };
     } else {
       this.history.pop();
-      return { moved: false, score: 0 };
+      return { moved: false, score: 0, merges: 0 };
     }
   }
 

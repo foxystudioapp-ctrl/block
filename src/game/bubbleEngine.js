@@ -483,7 +483,7 @@ export class BubbleEngine {
   saveState() {
     if (this.gameOver) return;
     try {
-      Storage.set(this._saveKey(), {
+      Storage.setDebounced(this._saveKey(), {
         grid: this.grid,
         bomb: this.bomb,
         score: this.score,

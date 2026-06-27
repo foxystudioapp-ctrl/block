@@ -1,7 +1,8 @@
 import { AdMob, BannerAdSize, BannerAdPosition } from '@capacitor-community/admob';
 import { Capacitor } from '@capacitor/core';
 import { Sounds } from '../utils/sounds.js';
-
+import { Toast } from '../components/toast.js';
+import { PlayerState } from '../state/playerState.js';
 class AdServiceManager {
   constructor() {
     this.initialized = false;
@@ -15,17 +16,17 @@ class AdServiceManager {
     this.lastAdWatchTime = 0;
     this.sessionStartTime = Date.now(); // Oturum başlangıcı (periodic kontrol için)
 
-    // Test Ad Units
+    // Real Ad Units
     this.adUnits = {
       interstitial: Capacitor.getPlatform() === 'ios'
-        ? 'ca-app-pub-3940256099942544/4411468910'
-        : 'ca-app-pub-3940256099942544/1033173712',
+        ? 'ca-app-pub-5193796000660760/9873483562'
+        : 'ca-app-pub-5193796000660760/6062231066',
       rewarded: Capacitor.getPlatform() === 'ios'
-        ? 'ca-app-pub-3940256099942544/1712485313'
-        : 'ca-app-pub-3940256099942544/5224354917',
+        ? 'ca-app-pub-5193796000660760/7247320229'
+        : 'ca-app-pub-5193796000660760/2757410876',
       banner: Capacitor.getPlatform() === 'ios'
-        ? 'ca-app-pub-3940256099942544/2934735716'
-        : 'ca-app-pub-3940256099942544/6300978111',
+        ? 'ca-app-pub-5193796000660760/7916414389'
+        : 'ca-app-pub-5193796000660760/4360312750',
     };
   }
 
@@ -36,8 +37,8 @@ class AdServiceManager {
       try {
         await AdMob.initialize({
           requestTrackingAuthorization: true,
-          testingDevices: ['2077ef9a63d2b398840261c8221a0c9b'],
-          initializeForTesting: true,
+          // testingDevices: ['2077ef9a63d2b398840261c8221a0c9b'], // Production
+          // initializeForTesting: true, // Production
         });
         
         this.initialized = true;
@@ -65,8 +66,7 @@ class AdServiceManager {
     if (!this.initialized) return;
     try {
       await AdMob.prepareInterstitial({
-        adId: this.adUnits.interstitial,
-        isTesting: true
+        adId: this.adUnits.interstitial
       });
       this.interstitialLoaded = true;
     } catch (e) {
@@ -76,10 +76,11 @@ class AdServiceManager {
 
   async showInterstitial() {
     if (!Capacitor.isNativePlatform()) {
-      import('../components/toast.js').then(m => m.Toast.show('Reklamlar bu platformda (Web) desteklenmiyor.', 'error'));
+      Toast.show('Reklamlar bu platformda (Web) desteklenmiyor.', 'error');
       return false; // Fail on web, don't give free rewards
     }
     if (!this.initialized || !this.interstitialLoaded) return false;
+    if (PlayerState.state.isVip) return false; // VIPs don't see interstitials
     try {
       Sounds.stopMusic();
       await AdMob.showInterstitial();
@@ -139,8 +140,7 @@ class AdServiceManager {
     if (!this.initialized) return;
     try {
       await AdMob.prepareRewardVideoAd({
-        adId: this.adUnits.rewarded,
-        isTesting: true
+        adId: this.adUnits.rewarded
       });
       this.rewardedLoaded = true;
     } catch (e) {
@@ -153,7 +153,7 @@ class AdServiceManager {
    */
   async showRewardVideoAd() {
     if (!Capacitor.isNativePlatform()) {
-      import('../components/toast.js').then(m => m.Toast.show('Reklamlar bu platformda (Web) desteklenmiyor.', 'error'));
+      Toast.show('Reklamlar bu platformda (Web) desteklenmiyor.', 'error');
       return false; // Fail on web, don't give free rewards
     }
     if (!this.initialized || !this.rewardedLoaded) return false;
@@ -191,6 +191,7 @@ class AdServiceManager {
     if (!Capacitor.isNativePlatform()) return;
     if (this.initPromise) await this.initPromise;
     if (!this.initialized) return;
+    if (PlayerState.state.isVip) return; // VIPs don't see banners
 
     try {
       if (this.bannerCreated) {
@@ -203,8 +204,7 @@ class AdServiceManager {
           adId: this.adUnits.banner,
           adSize: BannerAdSize.ADAPTIVE_BANNER,
           position: BannerAdPosition.BOTTOM_CENTER,
-          margin: 0,
-          isTesting: true
+          margin: 0
         });
         this.bannerCreated = true;
       }

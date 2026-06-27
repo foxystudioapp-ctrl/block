@@ -60,6 +60,8 @@
 	</array>
 	<key>NSUserTrackingUsageDescription</key>
 	<string>Size daha alakalı reklamlar gösterebilmemiz için cihazınızdaki reklam tanıtıcısını kullanmamıza izin verin.</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>GADApplicationIdentifier</key>
 	<string>ca-app-pub-3940256099942544~1458002511</string>
 	<key>SKAdNetworkItems</key>

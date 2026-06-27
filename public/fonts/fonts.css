@@ -3,28 +3,28 @@
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url('/fonts/inter-400.ttf') format('truetype');
+  src: url('/fonts/inter-400.woff2') format('woff2');
 }
 @font-face {
   font-family: 'Inter';
   font-style: normal;
   font-weight: 600;
   font-display: swap;
-  src: url('/fonts/inter-600.ttf') format('truetype');
+  src: url('/fonts/inter-600.woff2') format('woff2');
 }
 @font-face {
   font-family: 'Inter';
   font-style: normal;
   font-weight: 700;
   font-display: swap;
-  src: url('/fonts/inter-700.ttf') format('truetype');
+  src: url('/fonts/inter-700.woff2') format('woff2');
 }
 @font-face {
   font-family: 'Material Symbols Outlined';
   font-style: normal;
   font-weight: 100 700;
-  font-display: block;
-  src: url('/fonts/material-symbols.ttf') format('truetype');
+  font-display: swap;
+  src: url('/fonts/material-symbols.woff2') format('woff2');
 }
 
 /* Material Symbols Rules */

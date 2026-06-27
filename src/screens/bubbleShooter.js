@@ -13,6 +13,17 @@ import { showGameOverModal } from './gameOver.js';
 import { checkAndShowTutorial } from '../components/tutorial.js';
 import { getTotalLevels } from '../game/bubbleLevels.js';
 import { TaskState } from '../state/taskState.js';
+import { showQuitConfirmation } from '../utils/quitConfirm.js';
+import { createScope } from '../utils/lifecycle.js';
+
+// Skoru kompakt gösterir: 1M altı tam okunur, üstü kısaltılır (1.2M / 3.5B).
+// Endless çok uzun oynanınca milyar+ skorların HUD taşmasını önler.
+function formatScore(n) {
+  n = Math.floor(n || 0);
+  if (n >= 1e9) return (n / 1e9).toFixed(n >= 1e10 ? 0 : 1).replace(/\.0$/, '') + 'B';
+  if (n >= 1e6) return (n / 1e6).toFixed(n >= 1e7 ? 0 : 1).replace(/\.0$/, '') + 'M';
+  return n.toLocaleString('tr-TR');
+}
 
 // Klasik parlak top — radyal gradient + highlight
 const COLOR_MAP = {
@@ -29,7 +40,33 @@ export function BubbleShooter() {
   const queryParams = new URLSearchParams((location.hash.split('?')[1] || ''));
   const mode = queryParams.get('mode') || 'endless';
 
-  const engine = new BubbleEngine(mode);
+  const scope = createScope({ name: 'bubble' });
+  const setTimeout = scope.setT;
+  const requestAnimationFrame = scope.raf;
+
+  let engine = new BubbleEngine(mode);
+  window.bubbleEngine = engine;
+  window.bubbleApi = {
+    getCellRect: (r, c) => {
+      const cvs = document.getElementById('bubble-canvas');
+      if (!cvs) return { x: 0, y: 0, radius: 0 };
+      const rect = cvs.getBoundingClientRect();
+      const cellSize = rect.width / (engine.cols + 0.5);
+      const radius = cellSize * 0.46;
+      const offsetX = cellSize / 4;
+      const offsetY = engine.mode === 'endless' ? 80 : 100;
+      const pos = engine.getPixelCenter(r, c, cellSize, offsetX, offsetY + (engine.gridOffsetY || 0));
+      return { x: rect.left + pos.x, y: rect.top + pos.y, radius };
+    },
+    getShooterPos: () => {
+      const cvs = document.getElementById('bubble-canvas');
+      if (!cvs) return { x: 0, y: 0, radius: 0 };
+      const rect = cvs.getBoundingClientRect();
+      const cellSize = rect.width / (engine.cols + 0.5);
+      const radius = cellSize * 0.46;
+      return { x: rect.left + rect.width / 2, y: rect.top + rect.height - 30 - radius, radius };
+    }
+  };
   // Adventure modda kayıtlı seviyeyi engine'e ver. URL'de ?level=N varsa onu kullan.
   if (mode === 'adventure') {
     const urlLevel = parseInt(queryParams.get('level'), 10);
@@ -54,12 +91,25 @@ export function BubbleShooter() {
   const topBar = createTopBar(
     t('menu_bubble') || 'Baloncuk Patlatma',
     true,
-    () => Router.navigate(backTarget)
+    () => {
+      showQuitConfirmation(Router, backTarget, {
+        text: t('restart') || 'Yeniden Başla',
+        primary: false,
+        onClick: (closeFn) => {
+          closeFn();
+          engine.clearSave();
+          engine.init();
+          updateScore();
+          draw();
+        }
+      });
+    }
   );
   container.appendChild(topBar);
 
   // === Sub-controls (Yardım ve +2 Atış) ===
   let extraShotsCount = 0;
+  let endlessDiamondChunks = 0; // endless skor-eşiği ödül sayacı (her 5000 puanda +5 elmas)
   const extraShotsCosts = [50, 150, 300];
   const maxExtraShots = 3;
 
@@ -167,7 +217,7 @@ export function BubbleShooter() {
           </div>
         </div>
         <span class="text-[9px] md:text-[10px] lg:text-[12px] font-black text-gray-400 tracking-wider mb-0.5">${(t('record') || 'REKOR').toUpperCase()}</span>
-        <span id="bubble-best" class="text-sm md:text-base lg:text-xl font-black text-gray-500">${engine.bestScore}</span>
+        <span id="bubble-best" class="text-sm md:text-base lg:text-xl font-black text-gray-500">${formatScore(engine.bestScore)}</span>
       </div>
     `;
   }
@@ -300,7 +350,7 @@ export function BubbleShooter() {
 
           modal.querySelector('#modal-watch-ad').addEventListener('click', async () => {
             Sounds.playSfx('button-tap');
-            const success = await AdService.showInterstitial();
+            const success = await AdService.showRewardVideoAd();
             if (success) {
               modal.close();
               PlayerState.addDiamonds(currentCost);
@@ -376,7 +426,7 @@ export function BubbleShooter() {
           });
           adModal.querySelector('#modal-ad-shots').addEventListener('click', async () => {
             Sounds.playSfx?.('button-tap');
-            const ok = await AdService.showInterstitial();
+            const ok = await AdService.showRewardVideoAd();
             if (ok) {
               extraShotsCount++;
               engine.shotsLeft += 2;
@@ -419,6 +469,8 @@ export function BubbleShooter() {
   let floatingTexts = [];
   // Animasyon loop aktif mi
   let fxRafId = null;
+  let flyingRafId = null;
+  let gridRafId = null;
   function ensureFxLoop() {
     if (fxRafId) return;
     const step = () => {
@@ -718,12 +770,14 @@ export function BubbleShooter() {
     ctx.save();
     ctx.translate(sx, sy);
     ctx.rotate(shooter.angle);
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+    ctx.globalAlpha = 0.8;
+    ctx.fillStyle = engine.currentBubble ? COLOR_MAP[engine.currentBubble].main : 'rgba(255, 255, 255, 0.6)';
     ctx.beginPath();
     ctx.moveTo(r * 1.6, 0);
     ctx.lineTo(r * 1.2, -6);
     ctx.lineTo(r * 1.2, 6);
     ctx.fill();
+    ctx.globalAlpha = 1;
     ctx.restore();
 
     // Sonraki balon (sol alt, daha küçük ve yarı saydam tabanda)
@@ -890,6 +944,8 @@ export function BubbleShooter() {
 
     // Zarif Noktalı Çizgi (Dotted Line Fade)
     const timeOffset = Date.now() / 200;
+    const trajColor = engine.currentBubble ? COLOR_MAP[engine.currentBubble].main : '#ffffff';
+    
     for (let i = 0; i < points.length; i++) {
       const pt = points[i];
       const progress = i / points.length;
@@ -897,11 +953,13 @@ export function BubbleShooter() {
       const alpha = Math.max(0.1, (1 - progress * 0.8) * (0.6 + 0.4 * Math.sin(i * 0.5 - timeOffset)));
       const dotRadius = Math.max(1, 3 * (1 - progress * 0.5));
       
-      ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = trajColor;
       ctx.beginPath();
       ctx.arc(pt.x, pt.y, dotRadius, 0, Math.PI * 2);
       ctx.fill();
     }
+    ctx.globalAlpha = 1;
     
     // Hedef Halkası (Reticle) & Hayalet Balon
     const finalPt = points[points.length - 1];
@@ -913,11 +971,13 @@ export function BubbleShooter() {
       
       // Hedef Halkası
       const pulse = 1 + 0.1 * Math.sin(Date.now() / 150);
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+      ctx.globalAlpha = 0.7;
+      ctx.strokeStyle = trajColor;
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.arc(finalPt.x, finalPt.y, r * pulse, 0, Math.PI * 2);
       ctx.stroke();
+      ctx.globalAlpha = 1;
     }
   }
 
@@ -973,18 +1033,44 @@ export function BubbleShooter() {
     const hitWall = flying.y < r;
     const hitBubble = checkCollision(flying.x, flying.y, r);
     if (hitWall || hitBubble) {
-      // En yakın boş hücreye yapıştır
-      const target = engine.pixelToCell(flying.x, flying.y, cellSize, offsetX, offsetY);
-      // Eğer o hücre doluysa en yakın boş komşuyu bul
-      let { row, col } = target;
-      if (engine.grid[row][col]) {
-        // Komşulardan boş olanı seç (en yakın)
+      let row, col;
+      const prevX = flying.x - flying.vx;
+      const prevY = flying.y - flying.vy;
+
+      if (hitBubble) {
+        // Çarpılan balonun (hitBubble) boş komşuları arasından, 
+        // topun geldiği yöne (1 kare gerisi) en yakın olanı seç.
+        const neighbors = engine.getNeighbors(hitBubble.row, hitBubble.col);
+        let best = null, bestDist = Infinity;
+        for (const n of neighbors) {
+          if (engine.grid[n.row][n.col]) continue;
+          const { x, y } = engine.getPixelCenter(n.row, n.col, cellSize, offsetX, offsetY + gridOffsetY);
+          const d = Math.hypot(prevX - x, prevY - y);
+          if (d < bestDist) { bestDist = d; best = n; }
+        }
+        
+        if (best) {
+          row = best.row;
+          col = best.col;
+        } else {
+          // Emniyet kemeri
+          const target = engine.pixelToCell(prevX, prevY, cellSize, offsetX, offsetY + gridOffsetY);
+          row = target.row; col = target.col;
+        }
+      } else {
+        // Sadece tavana çarptıysa
+        const target = engine.pixelToCell(prevX, prevY, cellSize, offsetX, offsetY + gridOffsetY);
+        row = target.row; col = target.col;
+      }
+      
+      // Son güvenlik kontrolü: Seçilen hedef hala doluysa en yakın boş komşuya it
+      if (engine.grid[row] && engine.grid[row][col]) {
         const neighbors = engine.getNeighbors(row, col);
         let best = null, bestDist = Infinity;
         for (const n of neighbors) {
           if (engine.grid[n.row][n.col]) continue;
           const { x, y } = engine.getPixelCenter(n.row, n.col, cellSize, offsetX, offsetY + gridOffsetY);
-          const d = Math.hypot(flying.x - x, flying.y - y);
+          const d = Math.hypot(prevX - x, prevY - y);
           if (d < bestDist) { bestDist = d; best = n; }
         }
         if (best) { row = best.row; col = best.col; }
@@ -1082,12 +1168,12 @@ export function BubbleShooter() {
       return;
     }
     draw();
-    requestAnimationFrame(animateFlying);
+    flyingRafId = requestAnimationFrame(animateFlying);
   }
 
   function updateScore() {
     const elScore = container.querySelector('#bubble-score');
-    if (elScore) elScore.textContent = engine.score;
+    if (elScore) elScore.textContent = formatScore(engine.score);
 
     if (mode === 'adventure') {
       const elShots = container.querySelector('#bubble-shots');
@@ -1096,7 +1182,15 @@ export function BubbleShooter() {
       if (elLevel) elLevel.textContent = engine.level;
     } else {
       const elBest = container.querySelector('#bubble-best');
-      if (elBest) elBest.textContent = engine.bestScore;
+      if (elBest) elBest.textContent = formatScore(engine.bestScore);
+      // Endless ekonomi faucet'i: her 5000 puanda +5 elmas (mütevazı; farm değil, gerçek skor ister).
+      const chunks = Math.floor(engine.score / 5000);
+      if (chunks > endlessDiamondChunks) {
+        const gained = (chunks - endlessDiamondChunks) * 5;
+        endlessDiamondChunks = chunks;
+        PlayerState.addDiamonds(gained);
+        Toast.show(`+${gained} 💎`, 'success');
+      }
     }
 
     // PlayerState'e de en yüksek skoru yansıt
@@ -1114,13 +1208,19 @@ export function BubbleShooter() {
     // Adventure'da reklam akışı
     AdService.showForcedInterstitial('levelup');
 
-    // Seviye geçince PlayerState'i ilerlet
+    // Seviye geçince PlayerState'i ilerlet + ELMAS ÖDÜLÜ (ekonomi faucet'i).
+    // Bubble eskiden seviye başına HİÇ elmas vermiyordu (tek faucet günlük görevdi); çekiç/+2 atış/
+    // revive hep sink olduğundan ekonomi tek yönlü kanıyordu. Diğer modlarla tutarlı, YALNIZCA yeni
+    // en yüksek seviyede ödül (replay/farm engeli).
     const currentLevel = engine.level;
     const isLastLevel = currentLevel >= getTotalLevels();
-    if (currentLevel >= (PlayerState.state.bubbleAdventureLevel || 1)) {
+    const isNewLevel = currentLevel >= (PlayerState.state.bubbleAdventureLevel || 1);
+    if (isNewLevel) {
       PlayerState.state.bubbleAdventureLevel = Math.min(currentLevel + 1, getTotalLevels());
-      PlayerState.save();
     }
+    const reward = isNewLevel ? Math.min(80, 15 + Math.floor(currentLevel * 1.5) + (engine.lastStars || 1) * 5) : 0;
+    if (reward > 0) PlayerState.addDiamonds(reward);
+    PlayerState.save();
 
     Sounds.playSfx?.('level-up');
     Haptics.vibrate?.('success');
@@ -1144,8 +1244,12 @@ export function BubbleShooter() {
           </div>
           <div class="w-full bg-black/5 dark:bg-white/5 rounded-2xl p-4 flex justify-between items-center mt-2 border border-black/10 dark:border-white/10">
             <span class="text-sm font-bold text-gray-500">${t('score') || 'Skor'}</span>
-            <span class="text-xl font-black text-cyan-500">${engine.score}</span>
+            <span class="text-xl font-black text-cyan-500">${formatScore(engine.score)}</span>
           </div>
+          ${reward > 0 ? `<div class="flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-cyan-400/15 border border-cyan-400/20">
+            <span class="material-symbols-outlined text-cyan-400 text-lg" style="font-variation-settings:'FILL' 1;">diamond</span>
+            <span class="font-black text-cyan-500">+${reward}</span>
+          </div>` : ''}
         </div>
       `,
       actions: isLastLevel ? [
@@ -1262,7 +1366,7 @@ export function BubbleShooter() {
 
     modal.querySelector('#modal-revive-ad').addEventListener('click', async () => {
       Sounds.playSfx?.('button-tap');
-      const success = await AdService.showInterstitial();
+      const success = await AdService.showRewardVideoAd();
       if (success) doRevive();
     });
 
@@ -1385,12 +1489,15 @@ export function BubbleShooter() {
     }
   }, { passive: false });
 
-  let gridRafId = null;
   container.cleanup = () => {
+    scope.destroy();              // izlenen setTimeout + RAF iptali
+    if (topBar.cleanup) topBar.cleanup();   // L1: PlayerState aboneliğini bırak (leak fix)
     window.removeEventListener('resize', resizeCanvas);
     AdService.hideBanner();
     if (fxRafId) cancelAnimationFrame(fxRafId);
     if (gridRafId) cancelAnimationFrame(gridRafId);
+    if (flyingRafId) cancelAnimationFrame(flyingRafId);
+    engine = null;
   };
 
   // Banner için altta boşluk (banner canvas'ı kapatmasın)

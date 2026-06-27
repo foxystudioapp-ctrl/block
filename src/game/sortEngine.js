@@ -2,6 +2,7 @@ import { PlayerState } from '../state/playerState.js';
 import { Storage } from '../utils/storage.js';
 import { Sounds } from '../utils/sounds.js';
 import { t } from '../utils/i18n.js';
+import { Toast } from '../components/toast.js';
 
 const COLORS = ['red', 'blue', 'green', 'orange', 'purple', 'cyan', 'yellow', 'pink'];
 
@@ -150,19 +151,15 @@ export class SortEngine {
     const costs = [50, 150, 300];
     
     if (this.undoCount >= costs.length) {
-      import('../components/toast.js').then(({ Toast }) => {
-        Toast.show(t('max_undo_reached') || 'Bu oyunda maksimum Geri Al hakkını doldurdun!', 'warning');
-      });
+      Toast.show(t('max_undo_reached') || 'Bu oyunda maksimum Geri Al hakkını doldurdun!', 'warning');
       return false;
     }
 
     const cost = costs[this.undoCount];
     const success = PlayerState.useDiamonds(cost);
     if (!success) {
-      import('../components/toast.js').then(({ Toast }) => {
-        const msg = (t('need_diamonds_undo') || 'Geri almak için {cost} elmasa ihtiyacınız var!').replace('{cost}', cost).replace('${cost}', cost);
-        Toast.show(msg, 'warning');
-      });
+      const msg = (t('need_diamonds_undo') || 'Geri almak için {cost} elmasa ihtiyacınız var!').replace('{cost}', cost).replace('${cost}', cost);
+      Toast.show(msg, 'warning');
       return false;
     }
 
@@ -179,7 +176,7 @@ export class SortEngine {
       history: this.history,
       undoCount: this.undoCount
     };
-    Storage.set(this.stateKey, data);
+    Storage.setDebounced(this.stateKey, data);
   }
 
   loadFromLocalStorage() {

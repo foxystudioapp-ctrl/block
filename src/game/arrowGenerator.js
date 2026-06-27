@@ -32,30 +32,46 @@ const sortedShapes = [...ALL_SHAPES_DATA].map(shape => {
   return { ...shape, blockCount: count };
 }).sort((a, b) => a.blockCount - b.blockCount);
 
+// Bir şekil `size` tahtaya tamsayı-ölçeklendiğinde oluşacak yaklaşık ok sayısı.
+// scaleShapeToMask ile aynı ölçek mantığını kullanır ama BFS yapmadan (seçim için ucuz tahmin).
+function estimateScaledArrows(shape, size) {
+  const maskR = shape.data.length;
+  const maskC = shape.data[0].length;
+  const targetW = Math.floor(size * 0.95);
+  const targetH = Math.floor(size * 0.95);
+  let scale = Math.min(targetH / maskR, targetW / maskC);
+  if (scale < 1) scale = 1;
+  else scale = Math.floor(scale);
+  const arrows = shape.blockCount * scale * scale;
+  return Math.max(1, Math.round(arrows));
+}
+
 function scaleShapeToMask(shape, size) {
   const maskRows = shape.data;
   const maskR = maskRows.length;
   const maskC = maskRows[0].length;
-  const currentBoard = Array.from({length: size}, () => new Array(size).fill(0));
   
   const targetWidth = Math.floor(size * 0.95);
   const targetHeight = Math.floor(size * 0.95);
   
   let scale = Math.min(targetHeight / maskR, targetWidth / maskC);
   
-  // PIXEL ART FIX: Use integer scaling to avoid distorting the shapes
-  if (scale >= 1) {
-    scale = Math.floor(scale);
-  }
+  // PIXEL ART FIX: Never shrink to avoid distorting the shapes
+  if (scale < 1) scale = 1;
+  else scale = Math.floor(scale);
   
   const actualW = Math.floor(maskC * scale);
   const actualH = Math.floor(maskR * scale);
   
-  const startR = Math.floor((size - actualH) / 2);
-  const startC = Math.floor((size - actualW) / 2);
+  // PIXEL ART FIX: Expand board if the shape doesn't fit
+  const finalSize = Math.max(size, actualW + 2, actualH + 2);
+  const currentBoard = Array.from({length: finalSize}, () => new Array(finalSize).fill(0));
   
-  for (let tr = 0; tr < size; tr++) {
-    for (let tc = 0; tc < size; tc++) {
+  const startR = Math.floor((finalSize - actualH) / 2);
+  const startC = Math.floor((finalSize - actualW) / 2);
+  
+  for (let tr = 0; tr < finalSize; tr++) {
+    for (let tc = 0; tc < finalSize; tc++) {
       if (tr >= startR && tr < startR + actualH && tc >= startC && tc < startC + actualW) {
         const sr = Math.floor((tr - startR) / scale);
         const sc = Math.floor((tc - startC) / scale);
@@ -68,74 +84,49 @@ function scaleShapeToMask(shape, size) {
     }
   }
 
-  const visitedForIslands = Array.from({length: size}, () => new Array(size).fill(false));
-  let maxIslandSize = 0;
-  let maxIslandCoords = [];
-  
-  for(let i=0; i<size; i++){
-    for(let j=0; j<size; j++){
-      if(currentBoard[i][j] === 1 && !visitedForIslands[i][j]) {
-        let sizeOfIsland = 0;
-        let coords = [];
-        let q = [[i,j]];
-        visitedForIslands[i][j] = true;
-        while(q.length > 0) {
-          let [cr, cc] = q.shift();
-          sizeOfIsland++;
-          coords.push([cr,cc]);
-          for(let [dr,dc] of [[0,1],[1,0],[0,-1],[-1,0]]) {
-            let nr = cr+dr, nc = cc+dc;
-            if(nr>=0 && nr<size && nc>=0 && nc<size && currentBoard[nr][nc]===1 && !visitedForIslands[nr][nc]) {
-              visitedForIslands[nr][nc] = true;
-              q.push([nr,nc]);
-            }
-          }
-        }
-        if(sizeOfIsland > maxIslandSize) {
-          maxIslandSize = sizeOfIsland;
-          maxIslandCoords = coords;
-        }
-      }
+  // PIXEL ART FIX: Retain all parts of the shape (no island discarding)
+  const finalMask = Array.from({length: finalSize}, () => new Array(finalSize).fill('0'));
+  for (let r = 0; r < finalSize; r++) {
+    for (let c = 0; c < finalSize; c++) {
+      if (currentBoard[r][c] === 1) finalMask[r][c] = '1';
     }
   }
   
-  const finalMask = Array.from({length: size}, () => new Array(size).fill('0'));
-  maxIslandCoords.forEach(([r,c]) => { finalMask[r][c] = '1'; });
-  
-  return finalMask.map(row => row.join(''));
+  return {
+    mask: finalMask.map(row => row.join('')),
+    finalSize: finalSize
+  };
 }
 
 export function generateEndlessLevel(levelNum) {
   const rng = mulberry32(levelNum + 999);
-  
-  let size = 8;
+
+  // --- PÜRÜZSÜZ ZORLUK ---
+  // Eski sistem şekli ham "yüzdelik" ile seçiyordu; şekil kütüphanesinin blok-sayısı
+  // dağılımı çarpık olduğundan komşu seviyeler vahşice zıplıyor (Sv30=96 ok, Sv50=34 ok) ve
+  // Daha yoğun bir labirent ve kilit yapısı için başlangıç boyutu artırıldı
+  let size = Math.min(26, 14 + Math.floor(Math.sqrt(levelNum) * 1.3));
   let shape;
-  
-  if (levelNum <= 15) {
-    size = 10;
-    const minPercent = 0.1;
-    const maxPercent = 0.3;
-    const percent = minPercent + (levelNum / 15) * (maxPercent - minPercent);
-    const index = Math.floor(percent * sortedShapes.length);
-    shape = sortedShapes[Math.min(index, sortedShapes.length - 1)];
-  } else if (levelNum <= 50) {
-    size = 12 + Math.floor((levelNum - 15) / 10);
-    const percent = 0.3 + ((levelNum - 15) / 35) * 0.3;
-    const index = Math.floor(percent * sortedShapes.length);
-    shape = sortedShapes[Math.min(index, sortedShapes.length - 1)];
-  } else if (levelNum <= 100) {
-    size = 16 + Math.floor((levelNum - 50) / 15);
-    const percent = 0.6 + ((levelNum - 50) / 50) * 0.3;
-    const index = Math.floor(percent * sortedShapes.length);
-    shape = sortedShapes[Math.min(index, sortedShapes.length - 1)];
+
+  if (levelNum <= 200) {
+    // İlk seviyelerde çok daha fazla ok (35-40'tan başlar)
+    const targetArrows = 35 + Math.floor(levelNum * 3.5);
+    const scored = sortedShapes.map(s => {
+      const est = estimateScaledArrows(s, size);
+      return { shape: s, diff: Math.abs(est - targetArrows) };
+    }).sort((a, b) => a.diff - b.diff);
+    
+    const pool = scored.slice(0, 6);
+    shape = pool[Math.floor(rng() * pool.length)].shape;
   } else {
-    size = 18 + Math.floor(rng() * 8);
+    // Sonsuz modda (rastgele devasa levelNum) veya ileri seviyelerde 
+    // her şeklin çıkabilmesi için tam rastgele seçim yapıyoruz.
     shape = sortedShapes[Math.floor(rng() * sortedShapes.length)];
   }
-  
-  if (size > 24) size = 24;
 
-  let mask = scaleShapeToMask(shape, size);
+  const scaledData = scaleShapeToMask(shape, size);
+  const mask = scaledData.mask;
+  size = scaledData.finalSize;
   let shapeName = shape.name;
   
   const remainingBoard = Array.from({length: size}, () => new Array(size).fill(0));
@@ -192,8 +183,16 @@ export function generateEndlessLevel(levelNum) {
     const topScore = candidates[0].score;
     const topCandidates = candidates.filter(c => c.score >= topScore - 1);
     const chosen = topCandidates[Math.floor(rng() * topCandidates.length)];
+
+    // Labirent hissi için dinamik yılan uzunlukları (tahta boyutuna orantılı)
+    const minLen = Math.max(3, Math.floor(size / 4));
+    const maxLen = Math.floor(size * 0.70);
     
-    let snakeLen = rng() < 0.7 ? (4 + Math.floor(rng() * 3)) : 1;
+    // %80 ihtimalle tahta boyutuna orantılı uzun yılan, %20 ihtimalle kısa bağlayıcı yılan (2-4 blok)
+    let snakeLen = rng() < 0.80 
+      ? (minLen + Math.floor(rng() * (maxLen - minLen + 1))) 
+      : (2 + Math.floor(rng() * 3));
+    
     let currR = chosen.r, currC = chosen.c;
     
     remainingSet.delete(currR + ',' + currC);

@@ -26,10 +26,40 @@ export class X2Engine {
     }
   }
 
-  // Score-based level target (linear progression)
+  // Bir seviyedeki taban (minimum) spawn değeri — hem hedef hem spawn için ORTAK kaynak.
+  // Sonsuz maceraya güvenli: bir birleşmenin sonucu Number hassasiyetini (2^53) aşmasın diye
+  // kademe üssü kelepçelenir (≈ seviye 1420'de devreye girer; oyun kırılmadan devam eder).
+  _getSpawnFloorForLevel(level = this.level) {
+    let exp;
+    if (level <= 30) exp = 1;       // 2
+    else if (level <= 60) exp = 2;  // 4
+    else if (level <= 100) exp = 3; // 8
+    else exp = 4 + Math.floor((level - 101) / 30); // 16, 32, ... her 30 seviyede bir kademe
+    if (exp > 48) exp = 48; // güvenlik kelepçesi (floor*4 birleşince ≤ 2^51)
+    return Math.pow(2, exp);
+  }
+
+  // Score-based level target — MONOTON ve taban-puana bağlı.
+  // (Eski 500 tabanı kaldırıldı: o taban seviye 1–99'u tek hedefte düzleştirip zorluk
+  //  eğrisini ters çeviriyordu. Artık hedef seviyeyle pürüzsüz artar ve daima ulaşılabilir.)
   getTargetScore() {
-    // Level 1=500, Level 2=800, Level 10=3200 ... grows linearly
-    return 500 + (this.level - 1) * 300;
+    const floor = this._getSpawnFloorForLevel(this.level);
+    // Gerekli birleşme sayısı PLATOYA oturtuldu (tavan 16). Eskiden sınırsız büyüyordu
+    // (Sv700'de 188, Sv800'de 214) → 35 hücrelik tahtada tek seviyede o kadar birleşme
+    // fiziksel olarak imkânsızdı. Zorluk artık tabanın seviyeyle yükselmesinden gelir
+    // (her 30 seviyede katlanır); hedef tabanla orantılı ama daima ulaşılabilir kalır.
+    const requiredMerges = Math.min(16, 14 + Math.floor(this.level / 8) * 2);
+    // Ortalama birleşme puanı ≈ taban değerin ~7 katı (birleşme + küçük cascade)
+    const avgMergeScore = floor * 7;
+    return Math.round(requiredMerges * avgMergeScore);
+  }
+
+  // Seviye tamamlama ödülü (ekonomi faucet'i) — emsal modlarla aynı ölçek
+  // (match: min(100,20+lvl*5), arrow: min(80,15+lvl+stars*5)). x2 SONSUZ olduğu için biraz
+  // daha temkinli (tavan 60) ve x2Block tarafında SADECE YENİ EN YÜKSEK SEVİYEDE verilir
+  // (replay/farm engeli — yoksa 1→1000 grind'i IAP'ı çökertir). AYARLANABİLİR.
+  getLevelReward(level = this.level) {
+    return Math.min(60, 15 + level * 2);
   }
 
   // Adventure modunun toplam seviye sayısı (map için)
@@ -69,6 +99,7 @@ export class X2Engine {
       this.powerCounts = state.powerCounts || { hammer: 0, swap: 0, change: 0 };
       this.levelUpReady = false;
       this.gameOver = false;
+      this._guaranteePlayable(); // dolu tahta kaydedildiyse soft-lock'u önle
       return true;
     }
     // Hard reset old saves: clean out the storage entirely for X2 to start fresh
@@ -87,6 +118,10 @@ export class X2Engine {
     if (!keepBoard) {
       // Only clear grid on first play or restart — NOT on level up
       this.grid = Array(this.rows).fill(null).map(() => Array(this.cols).fill(0));
+    } else {
+      // Seviye atlarken tahta korunur — ama dolu tahtayla geçilirse soft-lock olmasın diye
+      // oynanabilirliği garantile.
+      this._guaranteePlayable();
     }
     
     // Reset power-up counts per level
@@ -110,30 +145,26 @@ export class X2Engine {
     this.initLevel(this.level, false);
   }
 
-  // --- Spawn logic with tiered pools ---
+  // --- Spawn logic: taban değer hem SEVİYEYLE hem de TAHTANIN EN BÜYÜK BLOĞUYLA yükselir ---
+  // (2248 / Drop The Number mantığı: küçük bloklar emekliye ayrılır → büyükler beslenebilir,
+  //  tahta tıkanmaz. Eski "dinamik kademe" kodu maxPool'u push'tan önce hesapladığı için
+  //  fiilen tek bir kademe eklerdi ve endless'ta level=1 sabit olduğundan taban hiç yükselmezdi.)
   generateBlock() {
-    let pool;
-    if (this.level <= 10) {
-      pool = [2, 2, 2, 4, 4];
-    } else if (this.level <= 30) {
-      pool = [2, 2, 4, 4, 8];
-    } else if (this.level <= 60) {
-      pool = [4, 4, 8, 8, 16];
-    } else if (this.level <= 100) {
-      pool = [8, 8, 16, 16, 32];
-    } else {
-      const extraSteps = Math.floor((this.level - 101) / 30);
-      const baseExponent = 4 + extraSteps;
-      const val1 = Math.pow(2, baseExponent);
-      const val2 = Math.pow(2, baseExponent + 1);
-      const val3 = Math.pow(2, baseExponent + 2);
-      pool = [val1, val1, val2, val2, val3];
+    const levelFloor = this._getSpawnFloorForLevel(this.level);
+
+    // İlerleme tabanı: tahtanın en büyük bloğunun ~6 kademe altındakiler artık spawn olmaz.
+    // Bu, ENDLESS modda da tabanı yükseltir (orada seviye hep 1'dir).
+    let progressFloor = 2;
+    if (this.maxOnBoard >= 128) {
+      let pExp = Math.floor(Math.log2(this.maxOnBoard)) - 6;
+      if (pExp < 1) pExp = 1;
+      if (pExp > 48) pExp = 48; // güvenlik kelepçesi
+      progressFloor = Math.pow(2, pExp);
     }
-    
-    // Dynamically add one tier higher if board has high blocks
-    const maxPool = pool[pool.length - 1];
-    if (this.maxOnBoard >= maxPool * 8) pool.push(maxPool * 2);
-    
+
+    const floor = Math.max(levelFloor, progressFloor);
+    // Spawn penceresi: çoğunlukla taban, biraz 2x ve 4x (zincir kurmaya izin verir)
+    const pool = [floor, floor, floor, floor * 2, floor * 4];
     return pool[Math.floor(Math.random() * pool.length)];
   }
 
@@ -349,24 +380,84 @@ export class X2Engine {
     return true;
   }
 
+  _hasEmptyCell() {
+    for (let r = 0; r < this.rows; r++)
+      for (let c = 0; c < this.cols; c++)
+        if (this.grid[r][c] === 0) return true;
+    return false;
+  }
+
+  // Tahta tıkanma koruması (EŞİK TABANLI rahatlatma).
+  // NEDEN: Bu modda yerleşmiş bloklar kaydırılamaz; spawn tabanı her 30 seviyede
+  // katlanıp küçükleri emekliye ayırınca, EŞİ OLMAYAN büyük tekiller tahtada birikip
+  // 35 hücreyi kilitliyordu. Bu yüzden mod ~150-266. seviyede HER oyuncu için duvara
+  // çarpıyordu (hedef ne olursa olsun). Oyuncuların 700'e ulaşması yalnızca eski düşük
+  // hedeflerin tahtayı hiç doldurmadan hızlı atlatmasındandı.
+  // ÇÖZÜM: Tahta dolulukta TRIGGER eşiğini aşarsa EN KÜÇÜK blokları temizleyip TARGET_FILL
+  // doluluğa indir. Eşik tabanlı olduğu için sağlıklı tahtada (≤%65) HİÇ tetiklenmez —
+  // taşıma/zincir hissi korunur. Seviye-atlamada (initLevel keepBoard) ve yüklemede
+  // (loadState) çağrıldığından, 700'de kilitli kalmış oyuncular girer girmez nefes alır.
+  _guaranteePlayable() {
+    const total = this.rows * this.cols;
+    const countEmpty = () => {
+      let n = 0;
+      for (let r = 0; r < this.rows; r++)
+        for (let c = 0; c < this.cols; c++)
+          if (this.grid[r][c] === 0) n++;
+      return n;
+    };
+    const TRIGGER = 0.65;      // tahta bundan doluysa rahatlat
+    const TARGET_FILL = 0.5;   // bu doluluğa kadar EN KÜÇÜKLERİ temizle (~%50 boş kalır)
+
+    let filled = total - countEmpty();
+    if (filled > total * TRIGGER) {
+      const targetFilled = Math.floor(total * TARGET_FILL);
+      const cells = [];
+      for (let r = 0; r < this.rows; r++)
+        for (let c = 0; c < this.cols; c++)
+          if (this.grid[r][c] > 0) cells.push({ r, c, val: this.grid[r][c] });
+      cells.sort((a, b) => a.val - b.val); // küçükten büyüğe
+      let i = 0;
+      while (filled > targetFilled && i < cells.length) {
+        this.grid[cells[i].r][cells[i].c] = 0;
+        filled--; i++;
+      }
+      this.applyGravity();
+      this.updateMaxOnBoard();
+    }
+
+    // Güvenlik tabanı: yine de hiç boş hücre yoksa en az bir sütun aç (soft-lock'u önle).
+    if (countEmpty() === 0) {
+      for (let c = 0; c < this.cols; c++) this.grid[this.rows - 1][c] = 0;
+      this.applyGravity();
+      this.updateMaxOnBoard();
+    }
+  }
+
   revive() {
-    let cells = [];
+    // Anlamlı ikinci şans: tahtanın ~%35'i boşalana kadar EN KÜÇÜK blokları temizle.
+    // (Eskiden yalnızca en küçük 3 blok siliniyordu → dolu tahtada 3 hamlelik soluk; üstelik
+    //  hâlâ birleşebilecek küçükleri alıp büyük takılı blokları bırakıyordu. Artık yeterince
+    //  yer açılır; spawn tabanı seviyeye uygun geldiği için oyuncu toparlanabilir.)
+    const totalCells = this.rows * this.cols;
+    const targetEmpty = Math.ceil(totalCells * 0.35); // ~12 hücre
+
+    const cells = [];
     for (let r = 0; r < this.rows; r++) {
       for (let c = 0; c < this.cols; c++) {
-        if (this.grid[r][c] > 0) {
-          cells.push({r, c, val: this.grid[r][c]});
-        }
+        if (this.grid[r][c] > 0) cells.push({ r, c, val: this.grid[r][c] });
       }
     }
-    
-    cells.sort((a, b) => a.val - b.val);
-    
-    const toRemove = Math.min(3, cells.length);
-    for (let i = 0; i < toRemove; i++) {
+    cells.sort((a, b) => a.val - b.val); // küçükten büyüğe
+
+    let emptyCount = totalCells - cells.length;
+    for (let i = 0; i < cells.length && emptyCount < targetEmpty; i++) {
       this.grid[cells[i].r][cells[i].c] = 0;
+      emptyCount++;
     }
-    
+
     this.applyGravity();
+    this.updateMaxOnBoard();
     this.gameOver = false;
     this.saveState();
     return true;

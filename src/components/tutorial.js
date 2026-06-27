@@ -54,7 +54,7 @@ function showFloatingScore(board, text, left, top) {
   }, 1200);
 }
 
-export function checkAndShowTutorial(mode = 'classic', force = false) {
+export function checkAndShowTutorial(mode = 'classic', force = false, options = {}) {
   const isCompleted = Storage.get(`tutorial_completed_${mode}`, false);
   if (isCompleted && !force) return;
   
@@ -1117,19 +1117,20 @@ export function checkAndShowTutorial(mode = 'classic', force = false) {
           const animate = async () => {
             while (running) {
               const cell = getCellRect(2, 0);
+              const boardRect = board.getBoundingClientRect();
               ghost.style.width = `${cell.width - 4}px`;
               ghost.style.height = `${cell.height - 4}px`;
 
-              // Start above the board
+              // Start below the board
               ghost.style.transition = 'none';
               ghost.style.left = `${cell.cx - cell.width / 2 + 2}px`;
-              ghost.style.top = `${cell.top - cell.height * 1.5}px`;
+              ghost.style.top = `${boardRect.bottom + 20}px`;
               ghost.style.opacity = '0';
               ghost.style.transform = 'scale(0.7)';
 
               vCursor.style.transition = 'none';
               vCursor.style.left = `${cell.cx}px`;
-              vCursor.style.top = `${cell.top - cell.height * 1.8}px`;
+              vCursor.style.top = `${boardRect.bottom + 60}px`;
               vCursor.style.opacity = '0';
 
               await wait(300);
@@ -1150,12 +1151,12 @@ export function checkAndShowTutorial(mode = 'classic', force = false) {
               await wait(150);
               vCursor.style.transform = 'scale(1)';
 
-              // Block drops into board
-              ghost.style.transition = 'all 0.45s cubic-bezier(0.25, 1, 0.5, 1)';
+              // Block shoots up into board
+              ghost.style.transition = 'all 0.35s cubic-bezier(0.25, 1, 0.5, 1)';
               ghost.style.top = `${cell.top + 2}px`;
               ghost.style.boxShadow = '0 8px 24px rgba(251,146,60,0.5)';
 
-              await wait(500);
+              await wait(400);
               if (!running) break;
 
               // Land shake
@@ -1221,6 +1222,7 @@ export function checkAndShowTutorial(mode = 'classic', force = false) {
             while (running) {
               const cell0 = getCellRect(2, 0);
               const cell1 = getCellRect(2, 1);
+              const boardRect = board.getBoundingClientRect();
               const cw = cell0.width - 4;
               const ch = cell0.height - 4;
 
@@ -1235,12 +1237,12 @@ export function checkAndShowTutorial(mode = 'classic', force = false) {
               ghost1.className = 'fixed flex items-center justify-center font-black rounded-xl shadow-md text-xl bg-orange-400 text-white z-[300] pointer-events-none';
               ghost1.textContent = '4';
 
-              // Second block starts above
+              // Second block starts below the board
               ghost2.style.width = `${cw}px`;
               ghost2.style.height = `${ch}px`;
               ghost2.style.transition = 'none';
               ghost2.style.left = `${cell0.left + 2}px`;
-              ghost2.style.top = `${cell0.top - ch * 2}px`;
+              ghost2.style.top = `${boardRect.bottom + 20}px`;
               ghost2.style.opacity = '0.8';
               ghost2.style.transform = 'scale(0.85)';
               ghost2.className = 'fixed flex items-center justify-center font-black rounded-xl shadow-md text-xl bg-orange-400 text-white z-[300] pointer-events-none';
@@ -1249,32 +1251,46 @@ export function checkAndShowTutorial(mode = 'classic', force = false) {
               await wait(600);
               if (!running) break;
 
-              // Drop second block
-              ghost2.style.transition = 'all 0.45s cubic-bezier(0.25, 1, 0.5, 1)';
+              // Shoot second block up to row 1
+              ghost2.style.transition = 'all 0.35s cubic-bezier(0.25, 1, 0.5, 1)';
               ghost2.style.top = `${cell1.top + 2}px`;
               ghost2.style.opacity = '1';
               ghost2.style.transform = 'scale(1)';
 
-              await wait(500);
+              await wait(400);
               if (!running) break;
 
-              // Merge flash
-              ghost2.style.opacity = '0';
-              ghost1.textContent = '8';
-              ghost1.className = 'fixed flex items-center justify-center font-black rounded-xl text-xl bg-red-500 text-white shadow-lg z-[300] pointer-events-none';
-              ghost1.style.transition = 'all 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
-              ghost1.style.transform = 'scale(1.3)';
-              ghost1.style.filter = 'brightness(1.5) drop-shadow(0 0 16px rgba(239,68,68,0.8))';
+              // Merge DOWN: ghost1 moves down to ghost2
+              ghost1.style.transition = 'all 0.15s cubic-bezier(0.25, 1, 0.5, 1)';
+              ghost1.style.top = `${cell1.top + 2}px`;
+              
+              await wait(150);
+              if (!running) break;
+
+              // Merge flash at cell1
+              ghost1.style.opacity = '0';
+              ghost2.textContent = '8';
+              ghost2.className = 'fixed flex items-center justify-center font-black rounded-xl text-xl bg-red-500 text-white shadow-lg z-[300] pointer-events-none';
+              ghost2.style.transition = 'all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+              ghost2.style.transform = 'scale(1.3)';
+              ghost2.style.filter = 'brightness(1.5) drop-shadow(0 0 16px rgba(239,68,68,0.8))';
 
               showFloatingScore(board, '+8');
 
-              await wait(350);
-              ghost1.style.transform = 'scale(1)';
-              ghost1.style.filter = 'none';
+              await wait(250);
+              if (!running) break;
+              
+              // Gravity pulls the merged block UP to row 0
+              ghost2.style.transform = 'scale(1)';
+              ghost2.style.filter = 'none';
+              ghost2.style.transition = 'all 0.2s cubic-bezier(0.25, 1, 0.5, 1)';
+              ghost2.style.top = `${cell0.top + 2}px`;
 
-              await wait(1200);
-              ghost1.style.transition = 'all 0.3s';
-              ghost1.style.opacity = '0';
+              await wait(1000);
+              if (!running) break;
+
+              ghost2.style.transition = 'all 0.3s';
+              ghost2.style.opacity = '0';
               await wait(350);
             }
           };
@@ -1320,6 +1336,7 @@ export function checkAndShowTutorial(mode = 'classic', force = false) {
               const c1 = getCellRect(2, 0);
               const c2 = getCellRect(3, 0);
               const c3below = getCellRect(3, 1);
+              const boardRect = board.getBoundingClientRect();
               const cw = c1.width - 4, ch = c1.height - 4;
 
               [g1, g2, g3].forEach(g => { g.style.width = `${cw}px`; g.style.height = `${ch}px`; });
@@ -1327,40 +1344,53 @@ export function checkAndShowTutorial(mode = 'classic', force = false) {
               // Reset
               g1.style.transition = 'none'; g1.style.left = `${c1.left + 2}px`; g1.style.top = `${c1.top + 2}px`; g1.style.opacity = '1'; g1.style.transform = 'scale(1)'; g1.className = 'fixed flex items-center justify-center font-black rounded-xl text-xl bg-red-500 text-white z-[300] pointer-events-none'; g1.textContent = '8';
               g2.style.transition = 'none'; g2.style.left = `${c2.left + 2}px`; g2.style.top = `${c2.top + 2}px`; g2.style.opacity = '1'; g2.style.transform = 'scale(1)'; g2.className = 'fixed flex items-center justify-center font-black rounded-xl text-xl bg-orange-400 text-white z-[300] pointer-events-none'; g2.textContent = '4';
-              g3.style.transition = 'none'; g3.style.left = `${c2.left + 2}px`; g3.style.top = `${c2.top - ch * 2}px`; g3.style.opacity = '0.8'; g3.style.transform = 'scale(0.85)'; g3.className = 'fixed flex items-center justify-center font-black rounded-xl text-xl bg-orange-400 text-white z-[300] pointer-events-none'; g3.textContent = '4';
+              g3.style.transition = 'none'; g3.style.left = `${c2.left + 2}px`; g3.style.top = `${boardRect.bottom + 20}px`; g3.style.opacity = '0.8'; g3.style.transform = 'scale(0.85)'; g3.className = 'fixed flex items-center justify-center font-black rounded-xl text-xl bg-orange-400 text-white z-[300] pointer-events-none'; g3.textContent = '4';
 
               await wait(600);
               if (!running) break;
 
-              // Drop g3 onto g2 → merge to 8
-              g3.style.transition = 'all 0.4s cubic-bezier(0.25, 1, 0.5, 1)';
+              // Shoot g3 up to (3, 1)
+              g3.style.transition = 'all 0.35s cubic-bezier(0.25, 1, 0.5, 1)';
               g3.style.top = `${c3below.top + 2}px`;
               g3.style.opacity = '1'; g3.style.transform = 'scale(1)';
-
-              await wait(450);
-              if (!running) break;
-
-              g3.style.opacity = '0';
-              g2.textContent = '8';
-              g2.className = 'fixed flex items-center justify-center font-black rounded-xl text-xl bg-red-500 text-white z-[300] pointer-events-none';
-              g2.style.transition = 'all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
-              g2.style.transform = 'scale(1.25)';
-              g2.style.filter = 'brightness(1.5)';
-
-              await wait(280);
-              g2.style.transform = 'scale(1)'; g2.style.filter = 'none';
-
-              await wait(350);
-              if (!running) break;
-
-              // Now g1 (col2, 8) and g2 (col3, 8) are adjacent → merge g2 into g1
-              g2.style.transition = 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)';
-              g2.style.left = `${c1.left + 2}px`;
 
               await wait(400);
               if (!running) break;
 
+              // Merge DOWN: g2 moves down to g3
+              g2.style.transition = 'all 0.15s cubic-bezier(0.25, 1, 0.5, 1)';
+              g2.style.top = `${c3below.top + 2}px`;
+              
+              await wait(150);
+              if (!running) break;
+
+              // Flash g3 (now 8)
               g2.style.opacity = '0';
+              g3.textContent = '8';
+              g3.className = 'fixed flex items-center justify-center font-black rounded-xl text-xl bg-red-500 text-white z-[300] pointer-events-none';
+              g3.style.transition = 'all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+              g3.style.transform = 'scale(1.25)';
+              g3.style.filter = 'brightness(1.5)';
+
+              await wait(250);
+              if (!running) break;
+              g3.style.transform = 'scale(1)'; g3.style.filter = 'none';
+              
+              // Gravity pulls g3 UP to (3,0)
+              g3.style.transition = 'all 0.2s cubic-bezier(0.25, 1, 0.5, 1)';
+              g3.style.top = `${c2.top + 2}px`;
+              
+              await wait(300);
+              if (!running) break;
+
+              // Merge LEFT: g3 moves to g1
+              g3.style.transition = 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)';
+              g3.style.left = `${c1.left + 2}px`;
+
+              await wait(350);
+              if (!running) break;
+
+              g3.style.opacity = '0';
               g1.textContent = '16';
               g1.className = 'fixed flex items-center justify-center font-black rounded-xl text-xl bg-purple-500 text-white shadow-lg z-[300] pointer-events-none';
               g1.style.transition = 'all 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
@@ -1373,8 +1403,9 @@ export function checkAndShowTutorial(mode = 'classic', force = false) {
               g1.style.transform = 'scale(1)'; g1.style.filter = 'none';
 
               await wait(1300);
+              if (!running) break;
               g1.style.transition = 'all 0.3s'; g1.style.opacity = '0';
-              g2.style.transition = 'all 0.3s'; g2.style.opacity = '0';
+              g3.style.transition = 'all 0.3s'; g3.style.opacity = '0';
               await wait(350);
             }
           };
@@ -1422,6 +1453,7 @@ export function checkAndShowTutorial(mode = 'classic', force = false) {
           document.body.appendChild(crack);
 
           const animate = async () => {
+            const hammerBtn = document.querySelector('#x2-power-hammer');
             while (running) {
               const cell = getCellRect(2, 1);
               const cw = cell.width - 4, ch = cell.height - 4;
@@ -1446,6 +1478,12 @@ export function checkAndShowTutorial(mode = 'classic', force = false) {
 
               await wait(500);
               if (!running) break;
+
+              if (hammerBtn) {
+                hammerBtn.style.transition = 'all 0.5s ease-out';
+                hammerBtn.style.transform = 'scale(1.15)';
+                hammerBtn.style.boxShadow = '0 0 20px rgba(245, 158, 11, 0.8)';
+              }
 
               // Hammer swoops in
               hammer.style.transition = 'all 0.5s cubic-bezier(0.25, 1, 0.5, 1)';
@@ -1493,6 +1531,10 @@ export function checkAndShowTutorial(mode = 'classic', force = false) {
 
               // Reset
               g1.style.filter = 'none';
+              if (hammerBtn) {
+                hammerBtn.style.transform = 'scale(1)';
+                hammerBtn.style.boxShadow = '';
+              }
             }
           };
           animate();
@@ -1501,6 +1543,12 @@ export function checkAndShowTutorial(mode = 'classic', force = false) {
             if (g1.parentNode) g1.remove();
             if (hammer.parentNode) hammer.remove();
             if (crack.parentNode) crack.remove();
+            const btn = document.querySelector('#x2-power-hammer');
+            if (btn) {
+              btn.style.transition = 'none';
+              btn.style.transform = '';
+              btn.style.boxShadow = '';
+            }
           });
         }
       },
@@ -1539,6 +1587,7 @@ export function checkAndShowTutorial(mode = 'classic', force = false) {
           document.body.appendChild(arrows);
 
           const animate = async () => {
+            const swapBtn = document.querySelector('#x2-power-swap');
             while (running) {
               const c1 = getCellRect(1, 0);
               const c2 = getCellRect(3, 0);
@@ -1576,6 +1625,12 @@ export function checkAndShowTutorial(mode = 'classic', force = false) {
               await wait(500);
               if (!running) break;
 
+              if (swapBtn) {
+                swapBtn.style.transition = 'all 0.5s ease-out';
+                swapBtn.style.transform = 'scale(1.15)';
+                swapBtn.style.boxShadow = '0 0 20px rgba(6, 182, 212, 0.8)';
+              }
+
               // Highlight both blocks
               g1.style.transition = 'all 0.2s';
               g2.style.transition = 'all 0.2s';
@@ -1611,6 +1666,10 @@ export function checkAndShowTutorial(mode = 'classic', force = false) {
               // Land
               g1.style.boxShadow = 'none'; g2.style.boxShadow = 'none';
               arrows.style.transition = 'all 0.3s'; arrows.style.opacity = '0';
+              if (swapBtn) {
+                swapBtn.style.transform = 'scale(1)';
+                swapBtn.style.boxShadow = '';
+              }
 
               await wait(1200);
               if (!running) break;
@@ -1627,11 +1686,18 @@ export function checkAndShowTutorial(mode = 'classic', force = false) {
             if (g1.parentNode) g1.remove();
             if (g2.parentNode) g2.remove();
             if (arrows.parentNode) arrows.remove();
+            const btn = document.querySelector('#x2-power-swap');
+            if (btn) {
+              btn.style.transition = 'none';
+              btn.style.transform = '';
+              btn.style.boxShadow = '';
+            }
           });
         }
       }
     ];
   } else if (mode === 'match') {
+    const { hasCages = true, hasWalls = true } = options;
     steps = [
       {
         title: t('tut_match_title') || 'Blok Patlatmaca',
@@ -1982,8 +2048,11 @@ export function checkAndShowTutorial(mode = 'classic', force = false) {
             });
           });
         }
-      },
-      {
+      }
+    ];
+
+    if (hasCages) {
+      steps.push({
         title: t('tut_match_cage_title') || 'Kafesli Bloklar',
         text: t('tut_match_cage_desc') || 'Kafesli bloklar hareket ettirilemez. Yanlarında eşleştirme yaparak onları kırabilirsin.',
         targetSelector: '#game-board',
@@ -2094,8 +2163,11 @@ export function checkAndShowTutorial(mode = 'classic', force = false) {
             }
           });
         }
-      },
-      {
+      });
+    }
+
+    if (hasWalls) {
+      steps.push({
         title: t('tut_match_brick_title') || 'Taş Engeller',
         text: t('tut_match_brick_desc') || 'Taş bloklar yerinden oynamaz. Yanlarında blok patlatarak onları yok etmelisin.',
         targetSelector: '#game-board',
@@ -2213,58 +2285,164 @@ export function checkAndShowTutorial(mode = 'classic', force = false) {
             }
           });
         }
-      }
-    ];
+      });
+    }
+
+    steps.push(
+      {
+        title: t('tut_match_hammer_title') || 'Çekiç Güçlendirici',
+        text: t('tut_match_hammer_desc') || 'İstediğin bir bloğu veya engeli anında kırmak için çekiç kullan. Kullanım maliyeti her defasında artar.',
+        targetSelector: '#btn-hammer',
+        animate: (cleanup) => {
+          const btn = document.querySelector('#btn-hammer');
+          if (!btn) return;
+          let running = true;
+          const animate = async () => {
+             while(running) {
+                btn.style.transition = 'all 0.5s ease-out';
+                btn.style.transform = 'scale(1.15)';
+                btn.style.boxShadow = '0 0 20px rgba(245, 158, 11, 0.8)';
+                await wait(600);
+                if (!running) break;
+                btn.style.transform = 'scale(1)';
+                btn.style.boxShadow = '';
+                await wait(600);
+             }
+          };
+          animate();
+          cleanup.push(() => {
+             running = false;
+             btn.style.transition = 'none';
+             btn.style.transform = '';
+             btn.style.boxShadow = '';
+          });
+        }
+      },
+      {
+        title: t('tut_match_shuffle_title') || 'Karıştır Güçlendirici',
+        text: t('tut_match_shuffle_desc') || 'Tahtada hamle yapacak iyi bir yer bulamadığında tüm taşları rastgele karıştırmak için kullan.',
+        targetSelector: '#btn-shuffle',
+        animate: (cleanup) => {
+          const btn = document.querySelector('#btn-shuffle');
+          if (!btn) return;
+          let running = true;
+          const animate = async () => {
+             while(running) {
+                btn.style.transition = 'all 0.5s ease-out';
+                btn.style.transform = 'scale(1.15)';
+                btn.style.boxShadow = '0 0 20px rgba(139, 92, 246, 0.8)';
+                await wait(600);
+                if (!running) break;
+                btn.style.transform = 'scale(1)';
+                btn.style.boxShadow = '';
+                await wait(600);
+             }
+          };
+          animate();
+          cleanup.push(() => {
+             running = false;
+             btn.style.transition = 'none';
+             btn.style.transform = '';
+             btn.style.boxShadow = '';
+          });
+        }
+      },
+      {
+        title: t('tut_match_extramoves_title') || '+2 Ekstra Hamle',
+        text: t('tut_match_extramoves_desc') || 'Hamlen tükenmek üzereyken devam edebilmek için ekstra hamle al.',
+        targetSelector: '#btn-extra-moves',
+        animate: (cleanup) => {
+          const btn = document.querySelector('#btn-extra-moves');
+          if (!btn) return;
+          let running = true;
+          const animate = async () => {
+             while(running) {
+                btn.style.transition = 'all 0.5s ease-out';
+                btn.style.transform = 'scale(1.15)';
+                btn.style.boxShadow = '0 0 20px rgba(6, 182, 212, 0.8)';
+                await wait(600);
+                if (!running) break;
+                btn.style.transform = 'scale(1)';
+                btn.style.boxShadow = '';
+                await wait(600);
+              }
+            };
+            animate();
+            cleanup.push(() => {
+              running = false;
+              btn.style.transition = 'none';
+              btn.style.transform = '';
+              btn.style.boxShadow = '';
+            });
+          }
+        }
+      );
   } else if (mode === 'bubble') {
-        steps = [
+    steps = [
       {
         title: t('tut_bubble_aim_title') || 'Nişan Al ve Ateşle',
         text: t('tut_bubble_aim_desc') || 'Topu nişanlamak için sürükle, bırakınca fırlatılır.',
         targetSelector: 'canvas',
         animate: (cleanup) => {
           const canvas = document.querySelector('canvas');
-          if (!canvas) return;
+          if (!canvas || !window.bubbleEngine || !window.bubbleApi) return;
           let running = true;
+          const engine = window.bubbleEngine;
+          const api = window.bubbleApi;
+
           const animate = async () => {
             while(running) {
-              const rect = canvas.getBoundingClientRect();
-              const w = rect.width; const h = rect.height;
-              
-              // Helper to create bubbles
-              const createBubble = (x, y, colorCode) => {
+              // Find a target bubble (lowest)
+              let tr = -1, tc = -1, targetColor = null;
+              for (let r = engine.rows - 1; r >= 0; r--) {
+                for (let c = 0; c < engine.cols; c++) {
+                  if (engine.grid[r] && engine.grid[r][c]) {
+                    tr = r; tc = c; targetColor = engine.grid[r][c];
+                    break;
+                  }
+                }
+                if (tr !== -1) break;
+              }
+              if (tr === -1) { await wait(1000); continue; }
+
+              const tRect = api.getCellRect(tr, tc);
+              const sRect = api.getShooterPos();
+              const shooterColor = engine.currentBubble || 1;
+
+              // Hide real bubbles
+              engine.grid[tr][tc] = null;
+              engine.currentBubble = null;
+
+              const createBubble = (rect, colorCode) => {
                 const b = document.createElement('div');
-                b.className = 'tut-bubble-el fixed rounded-full shadow-[0_4px_8px_rgba(0,0,0,0.3)] pointer-events-none transition-all duration-500 ease-in-out';
-                b.style.width = '36px'; b.style.height = '36px';
-                b.style.left = (rect.left + x - 18) + 'px';
-                b.style.top = (rect.top + y - 18) + 'px';
-                b.style.background = `radial-gradient(circle at 30% 30%, #fff 0%, ${colorCode} 40%, rgba(0,0,0,0.6) 100%)`;
+                b.className = 'tut-bubble-el fixed rounded-full shadow-[0_4px_8px_rgba(0,0,0,0.3)] pointer-events-none transition-all duration-300 ease-in-out';
+                b.style.width = (rect.radius * 2) + 'px';
+                b.style.height = (rect.radius * 2) + 'px';
+                b.style.left = (rect.x - rect.radius) + 'px';
+                b.style.top = (rect.y - rect.radius) + 'px';
+                b.style.background = `radial-gradient(circle at 30% 30%, #fff 0%, ${typeof colorCode === 'number' ? '#00C3FF' : colorCode} 40%, rgba(0,0,0,0.6) 100%)`;
                 b.style.zIndex = '400';
                 document.body.appendChild(b);
                 return b;
               };
 
-              // Top target bubble (Blue)
-              const targetB = createBubble(w/2, h*0.5, '#00C3FF');
-              
-              // Shooter bubble (Blue)
-              const shooterB = createBubble(w/2, h - 30, '#00C3FF');
+              const targetB = createBubble(tRect, targetColor);
+              const shooterB = createBubble(sRect, shooterColor);
               shooterB.style.transition = 'all 0.1s linear';
-              
-              // Cursor
+
               const vCursor = document.createElement('div');
               vCursor.className = 'tut-bubble-el fixed w-12 h-12 bg-white/20 rounded-full border border-white flex items-center justify-center z-[500] pointer-events-none transition-all duration-[800ms] ease-in-out opacity-0';
               vCursor.innerHTML = '<span class="material-symbols-outlined text-white text-2xl drop-shadow-md">touch_app</span>';
-              vCursor.style.left = (rect.left + w/2 - 24) + 'px';
-              vCursor.style.top = (rect.top + h + 20) + 'px';
+              vCursor.style.left = (sRect.x - 24) + 'px';
+              vCursor.style.top = (sRect.y + 40) + 'px';
               document.body.appendChild(vCursor);
 
-              // Trajectory dots container
               const traj = document.createElement('div');
               traj.className = 'tut-bubble-el fixed z-[390] pointer-events-none flex flex-col items-center justify-between opacity-0 transition-opacity duration-300';
               traj.style.width = '4px';
-              traj.style.height = (h*0.5 - 60) + 'px';
-              traj.style.left = (rect.left + w/2 - 2) + 'px';
-              traj.style.top = (rect.top + h*0.5 + 18) + 'px';
+              traj.style.height = Math.max(20, sRect.y - tRect.y - 40) + 'px';
+              traj.style.left = (sRect.x - 2) + 'px';
+              traj.style.top = (tRect.y + 20) + 'px';
               for(let i=0; i<6; i++) {
                 const dot = document.createElement('div');
                 dot.className = 'w-1.5 h-1.5 bg-white/60 rounded-full shadow-[0_0_4px_white]';
@@ -2273,47 +2451,61 @@ export function checkAndShowTutorial(mode = 'classic', force = false) {
               document.body.appendChild(traj);
 
               await wait(400);
-              if (!running) break;
-              
-              // Touch down
+              if (!running) {
+                engine.grid[tr][tc] = targetColor;
+                engine.currentBubble = shooterColor;
+                break;
+              }
+
+              // Aim
               vCursor.style.opacity = '1';
-              vCursor.style.top = (rect.top + h - 30) + 'px';
+              vCursor.style.top = (sRect.y) + 'px';
               await wait(800);
-              if (!running) break;
-              
-              // Drag down to aim
+              if (!running) {
+                engine.grid[tr][tc] = targetColor;
+                engine.currentBubble = shooterColor;
+                break;
+              }
+
               vCursor.style.transform = 'scale(0.8)';
-              vCursor.style.top = (rect.top + h) + 'px';
+              vCursor.style.top = (sRect.y + 30) + 'px';
               shooterB.style.transform = 'translateY(10px)';
               traj.style.opacity = '1';
               await wait(800);
-              if (!running) break;
+              if (!running) {
+                engine.grid[tr][tc] = targetColor;
+                engine.currentBubble = shooterColor;
+                break;
+              }
 
-              // Release
+              // Shoot
               vCursor.style.transform = 'scale(1)';
               vCursor.style.opacity = '0';
               traj.style.opacity = '0';
               
-              // Shoot!
               shooterB.style.transition = 'all 0.3s cubic-bezier(0.3, 0, 0.8, 1)';
-              shooterB.style.top = (rect.top + h*0.5 + 36) + 'px';
+              shooterB.style.top = (tRect.y + tRect.radius) + 'px';
               shooterB.style.transform = 'translateY(0)';
               await wait(300);
-              if (!running) break;
 
-              // Hit & Pop effect
-              targetB.style.filter = 'brightness(1.5)';
-              shooterB.style.filter = 'brightness(1.5)';
-              targetB.style.transform = 'scale(1.2)';
-              shooterB.style.transform = 'scale(1.2)';
-              await wait(100);
-              targetB.style.opacity = '0';
-              shooterB.style.opacity = '0';
-              targetB.style.transform = 'scale(0)';
-              shooterB.style.transform = 'scale(0)';
-              
-              await wait(800);
+              if (running) {
+                targetB.style.filter = 'brightness(1.5)';
+                shooterB.style.filter = 'brightness(1.5)';
+                targetB.style.transform = 'scale(1.2)';
+                shooterB.style.transform = 'scale(1.2)';
+                await wait(100);
+                targetB.style.opacity = '0';
+                shooterB.style.opacity = '0';
+                targetB.style.transform = 'scale(0)';
+                shooterB.style.transform = 'scale(0)';
+                await wait(800);
+              }
+
               targetB.remove(); shooterB.remove(); vCursor.remove(); traj.remove();
+              
+              // Restore real bubbles
+              if (engine.grid[tr]) engine.grid[tr][tc] = targetColor;
+              engine.currentBubble = shooterColor;
             }
           };
           animate();
@@ -2329,53 +2521,83 @@ export function checkAndShowTutorial(mode = 'classic', force = false) {
         targetSelector: 'canvas',
         animate: (cleanup) => {
           const canvas = document.querySelector('canvas');
-          if (!canvas) return;
+          if (!canvas || !window.bubbleEngine || !window.bubbleApi) return;
           let running = true;
+          const engine = window.bubbleEngine;
+          const api = window.bubbleApi;
+
           const animate = async () => {
             while(running) {
-              const rect = canvas.getBoundingClientRect();
-              const w = rect.width; const h = rect.height;
-              
-              const createBubble = (x, y, colorCode) => {
+              // Pick 2 adjacent bubbles
+              let tr1 = -1, tc1 = -1, tr2 = -1, tc2 = -1;
+              let origColor1 = null, origColor2 = null;
+              for (let r = engine.rows - 1; r >= 0; r--) {
+                for (let c = 0; c < engine.cols - 1; c++) {
+                  if (engine.grid[r] && engine.grid[r][c] && engine.grid[r][c+1]) {
+                    tr1 = r; tc1 = c; origColor1 = engine.grid[r][c];
+                    tr2 = r; tc2 = c+1; origColor2 = engine.grid[r][c+1];
+                    break;
+                  }
+                }
+                if (tr1 !== -1) break;
+              }
+              if (tr1 === -1) { await wait(1000); continue; }
+
+              const rect1 = api.getCellRect(tr1, tc1);
+              const rect2 = api.getCellRect(tr2, tc2);
+              const sRect = api.getShooterPos();
+              const shooterColor = engine.currentBubble || '#FF3B6B';
+
+              // Hide real ones
+              engine.grid[tr1][tc1] = null;
+              engine.grid[tr2][tc2] = null;
+              engine.currentBubble = null;
+
+              const createBubble = (rect, colorCode) => {
                 const b = document.createElement('div');
                 b.className = 'tut-bubble-el fixed rounded-full shadow-[0_4px_8px_rgba(0,0,0,0.3)] pointer-events-none transition-all duration-300 ease-in-out';
-                b.style.width = '36px'; b.style.height = '36px';
-                b.style.left = (rect.left + x - 18) + 'px';
-                b.style.top = (rect.top + y - 18) + 'px';
-                b.style.background = `radial-gradient(circle at 30% 30%, #fff 0%, ${colorCode} 40%, rgba(0,0,0,0.6) 100%)`;
+                b.style.width = (rect.radius * 2) + 'px';
+                b.style.height = (rect.radius * 2) + 'px';
+                b.style.left = (rect.x - rect.radius) + 'px';
+                b.style.top = (rect.y - rect.radius) + 'px';
+                b.style.background = `radial-gradient(circle at 30% 30%, #fff 0%, ${typeof colorCode === 'number' ? '#FF3B6B' : colorCode} 40%, rgba(0,0,0,0.6) 100%)`;
                 b.style.zIndex = '400';
                 document.body.appendChild(b);
                 return b;
               };
 
-              // Target bubbles (Red)
-              const b1 = createBubble(w/2 - 18, h*0.5, '#FF3B6B');
-              const b2 = createBubble(w/2 + 18, h*0.5, '#FF3B6B');
-              
-              // Shooter bubble (Red)
-              const shooterB = createBubble(w/2, h - 30, '#FF3B6B');
-              
-              await wait(600);
-              if (!running) break;
-              
-              // Shoot
-              shooterB.style.top = (rect.top + h*0.5 + 30) + 'px';
-              await wait(300);
-              if (!running) break;
+              const b1 = createBubble(rect1, shooterColor);
+              const b2 = createBubble(rect2, shooterColor);
+              const shooterB = createBubble(sRect, shooterColor);
 
-              // Pop effect
-              [b1, b2, shooterB].forEach(b => {
-                b.style.filter = 'brightness(2) contrast(1.5)';
-                b.style.transform = 'scale(1.3)';
-              });
-              await wait(150);
-              [b1, b2, shooterB].forEach(b => {
-                b.style.opacity = '0';
-                b.style.transform = 'scale(0)';
-              });
-              
-              await wait(1000);
+              await wait(600);
+              if (!running) {
+                engine.grid[tr1][tc1] = origColor1; engine.grid[tr2][tc2] = origColor2;
+                engine.currentBubble = shooterColor;
+                break;
+              }
+
+              shooterB.style.top = (rect1.y + rect1.radius) + 'px';
+              shooterB.style.left = ((rect1.x + rect2.x)/2 - rect1.radius) + 'px';
+              await wait(300);
+
+              if (running) {
+                [b1, b2, shooterB].forEach(b => {
+                  b.style.filter = 'brightness(2) contrast(1.5)';
+                  b.style.transform = 'scale(1.3)';
+                });
+                await wait(150);
+                [b1, b2, shooterB].forEach(b => {
+                  b.style.opacity = '0';
+                  b.style.transform = 'scale(0)';
+                });
+                await wait(1000);
+              }
+
               b1.remove(); b2.remove(); shooterB.remove();
+              if (engine.grid[tr1]) engine.grid[tr1][tc1] = origColor1;
+              if (engine.grid[tr2]) engine.grid[tr2][tc2] = origColor2;
+              engine.currentBubble = shooterColor;
             }
           };
           animate();
@@ -2391,68 +2613,82 @@ export function checkAndShowTutorial(mode = 'classic', force = false) {
         targetSelector: 'canvas',
         animate: (cleanup) => {
           const canvas = document.querySelector('canvas');
-          if (!canvas) return;
+          if (!canvas || !window.bubbleEngine || !window.bubbleApi) return;
           let running = true;
+          const engine = window.bubbleEngine;
+          const api = window.bubbleApi;
+
           const animate = async () => {
             while(running) {
-              const rect = canvas.getBoundingClientRect();
-              const w = rect.width; const h = rect.height;
-              
-              const createBubble = (x, y, colorCode) => {
+              let tr = -1, tc = -1, targetColor = null;
+              for (let r = 0; r < engine.rows - 1; r++) {
+                for (let c = 0; c < engine.cols; c++) {
+                  if (engine.grid[r] && engine.grid[r][c] && engine.grid[r+1] && engine.grid[r+1][c]) {
+                    tr = r; tc = c; targetColor = engine.grid[r][c];
+                    break;
+                  }
+                }
+                if (tr !== -1) break;
+              }
+              if (tr === -1) { await wait(1000); continue; }
+
+              const topRect = api.getCellRect(tr, tc);
+              const botRect = api.getCellRect(tr+1, tc);
+              const botColor = engine.grid[tr+1][tc];
+              const sRect = api.getShooterPos();
+
+              engine.grid[tr][tc] = null;
+              engine.grid[tr+1][tc] = null;
+              const origShooterColor = engine.currentBubble;
+              engine.currentBubble = null;
+
+              const createBubble = (rect, colorCode) => {
                 const b = document.createElement('div');
                 b.className = 'tut-bubble-el fixed rounded-full shadow-[0_4px_8px_rgba(0,0,0,0.3)] pointer-events-none transition-all duration-300 ease-in-out';
-                b.style.width = '36px'; b.style.height = '36px';
-                b.style.left = (rect.left + x - 18) + 'px';
-                b.style.top = (rect.top + y - 18) + 'px';
-                b.style.background = `radial-gradient(circle at 30% 30%, #fff 0%, ${colorCode} 40%, rgba(0,0,0,0.6) 100%)`;
+                b.style.width = (rect.radius * 2) + 'px';
+                b.style.height = (rect.radius * 2) + 'px';
+                b.style.left = (rect.x - rect.radius) + 'px';
+                b.style.top = (rect.y - rect.radius) + 'px';
+                b.style.background = `radial-gradient(circle at 30% 30%, #fff 0%, ${typeof colorCode === 'number' ? '#00E676' : colorCode} 40%, rgba(0,0,0,0.6) 100%)`;
                 b.style.zIndex = '400';
                 document.body.appendChild(b);
                 return b;
               };
 
-              // Green root bubbles
-              const g1 = createBubble(w/2 - 18, h*0.4, '#00E676');
-              const g2 = createBubble(w/2 + 18, h*0.4, '#00E676');
-              
-              // Yellow hanging bubbles
-              const y1 = createBubble(w/2 - 36, h*0.4 + 30, '#FFC800');
-              const y2 = createBubble(w/2, h*0.4 + 30, '#FFC800');
-              const y3 = createBubble(w/2 + 36, h*0.4 + 30, '#FFC800');
-              
-              // Shooter (Green)
-              const shooterB = createBubble(w/2, h - 30, '#00E676');
-              
-              await wait(600);
-              if (!running) break;
-              
-              // Shoot green to pop greens
-              shooterB.style.top = (rect.top + h*0.4 + 30) + 'px';
-              await wait(300);
-              if (!running) break;
+              const topB = createBubble(topRect, targetColor);
+              const botB = createBubble(botRect, botColor);
+              const shooterB = createBubble(sRect, targetColor);
 
-              // Pop Greens
-              [g1, g2, shooterB].forEach(b => {
-                b.style.filter = 'brightness(2)';
-                b.style.transform = 'scale(1.2)';
-              });
-              await wait(100);
-              [g1, g2, shooterB].forEach(b => {
-                b.style.opacity = '0';
-              });
-              
-              await wait(200);
-              if (!running) break;
-              
-              // Drop Yellows
-              [y1, y2, y3].forEach((b, i) => {
-                b.style.transition = 'all 0.6s cubic-bezier(0.5, 0, 1, 1)';
-                b.style.top = (rect.top + h + 50 + i*10) + 'px';
-                b.style.transform = `translateX(${(i-1)*20}px) scale(0.8)`;
-                b.style.opacity = '0';
-              });
-              
-              await wait(1200);
-              [g1, g2, y1, y2, y3, shooterB].forEach(b => b.remove());
+              await wait(600);
+              if (!running) {
+                engine.grid[tr][tc] = targetColor; engine.grid[tr+1][tc] = botColor; engine.currentBubble = origShooterColor;
+                break;
+              }
+
+              shooterB.style.top = (topRect.y) + 'px';
+              shooterB.style.left = (topRect.x + topRect.radius) + 'px';
+              await wait(300);
+
+              if (running) {
+                topB.style.filter = 'brightness(2)'; shooterB.style.filter = 'brightness(2)';
+                topB.style.transform = 'scale(1.2)'; shooterB.style.transform = 'scale(1.2)';
+                await wait(100);
+                topB.style.opacity = '0'; shooterB.style.opacity = '0';
+                await wait(200);
+                
+                if (running) {
+                  botB.style.transition = 'all 0.6s cubic-bezier(0.5, 0, 1, 1)';
+                  botB.style.top = (botRect.y + botRect.radius * 8) + 'px';
+                  botB.style.transform = 'scale(0.8)';
+                  botB.style.opacity = '0';
+                  await wait(1200);
+                }
+              }
+
+              topB.remove(); botB.remove(); shooterB.remove();
+              if (engine.grid[tr]) engine.grid[tr][tc] = targetColor;
+              if (engine.grid[tr+1]) engine.grid[tr+1][tc] = botColor;
+              engine.currentBubble = origShooterColor;
             }
           };
           animate();
@@ -2469,29 +2705,39 @@ export function checkAndShowTutorial(mode = 'classic', force = false) {
         animate: (cleanup) => {
           const hammerBtn = document.querySelector('#btn-hammer');
           const canvas = document.querySelector('canvas');
-          if (!hammerBtn || !canvas) return;
+          if (!hammerBtn || !canvas || !window.bubbleEngine || !window.bubbleApi) return;
           let running = true;
+          const engine = window.bubbleEngine;
+          const api = window.bubbleApi;
+
           const animate = async () => {
             while(running) {
-              const hRect = hammerBtn.getBoundingClientRect();
-              const cRect = canvas.getBoundingClientRect();
-              
-              const createBubble = (x, y, colorCode) => {
-                const b = document.createElement('div');
-                b.className = 'tut-bubble-el fixed rounded-full shadow-[0_4px_8px_rgba(0,0,0,0.3)] pointer-events-none transition-all duration-300 ease-in-out';
-                b.style.width = '36px'; b.style.height = '36px';
-                b.style.left = (cRect.left + x - 18) + 'px';
-                b.style.top = (cRect.top + y - 18) + 'px';
-                b.style.background = `radial-gradient(circle at 30% 30%, #fff 0%, ${colorCode} 40%, rgba(0,0,0,0.6) 100%)`;
-                b.style.zIndex = '400';
-                document.body.appendChild(b);
-                return b;
-              };
+              let tr = -1, tc = -1, targetColor = null;
+              for (let r = 0; r < engine.rows; r++) {
+                for (let c = 0; c < engine.cols; c++) {
+                  if (engine.grid[r] && engine.grid[r][c]) {
+                    tr = r; tc = c; targetColor = engine.grid[r][c];
+                    break;
+                  }
+                }
+                if (tr !== -1) break;
+              }
+              if (tr === -1) { await wait(1000); continue; }
 
-              // Target bubble (Purple)
-              const targetB = createBubble(cRect.width/2, cRect.height*0.6, '#A45BFF');
-              
-              // Cursor
+              const tRect = api.getCellRect(tr, tc);
+              const hRect = hammerBtn.getBoundingClientRect();
+              engine.grid[tr][tc] = null;
+
+              const targetB = document.createElement('div');
+              targetB.className = 'tut-bubble-el fixed rounded-full shadow-[0_4px_8px_rgba(0,0,0,0.3)] pointer-events-none transition-all duration-300 ease-in-out';
+              targetB.style.width = (tRect.radius * 2) + 'px';
+              targetB.style.height = (tRect.radius * 2) + 'px';
+              targetB.style.left = (tRect.x - tRect.radius) + 'px';
+              targetB.style.top = (tRect.y - tRect.radius) + 'px';
+              targetB.style.background = `radial-gradient(circle at 30% 30%, #fff 0%, ${typeof targetColor === 'number' ? '#A45BFF' : targetColor} 40%, rgba(0,0,0,0.6) 100%)`;
+              targetB.style.zIndex = '400';
+              document.body.appendChild(targetB);
+
               const vCursor = document.createElement('div');
               vCursor.className = 'tut-bubble-el fixed w-12 h-12 bg-white/20 rounded-full border border-white flex items-center justify-center z-[500] pointer-events-none transition-all duration-[600ms] ease-in-out opacity-0';
               vCursor.innerHTML = '<span class="material-symbols-outlined text-white text-2xl drop-shadow-md">touch_app</span>';
@@ -2500,47 +2746,43 @@ export function checkAndShowTutorial(mode = 'classic', force = false) {
               document.body.appendChild(vCursor);
 
               await wait(400);
-              if (!running) break;
+              if (!running) { engine.grid[tr][tc] = targetColor; break; }
               
-              // Move to hammer button
               vCursor.style.opacity = '1';
               vCursor.style.left = (hRect.left + hRect.width/2 - 24) + 'px';
               vCursor.style.top = (hRect.top + hRect.height/2 - 24) + 'px';
               await wait(600);
-              if (!running) break;
+              if (!running) { engine.grid[tr][tc] = targetColor; break; }
               
-              // Click hammer
               vCursor.style.transform = 'scale(0.8)';
-              hammerBtn.style.transform = 'scale(0.9)';
-              hammerBtn.style.boxShadow = '0 0 15px rgba(6, 182, 212, 0.8)';
+              hammerBtn.style.transition = 'all 0.5s ease-out';
+              hammerBtn.style.transform = 'scale(1.15)';
+              hammerBtn.style.boxShadow = '0 0 20px rgba(6, 182, 212, 0.8)';
               await wait(200);
               vCursor.style.transform = 'scale(1)';
               hammerBtn.style.transform = 'scale(1)';
               await wait(400);
-              if (!running) break;
+              if (!running) { engine.grid[tr][tc] = targetColor; break; }
               
-              // Move to target bubble
-              vCursor.style.left = (cRect.left + cRect.width/2 - 24) + 'px';
-              vCursor.style.top = (cRect.top + cRect.height*0.4 - 24) + 'px';
+              vCursor.style.left = (tRect.x - 24) + 'px';
+              vCursor.style.top = (tRect.y - 24) + 'px';
               await wait(600);
-              if (!running) break;
+              if (!running) { engine.grid[tr][tc] = targetColor; break; }
               
-              // Click bubble
               vCursor.style.transform = 'scale(0.8)';
               await wait(200);
               vCursor.style.transform = 'scale(1)';
               
-              // Pop bubble!
               hammerBtn.style.boxShadow = '';
               targetB.style.filter = 'brightness(2) sepia(1) hue-rotate(180deg)';
               targetB.style.transform = 'scale(1.4)';
               
-              // Sparks
               const spark = document.createElement('div');
               spark.className = 'tut-bubble-el fixed z-[450] animate-ping opacity-80 pointer-events-none';
-              spark.style.width = '60px'; spark.style.height = '60px';
-              spark.style.left = (cRect.left + cRect.width/2 - 30) + 'px';
-              spark.style.top = (cRect.top + cRect.height*0.4 - 30) + 'px';
+              spark.style.width = (tRect.radius * 3) + 'px';
+              spark.style.height = (tRect.radius * 3) + 'px';
+              spark.style.left = (tRect.x - tRect.radius * 1.5) + 'px';
+              spark.style.top = (tRect.y - tRect.radius * 1.5) + 'px';
               spark.style.background = 'radial-gradient(circle, #fff 0%, transparent 70%)';
               document.body.appendChild(spark);
               
@@ -2549,11 +2791,13 @@ export function checkAndShowTutorial(mode = 'classic', force = false) {
               
               await wait(800);
               targetB.remove(); vCursor.remove(); spark.remove();
+              if (engine.grid[tr]) engine.grid[tr][tc] = targetColor;
             }
           };
           animate();
           cleanup.push(() => {
             running = false;
+            hammerBtn.style.transition = 'none';
             hammerBtn.style.transform = 'scale(1)';
             hammerBtn.style.boxShadow = '';
             document.querySelectorAll('.tut-bubble-el').forEach(el => el.remove());
@@ -2562,417 +2806,74 @@ export function checkAndShowTutorial(mode = 'classic', force = false) {
       }
     ];
   } else if (mode === 'arrow') {
-    // Ok Bulmacası için sade 4 adımlı tutorial (animate boş — sadece bilgi)
+    // Ok Bulmacası için API destekli tutorial
     steps = [
       {
         title: t('tut_arrow_tap_title') || 'Oka Dokun',
         text: t('tut_arrow_tap_desc') || 'Bir ok, baktığı yönde tahtanın kenarına kadar boşsa, dokununca uçar gider.',
         targetSelector: 'canvas',
         animate: (cleanup) => {
-            const canvas = document.querySelector('canvas');
-            if (!canvas) return;
-            let running = true;
-            const animate = async () => {
-              while(running) {
-                const rect = canvas.getBoundingClientRect();
-                const cx = rect.left + rect.width / 2;
-                const cy = rect.top + rect.height / 2;
-                const arrowContainer = document.createElement('div');
-                arrowContainer.style.position = 'fixed';
-                arrowContainer.style.left = (cx - 60) + 'px';
-                arrowContainer.style.top = (cy - 30) + 'px';
-                arrowContainer.style.zIndex = '300';
-                arrowContainer.style.pointerEvents = 'none';
-                const a1 = document.createElement('div');
-                a1.className = 'flex items-center justify-center absolute';
-                a1.style.width = '48px'; a1.style.height = '48px';
-                a1.style.left = '0'; a1.style.top = '0';
-                a1.style.transition = 'all 0.5s cubic-bezier(0.5, -0.4, 0.8, 0.2)';
-                a1.innerHTML = `<svg viewBox="0 0 24 24" width="48" height="48" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));">
-  <path d="M 12 20 L 12 8" stroke="white" stroke-width="2.5" stroke-linecap="square" />
-  <path d="M 12 3 L 6 11 L 12 9 L 18 11 Z" fill="white" />
-</svg>`;
-                const a2 = document.createElement('div');
-                a2.className = 'flex items-center justify-center absolute';
-                a2.style.width = '48px'; a2.style.height = '48px';
-                a2.style.left = '48px'; a2.style.top = '0';
-                a2.style.transition = 'all 0.5s cubic-bezier(0.5, -0.4, 0.8, 0.2)';
-                a2.innerHTML = `<svg viewBox="0 0 24 24" width="48" height="48" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));">
-  <path d="M 4 12 L 16 12" stroke="white" stroke-width="2.5" stroke-linecap="square" />
-  <path d="M 21 12 L 13 6 L 15 12 L 13 18 Z" fill="white" />
-</svg>`;
-                arrowContainer.appendChild(a1);
-                arrowContainer.appendChild(a2);
-                document.body.appendChild(arrowContainer);
-                const vCursor = document.createElement('div');
-                vCursor.className = 'tut-bubble-el fixed w-12 h-12 bg-white/20 rounded-full border border-white flex items-center justify-center z-[500] pointer-events-none transition-all duration-500 ease-in-out opacity-0';
-                vCursor.innerHTML = '<span class="material-symbols-outlined text-white text-2xl drop-shadow-md">touch_app</span>';
-                vCursor.style.left = cx + 'px';
-                vCursor.style.top = (cy + 100) + 'px';
-                document.body.appendChild(vCursor);
-                await wait(500);
-                if (!running) { arrowContainer.remove(); vCursor.remove(); break; }
-                vCursor.style.opacity = '1';
-                vCursor.style.left = (cx - 45) + 'px';
-                vCursor.style.top = (cy - 5) + 'px';
-                await wait(600);
-                if (!running) { arrowContainer.remove(); vCursor.remove(); break; }
-                vCursor.style.transform = 'scale(0.8)';
-                await wait(200);
-                vCursor.style.transform = 'scale(1)';
-                a1.style.transform = 'translateY(-100px) scale(0.5)';
-                a1.style.opacity = '0';
-                await wait(400);
-                if (!running) { arrowContainer.remove(); vCursor.remove(); break; }
-                vCursor.style.left = (cx + 15) + 'px';
-                await wait(600);
-                if (!running) { arrowContainer.remove(); vCursor.remove(); break; }
-                vCursor.style.transform = 'scale(0.8)';
-                await wait(200);
-                vCursor.style.transform = 'scale(1)';
-                a2.style.transform = 'translateX(100px) scale(0.5)';
-                a2.style.opacity = '0';
-                await wait(400);
-                vCursor.style.opacity = '0';
-                await wait(600);
-                if(arrowContainer.parentNode) arrowContainer.remove();
-                if(vCursor.parentNode) vCursor.remove();
-              }
-            };
-            animate();
-            cleanup.push(() => { running = false; });
+          if (window.arrowTutorialApi) {
+            const vCursor = createVirtualCursor();
+            const stop = window.arrowTutorialApi.startAnim('free', vCursor);
+            cleanup.push(stop, () => vCursor.remove());
           }
+        }
       },
       {
         title: t('tut_arrow_block_title') || 'Yolu Kapalıysa Dikkat',
         text: t('tut_arrow_block_desc') || 'Önü başka oklarla kapalı bir oka dokunursan bir can kaybedersin. Önce yolu açık okları temizle.',
         targetSelector: 'canvas',
         animate: (cleanup) => {
-            const canvas = document.querySelector('canvas');
-            if (!canvas) return;
-            let running = true;
-            const animate = async () => {
-              while(running) {
-                const rect = canvas.getBoundingClientRect();
-                const cx = rect.left + rect.width / 2;
-                const cy = rect.top + rect.height / 2;
-                const arrowContainer = document.createElement('div');
-                arrowContainer.style.position = 'fixed';
-                arrowContainer.style.left = (cx - 60) + 'px';
-                arrowContainer.style.top = (cy - 30) + 'px';
-                arrowContainer.style.zIndex = '300';
-                arrowContainer.style.pointerEvents = 'none';
-                const a1 = document.createElement('div');
-                a1.className = 'flex items-center justify-center absolute';
-                a1.style.width = '48px'; a1.style.height = '48px';
-                a1.style.left = '0'; a1.style.top = '0';
-                a1.style.transition = 'all 0.1s';
-                a1.innerHTML = `<svg viewBox="0 0 24 24" width="48" height="48" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));">
-  <path d="M 4 12 L 16 12" stroke="white" stroke-width="2.5" stroke-linecap="square" />
-  <path d="M 21 12 L 13 6 L 15 12 L 13 18 Z" fill="white" />
-</svg>`;
-                const a2 = document.createElement('div');
-                a2.className = 'flex items-center justify-center absolute z-10';
-                a2.style.width = '48px'; a2.style.height = '48px';
-                a2.style.left = '48px'; a2.style.top = '0';
-                a2.style.transition = 'all 0.5s cubic-bezier(0.5, -0.4, 0.8, 0.2)';
-                a2.innerHTML = `<svg viewBox="0 0 24 24" width="48" height="48" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));">
-  <path d="M 12 20 L 12 8" stroke="white" stroke-width="2.5" stroke-linecap="square" />
-  <path d="M 12 3 L 6 11 L 12 9 L 18 11 Z" fill="white" />
-</svg>`;
-                arrowContainer.appendChild(a1);
-                arrowContainer.appendChild(a2);
-                document.body.appendChild(arrowContainer);
-                const vCursor = document.createElement('div');
-                vCursor.className = 'tut-bubble-el fixed w-12 h-12 bg-white/20 rounded-full border border-white flex items-center justify-center z-[500] pointer-events-none transition-all duration-500 ease-in-out opacity-0';
-                vCursor.innerHTML = '<span class="material-symbols-outlined text-white text-2xl drop-shadow-md">touch_app</span>';
-                vCursor.style.left = cx + 'px';
-                vCursor.style.top = (cy + 100) + 'px';
-                document.body.appendChild(vCursor);
-                await wait(500);
-                if (!running) { arrowContainer.remove(); vCursor.remove(); break; }
-                vCursor.style.opacity = '1';
-                vCursor.style.left = (cx - 45) + 'px';
-                vCursor.style.top = (cy - 5) + 'px';
-                await wait(600);
-                if (!running) { arrowContainer.remove(); vCursor.remove(); break; }
-                vCursor.style.transform = 'scale(0.8)';
-                await wait(200);
-                vCursor.style.transform = 'scale(1)';
-                a1.querySelector('path:nth-child(1)').setAttribute('stroke', '#ef4444');
-                a1.querySelector('path:nth-child(2)').setAttribute('fill', '#ef4444');
-                a1.querySelector('svg').style.filter = 'drop-shadow(0 0 10px rgba(239,68,68,1))';
-                a1.style.transform = 'translateX(-5px)'; await wait(50);
-                a1.style.transform = 'translateX(5px)'; await wait(50);
-                a1.style.transform = 'translateX(-5px)'; await wait(50);
-                a1.style.transform = 'translateX(0)';
-                await wait(500);
-                if (!running) { arrowContainer.remove(); vCursor.remove(); break; }
-                a1.querySelector('path:nth-child(1)').setAttribute('stroke', 'white');
-                a1.querySelector('path:nth-child(2)').setAttribute('fill', 'white');
-                a1.querySelector('svg').style.filter = 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))';
-                vCursor.style.left = (cx + 15) + 'px';
-                await wait(600);
-                if (!running) { arrowContainer.remove(); vCursor.remove(); break; }
-                vCursor.style.transform = 'scale(0.8)';
-                await wait(200);
-                vCursor.style.transform = 'scale(1)';
-                a2.style.transform = 'translateY(-100px) scale(0.5)';
-                a2.style.opacity = '0';
-                await wait(400);
-                vCursor.style.left = (cx - 45) + 'px';
-                await wait(400);
-                vCursor.style.transform = 'scale(0.8)';
-                await wait(200);
-                vCursor.style.transform = 'scale(1)';
-                a1.style.transition = 'all 0.5s cubic-bezier(0.5, -0.4, 0.8, 0.2)';
-                a1.style.transform = 'translateX(100px) scale(0.5)';
-                a1.style.opacity = '0';
-                await wait(400);
-                vCursor.style.opacity = '0';
-                await wait(600);
-                if(arrowContainer.parentNode) arrowContainer.remove();
-                if(vCursor.parentNode) vCursor.remove();
-              }
-            };
-            animate();
-            cleanup.push(() => { running = false; });
+          if (window.arrowTutorialApi) {
+            const vCursor = createVirtualCursor();
+            const stop = window.arrowTutorialApi.startAnim('blocked', vCursor);
+            cleanup.push(stop, () => vCursor.remove());
           }
+        }
       },
       {
         title: t('tut_arrow_reveal_title') || 'Gizli Resmi Ortaya Çıkar',
         text: t('tut_arrow_reveal_desc') || 'Okları temizledikçe altından renkli bir resim belirir. Hepsini temizleyince seviyeyi kazanırsın!',
         targetSelector: 'canvas',
         animate: (cleanup) => {
-            const canvas = document.querySelector('canvas');
-            if (!canvas) return;
-            let running = true;
-            const animate = async () => {
-              while(running) {
-                const rect = canvas.getBoundingClientRect();
-                const cx = rect.left + rect.width / 2;
-                const cy = rect.top + rect.height / 2;
-                const cont = document.createElement('div');
-                cont.style.position = 'fixed';
-                cont.style.left = (cx - 45) + 'px';
-                cont.style.top = (cy - 45) + 'px';
-                cont.style.width = '90px';
-                cont.style.height = '90px';
-                cont.style.zIndex = '300';
-                cont.style.pointerEvents = 'none';
-                cont.className = 'rounded-xl overflow-hidden shadow-2xl';
-                cont.innerHTML = '<img src="/assets/shapes/akita.png" onerror="this.src=\'/assets/icon.png\'" class="w-full h-full object-cover" />';
-                document.body.appendChild(cont);
-                const blocks = [];
-                const svgs = [`<svg viewBox="0 0 24 24" width="48" height="48" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));">
-  <path d="M 20 12 L 8 12" stroke="white" stroke-width="2.5" stroke-linecap="square" />
-  <path d="M 3 12 L 11 6 L 9 12 L 11 18 Z" fill="white" />
-</svg>`, `<svg viewBox="0 0 24 24" width="48" height="48" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));">
-  <path d="M 12 20 L 12 8" stroke="white" stroke-width="2.5" stroke-linecap="square" />
-  <path d="M 12 3 L 6 11 L 12 9 L 18 11 Z" fill="white" />
-</svg>`, `<svg viewBox="0 0 24 24" width="48" height="48" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));">
-  <path d="M 12 4 L 12 16" stroke="white" stroke-width="2.5" stroke-linecap="square" />
-  <path d="M 12 21 L 6 13 L 12 15 L 18 13 Z" fill="white" />
-</svg>`, `<svg viewBox="0 0 24 24" width="48" height="48" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));">
-  <path d="M 4 12 L 16 12" stroke="white" stroke-width="2.5" stroke-linecap="square" />
-  <path d="M 21 12 L 13 6 L 15 12 L 13 18 Z" fill="white" />
-</svg>`];
-                const endTransforms = [
-                  'translate(-50px, -50px) scale(0.5)',
-                  'translate(50px, -50px) scale(0.5)',
-                  'translate(-50px, 50px) scale(0.5)',
-                  'translate(50px, 50px) scale(0.5)'
-                ];
-                for(let i=0; i<4; i++) {
-                  const b = document.createElement('div');
-                  b.className = 'flex items-center justify-center absolute';
-                  b.style.width = '45px'; b.style.height = '45px';
-                  b.style.left = ((i%2)*45) + 'px';
-                  b.style.top = (Math.floor(i/2)*45) + 'px';
-                  b.style.transition = 'all 0.6s cubic-bezier(0.5, -0.4, 0.8, 0.2)';
-                  b.innerHTML = svgs[i];
-                  // Scale SVG inside to fit nicely
-                  b.querySelector('svg').setAttribute('width', '36');
-                  b.querySelector('svg').setAttribute('height', '36');
-                  cont.appendChild(b);
-                  blocks.push({el: b, endTrans: endTransforms[i]});
-                }
-                await wait(800);
-                if (!running) { cont.remove(); break; }
-                for (let i=0; i<4; i++) {
-                  if (!running) break;
-                  blocks[i].el.style.transform = blocks[i].endTrans;
-                  blocks[i].el.style.opacity = '0';
-                  await wait(250);
-                }
-                if (!running) { cont.remove(); break; }
-                cont.style.transition = 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)';
-                cont.style.transform = 'scale(1.2)';
-                cont.style.boxShadow = '0 0 40px rgba(255,255,255,0.6)';
-                await wait(1500);
-                cont.style.opacity = '0';
-                await wait(400);
-                if(cont.parentNode) cont.remove();
-              }
-            };
-            animate();
-            cleanup.push(() => { running = false; });
+          if (window.arrowTutorialApi) {
+            const vCursor = createVirtualCursor();
+            const stop = window.arrowTutorialApi.startAnim('reveal', vCursor);
+            cleanup.push(stop, () => vCursor.remove());
           }
+        }
       },
       {
         title: t('tut_arrow_hint_title') || 'Takıldın mı? İpucu',
         text: t('tut_arrow_hint_desc') || 'Sağ üstteki ampul düğmesine dokun; oynanabilir bir ok parlayarak sana yol gösterir.',
         targetSelector: '#arrow-top-hint',
-          animate: (cleanup) => {
+        animate: (cleanup) => {
+          if (window.arrowTutorialApi) {
             const hintBtn = document.querySelector('#arrow-top-hint');
-            if (!hintBtn) return;
-            let running = true;
-            const animate = async () => {
-              while(running) {
-                const rect = hintBtn.getBoundingClientRect();
-                
-                const fakeArrow = document.createElement('div');
-                fakeArrow.className = 'fixed w-16 h-16 flex items-center justify-center z-[400] pointer-events-none transition-all duration-300 opacity-0';
-                fakeArrow.innerHTML = `
-                  <svg viewBox="0 0 24 24" width="48" height="48">
-                    <path d="M 4 12 L 16 12" stroke="white" stroke-width="2.5" stroke-linecap="square" />
-                    <path d="M 21 12 L 13 6 L 15 12 L 13 18 Z" fill="white" />
-                  </svg>
-                `;
-                fakeArrow.style.filter = 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))';
-                fakeArrow.style.left = (window.innerWidth / 2 - 32) + 'px';
-                fakeArrow.style.top = (window.innerHeight / 2 - 100) + 'px';
-
-                const vCursor = document.createElement('div');
-                vCursor.className = 'tut-bubble-el fixed w-12 h-12 bg-white/20 rounded-full border border-white flex items-center justify-center z-[500] pointer-events-none transition-all duration-500 ease-in-out opacity-0';
-                vCursor.innerHTML = '<span class="material-symbols-outlined text-white text-2xl drop-shadow-md">touch_app</span>';
-                vCursor.style.left = (rect.left - 50) + 'px';
-                vCursor.style.top = (rect.top - 50) + 'px';
-                
-                document.body.appendChild(fakeArrow);
-                document.body.appendChild(vCursor);
-
-                await wait(300);
-                if (!running) { vCursor.remove(); fakeArrow.remove(); break; }
-                fakeArrow.style.opacity = '1';
-                vCursor.style.opacity = '1';
-                vCursor.style.left = (rect.left + rect.width/2 - 20) + 'px';
-                vCursor.style.top = (rect.top + rect.height/2 - 10) + 'px';
-                
-                await wait(600);
-                if (!running) { vCursor.remove(); fakeArrow.remove(); break; }
-                vCursor.style.transform = 'scale(0.8)';
-                hintBtn.style.transform = 'scale(0.9)';
-                await wait(200);
-                vCursor.style.transform = 'scale(1)';
-                hintBtn.style.transform = 'scale(1)';
-
-                fakeArrow.style.filter = 'drop-shadow(0 0 12px rgba(250, 204, 21, 1)) drop-shadow(0 0 20px rgba(250, 204, 21, 0.8))';
-                fakeArrow.style.transform = 'scale(1.15)';
-                hintBtn.style.boxShadow = '0 0 20px 10px rgba(250, 204, 21, 0.8)';
-
-                await wait(1200);
-                if (!running) { vCursor.remove(); fakeArrow.remove(); break; }
-                vCursor.style.opacity = '0';
-                fakeArrow.style.opacity = '0';
-                fakeArrow.style.transform = 'scale(1)';
-                hintBtn.style.boxShadow = '';
-
-                await wait(500);
-                if(vCursor.parentNode) vCursor.remove();
-                if(fakeArrow.parentNode) fakeArrow.remove();
-              }
-            };
-            animate();
-            cleanup.push(() => {
-              running = false;
-              hintBtn.style.transform = 'scale(1)';
-              hintBtn.style.boxShadow = '';
-              const els = document.querySelectorAll('.fixed.w-16.h-16.flex, .fixed.w-12.h-12.bg-white\\/20');
-              els.forEach(el => el.remove());
-            });
-          }
-        },
-        {
-          title: t('tut_arrow_zoom_title') || 'Yakınlaştırma ve Kaydırma',
-          text: t('tut_arrow_zoom_desc') || 'Büyük bulmacalarda iki parmağını kullanarak ekranı yakınlaştırabilir ve kaydırarak diğer okları görebilirsin.',
-          targetSelector: 'canvas',
-          animate: (cleanup) => {
-            const canvas = document.querySelector('canvas');
-            if (!canvas) return;
-            let running = true;
-            const animate = async () => {
-              while(running) {
-                const rect = canvas.getBoundingClientRect();
-                const cx = rect.left + rect.width / 2;
-                const cy = rect.top + rect.height / 2;
-                const c1 = document.createElement('div');
-                c1.className = 'fixed w-10 h-10 bg-white/20 rounded-full border border-white flex items-center justify-center z-[500] pointer-events-none transition-all duration-1000 ease-in-out opacity-0';
-                c1.innerHTML = '<span class="material-symbols-outlined text-white text-xl drop-shadow-md">touch_app</span>';
-                const c2 = document.createElement('div');
-                c2.className = 'fixed w-10 h-10 bg-white/20 rounded-full border border-white flex items-center justify-center z-[500] pointer-events-none transition-all duration-1000 ease-in-out opacity-0';
-                c2.innerHTML = '<span class="material-symbols-outlined text-white text-xl drop-shadow-md">touch_app</span>';
-                c1.style.left = (cx - 10) + 'px'; c1.style.top = (cy - 10) + 'px';
-                c2.style.left = (cx - 10) + 'px'; c2.style.top = (cy - 10) + 'px';
-                document.body.appendChild(c1);
-                document.body.appendChild(c2);
-                const bg = document.createElement('div');
-                bg.className = 'fixed bg-slate-700/50 rounded-2xl z-[300] border border-white/10 pointer-events-none transition-all duration-1000 ease-in-out opacity-0 flex flex-wrap';
-                bg.style.width = '100px'; bg.style.height = '100px';
-                bg.style.left = (cx - 50) + 'px'; bg.style.top = (cy - 50) + 'px';
-                bg.style.backgroundColor = 'transparent';
-                bg.style.border = 'none';
-                bg.innerHTML = `<svg width="100%" height="100%" style="opacity:0.8; filter: drop-shadow(0 0 4px rgba(255,255,255,0.2));">
-  <line x1="50" y1="0" x2="50" y2="100" stroke="white" stroke-width="2" stroke-linecap="round" stroke-dasharray="4 8"/>
-  <line x1="0" y1="50" x2="100" y2="50" stroke="white" stroke-width="2" stroke-linecap="round" stroke-dasharray="4 8"/>
-  <rect x="0" y="0" width="100" height="100" fill="none" stroke="white" stroke-width="4" rx="10"/>
-  <svg viewBox="0 0 24 24" width="30" height="30" x="10" y="10" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));">
-  <path d="M 4 12 L 16 12" stroke="white" stroke-width="2.5" stroke-linecap="square" />
-  <path d="M 21 12 L 13 6 L 15 12 L 13 18 Z" fill="white" />
-</svg>
-  <svg viewBox="0 0 24 24" width="30" height="30" x="60" y="60" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));">
-  <path d="M 12 20 L 12 8" stroke="white" stroke-width="2.5" stroke-linecap="square" />
-  <path d="M 12 3 L 6 11 L 12 9 L 18 11 Z" fill="white" />
-</svg>
-</svg>`;
-                document.body.appendChild(bg);
-                await wait(500);
-                if (!running) { c1.remove(); c2.remove(); bg.remove(); break; }
-                c1.style.opacity = '1'; c2.style.opacity = '1'; bg.style.opacity = '1';
-                await wait(600);
-                c1.style.transform = 'translate(-40px, -40px)';
-                c2.style.transform = 'translate(40px, 40px)';
-                bg.style.transform = 'scale(1.5)';
-                await wait(1200);
-                c1.style.transform = 'translate(-10px, -10px)';
-                c2.style.transform = 'translate(10px, 10px)';
-                bg.style.transform = 'scale(1)';
-                await wait(1200);
-                if (!running) { c1.remove(); c2.remove(); bg.remove(); break; }
-                c2.style.opacity = '0';
-                await wait(500);
-                c1.style.transform = 'translate(50px, 0)';
-                bg.style.transform = 'translate(40px, 0)';
-                await wait(1200);
-                c1.style.transform = 'translate(-50px, 0)';
-                bg.style.transform = 'translate(-40px, 0)';
-                await wait(1200);
-                c1.style.opacity = '0'; bg.style.opacity = '0';
-                await wait(1000);
-                if(c1.parentNode) c1.remove();
-                if(c2.parentNode) c2.remove();
-                if(bg.parentNode) bg.remove();
-              }
-            };
-            animate();
-            cleanup.push(() => { running = false; });
+            const vCursor = createVirtualCursor();
+            const stop = window.arrowTutorialApi.startAnim('hint', vCursor, hintBtn);
+            cleanup.push(stop, () => vCursor.remove());
           }
         }
-      ];
+      },
+      {
+        title: t('tut_arrow_zoom_title') || 'Yakınlaştırma ve Kaydırma',
+        text: t('tut_arrow_zoom_desc') || 'Büyük bulmacalarda iki parmağını kullanarak ekranı yakınlaştırabilir ve kaydırarak diğer okları görebilirsin.',
+        targetSelector: 'canvas',
+        animate: (cleanup) => {
+          if (window.arrowTutorialApi) {
+            const vCursor1 = createVirtualCursor();
+            const vCursor2 = createVirtualCursor();
+            const stop = window.arrowTutorialApi.startAnim('zoom', vCursor1, vCursor2);
+            cleanup.push(stop, () => { vCursor1.remove(); vCursor2.remove(); });
+          }
+        }
+      }
+    ];
   }
 
   let currentStep = 0;
-
   const spotlight = document.createElement('div');
   spotlight.className = 'absolute rounded-[2rem] border-[3px] border-accent-cyan/90 bg-transparent transition-all duration-500 pointer-events-none z-40';
   spotlight.style.boxShadow = '0 0 30px rgba(0,229,255,0.4) inset, 0 0 30px rgba(0,229,255,0.4)';
@@ -2990,6 +2891,20 @@ export function checkAndShowTutorial(mode = 'classic', force = false) {
   const updateStep = () => {
     cleanCurrentAnimation();
     const step = steps[currentStep];
+
+    const topSelectors = ['#match-target-bar', '#btn-hammer', '#btn-shuffle', '#btn-extra-moves'];
+    
+    card.classList.remove('mt-4', 'my-auto', 'mt-[60vh]', 'mb-auto');
+
+    if (mode === 'x2') {
+      card.classList.add('mt-[60vh]', 'mb-auto');
+    } else if (mode === 'bubble') {
+      card.classList.add('mt-[50vh]', 'mb-auto');
+    } else if ((mode === 'match' && ([2, 3, 4].includes(currentStep) || topSelectors.includes(step.targetSelector))) || (mode === 'arrow' && currentStep === 3)) {
+      card.classList.add('my-auto');
+    } else {
+      card.classList.add('mt-4');
+    }
     
     card.innerHTML = `
       <div class="flex items-center space-x-2 mb-2 text-secondary dark:text-accent-cyan">

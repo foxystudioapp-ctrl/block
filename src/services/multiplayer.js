@@ -1,6 +1,6 @@
-import { rtdb as db } from './firebaseSetup.js';
+import { getRtdb } from './firebaseSetup.js';
 
-import { ref, set, onValue, off, update, remove, get, onDisconnect } from 'firebase/database';
+import { ref, set, onValue, off, update, remove, get, onDisconnect, runTransaction } from 'firebase/database';
 import { PlayerState } from '../state/playerState.js';
 
 // Generate a random 5-character room code (Letters & Numbers)
@@ -17,23 +17,34 @@ class MultiplayerService {
   constructor() {
     this.currentRoom = null;
     this.isHost = false;
-    this.playerId = 'player_' + Math.floor(Math.random() * 1000000);
+    this.playerId = (typeof crypto !== 'undefined' && crypto.randomUUID)
+      ? 'p_' + crypto.randomUUID()
+      : 'player_' + Date.now() + '_' + Math.floor(Math.random() * 1e6);
     this.onOpponentMove = null;
     this.onRoomStateChange = null;
     this.lastHandledMove = 0;
   }
 
   isReady() {
-    return db !== undefined && db !== null;
+    return getRtdb() !== undefined && getRtdb() !== null;
   }
 
   // Create a new room and wait for someone
   async createRoom(initialPieces) {
     if (!this.isReady()) throw new Error('Firebase ayarları eksik!');
     
-    const roomId = generateRoomCode();
-    const roomRef = ref(db, `rooms/${roomId}`);
-    
+    const db = getRtdb();
+
+    // Oda kodu çakışmasını önle: var olan bir kodun üzerine yazma (sınırlı deneme)
+    let roomId = generateRoomCode();
+    let roomRef = ref(db, `rooms/${roomId}`);
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const existing = await get(roomRef);
+      if (!existing.exists()) break;
+      roomId = generateRoomCode();
+      roomRef = ref(db, `rooms/${roomId}`);
+    }
+
     await set(roomRef, {
       status: 'waiting',
       host: this.playerId,
@@ -61,32 +72,45 @@ class MultiplayerService {
     if (!this.isReady()) throw new Error('Firebase ayarları eksik!');
     roomId = roomId.toUpperCase();
     
+    const db = getRtdb();
     const roomRef = ref(db, `rooms/${roomId}`);
+
+    // Önce önbelleği ısıt (transaction'ın ilk çalışmasında gerçek veriyi görmesi için)
     const snapshot = await get(roomRef);
-    
     if (!snapshot.exists()) {
       throw new Error('Oda bulunamadı!');
     }
 
-    const roomData = snapshot.val();
-    if (roomData.status !== 'waiting') {
+    // Atomik katılım: oku-değiştir-yaz tek adımda. Aynı anda katılan ikinci
+    // oyuncu, status 'playing'e döndüğü için transaction'da iptal olur.
+    const result = await runTransaction(roomRef, (room) => {
+      if (room === null) return; // get ile transaction arasında silinmiş
+      if (room.status !== 'waiting') return; // dolu/başlamış -> iptal
+      if (Object.keys(room.players || {}).length >= 2) return; // dolu -> iptal
+      room.status = 'playing';
+      room.players = room.players || {};
+      room.players[this.playerId] = {
+        connected: true,
+        score: 0,
+        profileName: PlayerState.state.profileName || 'Player',
+        avatarSeed: PlayerState.state.avatarSeed || 'akita'
+      };
+      return room;
+    });
+
+    if (!result.committed) {
       throw new Error('Bu oda dolu veya oyun başlamış.');
     }
 
-    // Join the room
-    await update(roomRef, {
-      status: 'playing',
-      [`players/${this.playerId}`]: { connected: true, score: 0, profileName: PlayerState.state.profileName || 'Player', avatarSeed: PlayerState.state.avatarSeed || 'akita' }
-    });
+    const roomData = result.snapshot.val();
 
-    
     const playerConnRef = ref(db, `rooms/${roomId}/players/${this.playerId}/connected`);
     onDisconnect(playerConnRef).set(false);
 
     this.currentRoom = roomId;
     this.isHost = false;
     this._listenToRoom(roomId);
-    
+
     return roomData.initialPieces || null;
   }
 
@@ -94,6 +118,7 @@ class MultiplayerService {
   sendMove(data) {
     if (!this.isReady() || !this.currentRoom) return;
     
+    const db = getRtdb();
     // We update our own player data node in the room
     const playerRef = ref(db, `rooms/${this.currentRoom}/players/${this.playerId}/lastMove`);
     set(playerRef, {
@@ -105,6 +130,7 @@ class MultiplayerService {
   // Send score update
   updateScore(score) {
     if (!this.isReady() || !this.currentRoom) return;
+    const db = getRtdb();
     const playerRef = ref(db, `rooms/${this.currentRoom}/players/${this.playerId}/score`);
     set(playerRef, score);
   }
@@ -112,6 +138,7 @@ class MultiplayerService {
   // Set rematch readiness
   setRematchReady(ready) {
     if (!this.isReady() || !this.currentRoom) return;
+    const db = getRtdb();
     const playerRef = ref(db, `rooms/${this.currentRoom}/players/${this.playerId}/rematchReady`);
     set(playerRef, ready);
   }
@@ -120,6 +147,7 @@ class MultiplayerService {
   restartMatch(initialPieces) {
     if (!this.isReady() || !this.currentRoom || !this.isHost) return;
     
+    const db = getRtdb();
     const roomRef = ref(db, `rooms/${this.currentRoom}`);
     get(roomRef).then((snapshot) => {
       if (snapshot.exists()) {
@@ -140,6 +168,7 @@ class MultiplayerService {
 
   // Internal listener for room changes
   _listenToRoom(roomId) {
+    const db = getRtdb();
     const roomRef = ref(db, `rooms/${roomId}`);
     onValue(roomRef, (snapshot) => {
       if (!snapshot.exists()) {
@@ -189,6 +218,7 @@ class MultiplayerService {
   leaveRoom() {
     if (!this.isReady() || !this.currentRoom) return;
     
+    const db = getRtdb();
     const roomRef = ref(db, `rooms/${this.currentRoom}`);
     
     // Stop listening

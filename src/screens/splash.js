@@ -8,7 +8,7 @@ export function Splash(router) {
     <!-- Stage 1: Developer Splash (FoxyStudio) -->
     <div id="foxstudio-splash" class="absolute inset-0 flex flex-col items-center justify-center bg-[#f3f4f6] dark:bg-[#111111] z-50 transition-opacity duration-700 ease-in-out opacity-100">
       <div class="w-48 h-auto animate-pop-up flex flex-col items-center justify-center drop-shadow-xl">
-        <img src="/foxstudio.png" alt="FoxyStudio Logo" class="max-w-full object-contain mix-blend-multiply dark:invert dark:mix-blend-screen transition-all duration-300" />
+        <img loading="lazy" decoding="async" src="/foxstudio.webp" alt="FoxyStudio Logo" class="max-w-full object-contain mix-blend-multiply dark:invert dark:mix-blend-screen transition-all duration-300" />
       </div>
     </div>
 
@@ -32,7 +32,7 @@ export function Splash(router) {
         <div class="relative">
           <div class="absolute -inset-6 rounded-full bg-gradient-to-r from-cyan-500/30 via-purple-500/20 to-orange-500/30 blur-2xl animate-pulse"></div>
           <div class="w-36 h-36 rounded-[2rem] flex items-center justify-center shadow-2xl transform animate-float ring-2 ring-white/10 relative">
-            <img src="/logo.jpg" alt="Bloxy Logo" class="w-full h-full object-cover rounded-[2rem]" />
+            <img loading="lazy" decoding="async" src="/logo.jpg" alt="Bloxy Logo" class="w-full h-full object-cover rounded-[2rem]" />
           </div>
         </div>
         <div class="flex flex-col items-center space-y-2">

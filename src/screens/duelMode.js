@@ -29,6 +29,11 @@ export function DuelMode(router) {
         else if (engine.winner === 'tie') isWin = 'tie';
         else isWin = false;
 
+        TaskState.updateProgress('duel_play', 1);
+        if (isWin === true) {
+          TaskState.updateProgress('duel_win', 1);
+        }
+
         const myScore = myPlayerNumber === 1 ? engine.player1Score : engine.player2Score;
         const opponentScore = myPlayerNumber === 1 ? engine.player2Score : engine.player1Score;
 
@@ -59,6 +64,7 @@ export function DuelMode(router) {
 
   // --- MULTIPLAYER TIMERS & STRIKES ---
   let turnTimerInterval = null;
+  let botTurnTimeout = null;
   let timeLeft = 15;
   let mySkips = 0;
   
@@ -104,30 +110,22 @@ export function DuelMode(router) {
     container.appendChild(connOverlay);
   }
 
-  // VS Header Wrapper (Takes all remaining empty space with 1:2 ratio)
+  // VS Header Wrapper
   const vsHeaderWrapper = document.createElement('div');
-  vsHeaderWrapper.className = 'w-full flex-1 flex flex-col min-h-0';
+  vsHeaderWrapper.className = 'w-full flex-none pt-2 sm:pt-4 md:pt-6 lg:pt-8 pb-0 sm:pb-2 min-h-0 z-10';
   
-  const topSpacer = document.createElement('div');
-  topSpacer.className = 'flex-[1] min-h-0';
-  vsHeaderWrapper.appendChild(topSpacer);
-
   const vsHeader = document.createElement('div');
-  vsHeader.className = 'px-4 py-2 w-full flex items-center justify-between z-10 relative shrink-0';
+  vsHeader.className = 'px-4 py-2 w-full flex items-center justify-between relative';
   vsHeaderWrapper.appendChild(vsHeader);
-
-  const bottomSpacer = document.createElement('div');
-  bottomSpacer.className = 'flex-[2] min-h-0';
-  vsHeaderWrapper.appendChild(bottomSpacer);
 
   container.appendChild(vsHeaderWrapper);
 
   // Board Area
   const content = document.createElement('main');
-  content.className = 'flex-none flex flex-col items-center justify-center w-full relative overflow-hidden space-y-4 -mt-6 sm:-mt-8 md:-mt-10 lg:-mt-[4vh]';
+  content.className = 'flex-1 flex flex-col items-center justify-between w-full relative overflow-hidden space-y-4 min-h-0 pb-2 sm:pb-4 md:pb-6 lg:pb-10';
 
   const boardWrapper = document.createElement('div');
-  boardWrapper.className = 'flex items-center justify-center px-4 relative z-10 w-full shrink-0';
+  boardWrapper.className = 'flex-1 flex items-center justify-center px-4 relative z-10 w-full shrink-0 min-h-0';
   const boardEl = document.createElement('div');
   boardEl.id = 'game-board';
   boardEl.className = 'grid gap-[3px] bg-black/5 dark:bg-white/5 p-2 rounded-3xl border border-black/5 dark:border-white/5 shadow-inner relative';
@@ -194,9 +192,9 @@ export function DuelMode(router) {
         
         descContainer.querySelector('#copy-code-btn').addEventListener('click', () => {
           navigator.clipboard.writeText(Multiplayer.currentRoom).then(() => {
-            import('../components/toast.js').then(m => m.Toast.show(t('duel_code_copied') || 'Oda kodu kopyalandı!', 'success'));
-            import('../utils/sounds.js').then(m => m.Sounds.playSfx('button-tap'));
-            import('../utils/haptics.js').then(m => m.Haptics.vibrate('light'));
+            Toast.show(t('duel_code_copied') || 'Oda kodu kopyalandı!', 'success');
+            Sounds.playSfx('button-tap');
+            Haptics.vibrate('light');
           });
         });
       } else if (state.status === 'playing') {
@@ -225,7 +223,7 @@ export function DuelMode(router) {
 
       if (state.opponentRematchReady !== undefined) {
          if (state.opponentRematchReady && !opponentRematchReady) {
-            import('../components/toast.js').then(m => m.Toast.show('Rakip tekrar oynamak istiyor!', 'success'));
+            Toast.show('Rakip tekrar oynamak istiyor!', 'success');
          }
          opponentRematchReady = state.opponentRematchReady;
          
@@ -307,7 +305,7 @@ export function DuelMode(router) {
         clearInterval(disconnectTimerInterval);
         document.body.removeChild(disconnectModal);
         disconnectModal = null;
-        import('../components/toast.js').then(m => m.Toast.show(t('duel_opponent_reconnected') || 'Rakip geri döndü!', 'success'));
+        Toast.show(t('duel_opponent_reconnected') || 'Rakip geri döndü!', 'success');
         startTurnTimer();
       }
     };
@@ -329,7 +327,7 @@ export function DuelMode(router) {
             (move.newPieces && move.newPieces[1]) || null,
             (move.newPieces && move.newPieces[2]) || null
           ];
-          import('../components/toast.js').then(m => m.Toast.show(t('duel_time_up_opponent') || 'Rakibin süresi doldu! Sıra sende.', 'success'));
+          Toast.show(t('duel_time_up_opponent') || 'Rakibin süresi doldu! Sıra sende.', 'success');
           updateBoardUI();
           renderTray();
           startTurnTimer();
@@ -505,9 +503,10 @@ export function DuelMode(router) {
     vsHeader.innerHTML = `
       <!-- User (P1) -->
       <div class="flex flex-col items-center relative transition-transform ${isMyTurn ? 'scale-110' : 'scale-95 opacity-60'}">
-        <div class="relative">
-          <img src="${userAvatarUrl}" class="w-14 h-14 rounded-full border-4 ${isMyTurn ? 'border-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.5)]' : 'border-gray-400/30'} bg-white/10" style="object-fit: cover; background-color: transparent;" />
-          ${isMyTurn ? '<div class="absolute -bottom-1 -right-1 w-4 h-4 bg-cyan-400 rounded-full border-2 border-white animate-pulse"></div>' : ''}
+        <div class="relative ${PlayerState.state.isVip ? 'premium-avatar-frame' : ''}">
+          <img loading="lazy" decoding="async" src="${userAvatarUrl}" class="w-14 h-14 rounded-full border-4 ${isMyTurn && !PlayerState.state.isVip ? 'border-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.5)]' : !PlayerState.state.isVip ? 'border-gray-400/30' : ''} bg-white/10" style="object-fit: cover; background-color: transparent;" />
+          ${isMyTurn ? '<div class="absolute -bottom-1 -right-1 w-4 h-4 bg-cyan-400 rounded-full border-2 border-white animate-pulse z-20"></div>' : ''}
+          ${PlayerState.state.isVip ? '<div class="absolute -top-2 left-1/2 -translate-x-1/2 bg-gradient-to-r from-yellow-400 to-yellow-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full shadow-md border border-yellow-200 z-30">VIP</div>' : ''}
         </div>
         <span class="text-[10px] font-black mt-2 truncate w-20 text-center">${userName}</span>
         <span class="text-[9px] font-black text-secondary tracking-widest mt-0.5">SV ${userLevel} - ${userRankTitle}</span>
@@ -534,7 +533,7 @@ export function DuelMode(router) {
       <!-- Bot (P2) -->
       <div class="flex flex-col items-center relative transition-transform ${!isMyTurn ? 'scale-110' : 'scale-95 opacity-60'}">
         <div class="relative">
-          <img src="${engine.botAvatar}" class="w-14 h-14 rounded-full border-4 ${!isMyTurn ? 'border-pink-500 shadow-[0_0_15px_rgba(236,72,153,0.5)]' : 'border-gray-400/30'} bg-white/10" style="object-fit: cover; background-color: transparent;" />
+          <img loading="lazy" decoding="async" src="${engine.botAvatar}" class="w-14 h-14 rounded-full border-4 ${!isMyTurn ? 'border-pink-500 shadow-[0_0_15px_rgba(236,72,153,0.5)]' : 'border-gray-400/30'} bg-white/10" style="object-fit: cover; background-color: transparent;" />
           ${!isMyTurn ? '<div class="absolute -bottom-1 -left-1 w-4 h-4 bg-pink-500 rounded-full border-2 border-white animate-pulse"></div>' : ''}
         </div>
         <span class="text-[10px] font-black mt-2 truncate w-20 text-center">${engine.botName}</span>
@@ -596,6 +595,9 @@ export function DuelMode(router) {
       const c = parseInt(cell.getAttribute('data-c'));
       const color = engine.board[r][c];
       
+      if (cell.dataset.cachedColor === String(color)) return;
+      cell.dataset.cachedColor = color;
+      
       cell.className = 'aspect-square rounded-lg flex items-center justify-center transition-all duration-200';
       cell.style.transform = '';
       
@@ -638,7 +640,12 @@ export function DuelMode(router) {
     return thumb;
   };
 
+  let lastTraySignature = '';
   const renderTray = () => {
+    const currentSignature = JSON.stringify({ p: engine.currentPlayer, ap: engine.activePieces });
+    if (lastTraySignature === currentSignature) return;
+    lastTraySignature = currentSignature;
+
     trayEl.innerHTML = '';
     engine.activePieces.forEach((piece, idx) => {
       const slot = document.createElement('div');
@@ -678,7 +685,7 @@ export function DuelMode(router) {
     
     turnOverlay.classList.remove('opacity-0', 'pointer-events-none');
     
-    setTimeout(() => {
+    botTurnTimeout = setTimeout(() => {
       const move = engine.calculateBotMove();
       if (move) {
         const piece = engine.activePieces[move.pieceIdx];
@@ -687,7 +694,7 @@ export function DuelMode(router) {
         
         const completeMove = () => {
           engine.placePiece(move.pieceIdx, move.r, move.c);
-          import('../utils/sounds.js').then(m => m.Sounds.playSfx('block-place'));
+          Sounds.playSfx('block-place');
           
           updateBoardUI();
           renderTray();
@@ -971,7 +978,7 @@ export function DuelMode(router) {
       if (engine.gameOver) {
         showGameOver();
       } else if (typeof isMultiplayer !== 'undefined' && !isMultiplayer) {
-        setTimeout(() => executeBotTurn(), 500);
+        botTurnTimeout = setTimeout(() => executeBotTurn(), 500);
       }
     } else {
       Sounds.playSfx('invalid');
@@ -1021,6 +1028,8 @@ export function DuelMode(router) {
     clearInterval(turnTimerInterval);
     clearInterval(disconnectTimerInterval);
     clearInterval(rematchTimerInterval);
+    clearTimeout(botTurnTimeout);
+    if (rafDuelMoveId) cancelAnimationFrame(rafDuelMoveId); // L5: unmount sonrası orphan kareyi iptal et
     window.removeEventListener('hashchange', handleHashChange);
   };
 

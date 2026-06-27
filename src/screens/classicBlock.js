@@ -83,7 +83,7 @@ export function ClassicBlock(router) {
 
       modal.querySelector('#modal-revive-ad').addEventListener('click', async () => {
         Sounds.playSfx('button-tap');
-        const success = await AdService.showInterstitial();
+        const success = await AdService.showRewardVideoAd();
         if (success) {
           engine.revive();
           container.isGameOverModalOpen = false;
@@ -414,6 +414,7 @@ export function ClassicBlock(router) {
             PlayerState.state.currentAdventureLevel = engine.level + 1;
             PlayerState.save();
           }
+          TaskState.updateProgress('adventure_level', 1);
           engine.nextLevel();
           updateBoardUI();
           renderTray();
@@ -485,9 +486,7 @@ export function ClassicBlock(router) {
     Sounds.playSfx('game-win');
     Haptics.vibrate('success');
 
-    import('../services/adService.js').then(({ AdService }) => {
-      AdService.showForcedInterstitial('levelup');
-    });
+    AdService.showForcedInterstitial('levelup');
 
     const overlay = document.createElement('div');
     overlay.className = 'absolute inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in';
@@ -546,7 +545,12 @@ export function ClassicBlock(router) {
   }
 
   // Re-build tray pieces
+  let lastTraySignature = '';
   function renderTray() {
+    const currentSignature = JSON.stringify(engine.activePieces);
+    if (lastTraySignature === currentSignature) return;
+    lastTraySignature = currentSignature;
+
     trayEl.innerHTML = '';
     engine.activePieces.forEach((piece, idx) => {
       const itemContainer = document.createElement('div');
@@ -647,6 +651,7 @@ export function ClassicBlock(router) {
             } else {
               const slot = trayEl.children[idx];
               if (slot) slot.innerHTML = '';
+              lastTraySignature = JSON.stringify(engine.activePieces);
             }
 
             checkAndTriggerGameOver();
@@ -707,11 +712,8 @@ export function ClassicBlock(router) {
         cachedGridOriginX = firstCellRect.left + window.scrollX;
         cachedGridOriginY = firstCellRect.top + window.scrollY;
         }
-        
-        const maxBoardWidth = Math.min(window.innerWidth - 32, (window.innerHeight - 380), 900);
-        const gapCount = engine.gridSize - 1;
-        const floatCellSize = Math.floor((maxBoardWidth - 16 - (gapCount * 3)) / engine.gridSize);
-      cachedCellPlusGap = floatCellSize + 3;
+        const floatCellSize = cachedCellWidth;
+        cachedCellPlusGap = floatCellSize + 3;
         
         // Hide the tray item
         itemContainer.style.opacity = '0.3';
@@ -735,9 +737,7 @@ export function ClassicBlock(router) {
         floatGrid.style.gridTemplateRows = `repeat(${piece.matrix.length}, minmax(0, 1fr))`;
         floatGrid.style.gridTemplateColumns = `repeat(${piece.matrix[0].length}, minmax(0, 1fr))`;
         
-        const maxBoardWidth = Math.min(window.innerWidth - 32, (window.innerHeight - 380), 900);
-        const gapCount = engine.gridSize - 1;
-        const floatCellSize = Math.floor((maxBoardWidth - 16 - (gapCount * 3)) / engine.gridSize);
+        const floatCellSize = cachedCellWidth;
         
         for (let r = 0; r < piece.matrix.length; r++) {
           for (let c = 0; c < piece.matrix[0].length; c++) {
@@ -1085,7 +1085,7 @@ export function ClassicBlock(router) {
 
         modal.querySelector('#modal-watch-ad').addEventListener('click', async () => {
           Sounds.playSfx('button-tap');
-          const success = await AdService.showInterstitial();
+          const success = await AdService.showRewardVideoAd();
           if (success) {
             modal.close();
             // Provide exact diamonds needed for this undo
@@ -1163,7 +1163,7 @@ export function ClassicBlock(router) {
 
         modal.querySelector('#modal-watch-ad').addEventListener('click', async () => {
           Sounds.playSfx('button-tap');
-          const success = await AdService.showInterstitial();
+          const success = await AdService.showRewardVideoAd();
           if (success) {
             modal.close();
             PlayerState.addDiamonds(currentCost);

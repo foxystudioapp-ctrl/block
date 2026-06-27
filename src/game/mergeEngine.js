@@ -1,6 +1,7 @@
 import { PlayerState } from '../state/playerState.js';
 import { Toast } from '../components/toast.js';
 import { t } from '../utils/i18n.js';
+import { debouncedSetItem } from '../utils/persist.js';
 
 export class MergeEngine {
   constructor(mode = 'endless', level = 1) {
@@ -10,7 +11,7 @@ export class MergeEngine {
     this.grid = Array(this.gridSize).fill(null).map(() => Array(this.gridSize).fill(0));
     this.score = 0;
     this.levelScore = 0;
-    this.targetScore = mode === 'adventure' ? 500 * this.level : Infinity;
+    this.targetScore = mode === 'adventure' ? this.getTargetScore(this.level) : Infinity;
     this.gameOver = false;
     this.levelUpReady = false;
     this.tray = [];
@@ -40,6 +41,7 @@ export class MergeEngine {
           this.history = state.history || [];
           this.undoCount = state.undoCount || 0;
           this.maxSpawnValue = state.maxSpawnValue || 4;
+          this._relieveBoard(); // tıkanmış/kilitli kaydedilen tahta yüklenince nefes aç
           return true;
         }
       } catch (e) {
@@ -63,7 +65,7 @@ export class MergeEngine {
       undoCount: this.undoCount,
       maxSpawnValue: this.maxSpawnValue
     };
-    localStorage.setItem(key, JSON.stringify(state));
+    debouncedSetItem(key, JSON.stringify(state));
   }
 
   clearSave() {
@@ -71,13 +73,65 @@ export class MergeEngine {
     localStorage.removeItem(key);
   }
 
+  // Target score scales exponentially to match tile merge value growth.
+  // EĞRİ YUMUŞATILDI: 5x5 (25 hücre) tahta + merge-3 şartı yüzünden tahta hedefe
+  // ulaşmadan kilitlenebiliyordu. Taban düşürüldü, ikiye-katlanma yavaşlatıldı (25→35
+  // seviye), tavan 5M→1.5M'e indirildi → hedefler tahta kilitlenmeden ulaşılabilir.
+  // NOT: küçük tahta yapısı gereği çok yüksek seviyeler hâlâ zorlu olabilir; revive()
+  // güvenlik valfı korundu. Gerçek cihaz playtest'i önerilir.
+  getTargetScore(level) {
+    if (level <= 20) return 400 + level * 350;          // Sv1=750, Sv20=7400 (yumuşak)
+    if (level <= 50) return 7400 + (level - 20) * 1000; // Sv21-50: Sv50=37400
+    // Sv50+: üstel ama daha yavaş (her ~35 seviyede ikiye katlanır)
+    const base = 37400;
+    const doublingRate = 35;
+    const target = Math.floor(base * Math.pow(2, (level - 50) / doublingRate));
+    // 5x5 ızgarada seviye başına skor sınırlı → tavan 1.5M
+    return Math.min(target, 1500000);
+  }
+
   nextLevel() {
     this.level++;
-    this.targetScore = 500 * this.level;
+    this.targetScore = this.getTargetScore(this.level);
     this.levelScore = 0;
     this.levelUpReady = false;
     this.history = [];
+    this._relieveBoard();
     this.saveGameState();
+  }
+
+  // Tahta tıkanma koruması (EŞİK TABANLI rahatlatma) — x2'deki kanıtlanmış desenle aynı.
+  // NEDEN: 5x5 tahtada (25 hücre) birleşme 3+ bağlı grup gerektirdiğinden, eşi/grubu
+  // tamamlanamayan büyük tekiller birikip tahtayı kilitliyor (oyun-bitiş = tahta tamamen
+  // dolu). Seviye-atlamada tahta korunduğu ve rahatlatma olmadığı için yüksek seviyede
+  // kilitlenme riski var. Bu fonksiyon SADECE tahta TRIGGER eşiğini aşınca EN KÜÇÜK blokları
+  // temizleyip TARGET_FILL doluluğa indirir; sağlıklı tahtada (≤eşik) HİÇ tetiklenmez —
+  // birleştirme/zincir hissi korunur. Yükleme + seviye-atlamada çağrılır → kilitli kalmış
+  // oyuncular girer girmez nefes alır. NOT: emsal sim'lerle birebir doğrulanamadı (3-bağlı
+  // merge botu güvenilir kurulamadı) ama tetik-kapılı ve en-küçük-öncelikli olduğundan
+  // SAĞLIKLI tahtayı asla bozmaz — saf önleyici, yan etkisiz.
+  _relieveBoard(trigger = 0.68, targetFill = 0.5) {
+    const total = this.gridSize * this.gridSize;
+    const countEmpty = () => {
+      let n = 0;
+      for (let r = 0; r < this.gridSize; r++)
+        for (let c = 0; c < this.gridSize; c++)
+          if (this.grid[r][c] === 0) n++;
+      return n;
+    };
+    let filled = total - countEmpty();
+    if (filled <= total * trigger) return;
+    const targetFilled = Math.floor(total * targetFill);
+    const cells = [];
+    for (let r = 0; r < this.gridSize; r++)
+      for (let c = 0; c < this.gridSize; c++)
+        if (this.grid[r][c] > 0) cells.push({ r, c, val: this.grid[r][c] });
+    cells.sort((a, b) => a.val - b.val); // en küçükten
+    let i = 0;
+    while (filled > targetFilled && i < cells.length) {
+      this.grid[cells[i].r][cells[i].c] = 0;
+      filled--; i++;
+    }
   }
 
   saveState() {

@@ -9,6 +9,7 @@ import { FriendService } from '../services/friendService.js';
 import { MultiplayerService } from '../services/multiplayerService.js';
 import { BotManager } from '../utils/botEngine.js';
 import { createModal } from '../components/modal.js';
+import { Toast } from '../components/toast.js';
 
 export function Leaderboard(router) {
   const container = document.createElement('div');
@@ -22,6 +23,20 @@ export function Leaderboard(router) {
   const contentWrapper = document.createElement('main');
   contentWrapper.className = 'flex-1 overflow-y-auto px-4 no-scrollbar relative z-10 touch-pan-y overscroll-y-contain pt-4';
   container.appendChild(contentWrapper);
+
+  let currentPlayersData = [];
+  // Bu oturumda istek gönderilen uid'ler — anında geri bildirim için.
+  const sentRequestUids = new Set();
+  // Kalıcı + oturum birleşik "beklemede" kontrolü. Gerçek oyunculara gönderilen
+  // istekler PlayerState.state.sentRequests'te canlı tutulur (sayfa yenilense
+  // bile "İstek Gönderildi" görünür). Botlar yalnızca oturum setinde.
+  const isPending = (uid) =>
+    sentRequestUids.has(uid) || (PlayerState.state.sentRequests || []).includes(uid);
+
+  // Bir oyuncu bot mu? Botların gerçek Firebase kullanıcısı yoktur
+  // (uid: "bot_*", isBot: true) → onlara gerçek istek YAZILMAZ, simüle edilir.
+  const isBotPlayer = (p) =>
+    p && (p.isBot === true || (typeof p.uid === 'string' && p.uid.startsWith('bot_')));
 
   const renderContent = async () => {
     contentWrapper.innerHTML = `
@@ -49,7 +64,8 @@ export function Leaderboard(router) {
       globalTrophies: myScore,
       level: PlayerState.state.level || 1,
       avatar: getAvatarUrl(PlayerState.state.avatarSeed || 'akita'),
-      isMe: true
+      isMe: true,
+      isVip: PlayerState.state.isVip
     };
 
     // 4. Friends
@@ -79,6 +95,7 @@ export function Leaderboard(router) {
     });
 
     let mockData = Array.from(mergedMap.values());
+    currentPlayersData = mockData;
     
     // Sort descending by score
     mockData.sort((a, b) => b.globalTrophies - a.globalTrophies);
@@ -214,14 +231,17 @@ export function Leaderboard(router) {
       const crown = isFirst ? '<span class="material-symbols-outlined fill text-yellow-400 text-[1em] align-middle">workspace_premium</span>' : position === 2 ? '<span class="material-symbols-outlined fill text-gray-400 text-[1em] align-middle">military_tech</span>' : '<span class="material-symbols-outlined fill text-orange-600 text-[1em] align-middle">military_tech</span>';
       const rankInfo = PlayerState.getRankInfo ? PlayerState.getRankInfo(player.level) : { key: 'rank_novice', color: 'text-gray-400' };
 
+      const hasVipFrame = player.rank <= 50 && ((player.isMe && player.isVip) || (!player.isMe && !player.isFriend));
+
       return `
         <div class="flex flex-col items-center animate-fade-in cursor-pointer hover:scale-105 transition-transform lb-player-card" data-uid="${player.uid}" style="animation-delay: ${position * 100}ms" >
           <span class="text-2xl mb-1">${crown}</span>
-          <div class="relative mb-2">
-            <img src="${player.avatar}" class="relative z-10 w-12 h-12 rounded-full border-2 border-white/20 bg-white/10" />
+          <div class="relative mb-2 ${hasVipFrame ? 'premium-avatar-frame' : ''}">
+            <img loading="lazy" decoding="async" src="${player.avatar}" class="relative z-10 w-12 h-12 rounded-full ${hasVipFrame ? '' : 'border-2 border-white/20'} bg-white/10" />
             <div class="absolute -bottom-1 -right-1 z-20 bg-black/80 dark:bg-white/10 backdrop-blur-sm px-1.5 rounded-full text-[9px] font-black text-white border border-white/20 shadow-md">
               ${player.level || 1}
             </div>
+            ${hasVipFrame ? '<div class="absolute -top-2 left-1/2 -translate-x-1/2 bg-gradient-to-r from-yellow-400 to-yellow-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full shadow-md border border-yellow-200 z-30">VIP</div>' : ''}
           </div>
           <span class="text-[10px] font-bold mb-0 w-16 text-center truncate ${player.isFriend || player.isMe ? 'text-secondary dark:text-accent-cyan' : ''}">${player.name}</span>
           <span class="text-[8px] font-black uppercase tracking-widest ${rankInfo.color} mb-1 opacity-80">${t(rankInfo.key) || 'Acemi'}</span>
@@ -234,10 +254,6 @@ export function Leaderboard(router) {
       `;
     };
 
-    const lbShowPlayer = (uid) => {
-      const p = mockData.find(x => x.uid === uid);
-      if (p) showPlayerModal(p);
-    };
 
     podium.innerHTML = `
       ${createPodiumSpot(displayData[1], 2)}
@@ -274,14 +290,17 @@ export function Leaderboard(router) {
             rankLabel = `%${perc}`;
         }
 
+        const hasVipFrame = p.rank <= 50 && ((p.isMe && p.isVip) || (!p.isMe && !p.isFriend));
+
         row.innerHTML = `
           <div class="flex items-center gap-3">
             <span class="w-8 text-center text-[11px] font-bold ${p.isMe || p.isFriend ? 'text-secondary' : 'text-gray-500'}">${rankLabel}</span>
-            <div class="relative">
-              <img src="${p.avatar}" class="relative z-10 w-10 h-10 rounded-full border-2 border-white/10 bg-white/10" />
+            <div class="relative ${hasVipFrame ? 'premium-avatar-frame' : ''}">
+              <img loading="lazy" decoding="async" src="${p.avatar}" class="relative z-10 w-10 h-10 rounded-full ${hasVipFrame ? '' : 'border-2 border-white/10'} bg-white/10" />
               <div class="absolute -bottom-1 -right-1 z-20 bg-black/80 dark:bg-white/10 backdrop-blur-sm px-1.5 rounded-full text-[8px] font-black text-white border border-white/20">
                 ${p.level || 1}
               </div>
+              ${hasVipFrame ? '<div class="absolute -top-2 left-1/2 -translate-x-1/2 bg-gradient-to-r from-yellow-400 to-yellow-600 text-white text-[7px] font-black px-1.5 py-0.5 rounded-full shadow-md border border-yellow-200 z-30">VIP</div>' : ''}
             </div>
             <div class="flex flex-col justify-center">
               <div class="flex items-center gap-1.5">
@@ -313,6 +332,11 @@ export function Leaderboard(router) {
       actionHtml = `<button class="w-full py-3.5 rounded-2xl bg-black/10 dark:bg-white/10 text-gray-500 font-bold opacity-50 cursor-not-allowed">${t('that_is_you') || 'Bu Sensin'}</button>`;
     } else if (player.isFriend) {
       actionHtml = `<button class="w-full py-3.5 rounded-2xl bg-black/10 dark:bg-white/10 text-gray-500 font-bold opacity-50 cursor-not-allowed">${t('already_friends') || 'Zaten Arkadaşsınız'}</button>`;
+    } else if (isPending(player.uid)) {
+      actionHtml = `<button class="w-full py-3.5 rounded-2xl bg-black/10 dark:bg-white/10 text-gray-500 font-bold opacity-60 cursor-not-allowed flex items-center justify-center gap-2">
+        <span class="material-symbols-outlined text-lg">check</span>
+        ${t('request_pending') || 'İstek Gönderildi'}
+      </button>`;
     } else {
       actionHtml = `<button id="btn-add-player" class="w-full py-3.5 rounded-2xl bg-gradient-to-r from-cyan-400 to-blue-500 text-white font-black shadow-md shadow-cyan-500/30 hover:scale-105 transition-all active:scale-95 flex items-center justify-center gap-2">
         <span class="material-symbols-outlined text-lg">person_add</span>
@@ -328,7 +352,7 @@ export function Leaderboard(router) {
       content: `
         <div class="flex flex-col items-center p-4 gap-4 overflow-y-auto max-h-[60vh] no-scrollbar">
           <div class="relative mt-2">
-            <img src="${player.avatar}" class="relative z-10 w-24 h-24 rounded-full border-4 shadow-xl bg-white/5" style="object-fit: cover;" />
+            <img loading="lazy" decoding="async" src="${player.avatar}" class="relative z-10 w-24 h-24 rounded-full border-4 shadow-xl bg-white/5" style="object-fit: cover;" />
             <div class="absolute -bottom-2 -right-2 z-20 bg-black/90 dark:bg-white/20 backdrop-blur-md px-3 py-1 rounded-full text-xs font-black text-white border border-white/20 shadow-md">
               ${t('lb_level_abbr') || 'Sv.'} ${player.level || 1}
             </div>
@@ -362,17 +386,57 @@ export function Leaderboard(router) {
 
     const btnAdd = modal.querySelector('#btn-add-player');
     if (btnAdd) {
-      btnAdd.onclick = () => {
-        btnAdd.style.opacity = '0.5';
+      let busy = false;
+      btnAdd.onclick = async () => {
+        if (busy) return;                 // çift-tık / çoklu Write koruması
+        busy = true;
         btnAdd.style.pointerEvents = 'none';
+        const original = btnAdd.innerHTML;
         btnAdd.innerHTML = '<span class="material-symbols-outlined animate-spin text-white">autorenew</span>';
-        
-        setTimeout(() => {
+
+        const finishSuccess = () => {
+          sentRequestUids.add(player.uid);
           modal.close();
-          import('../components/toast.js').then(({ Toast }) => {
-            Toast.show(t('friend_request_sent') || 'Arkadaşlık isteği gönderildi!', 'success');
+          Toast.show(t('friend_request_sent') || 'Arkadaşlık isteği gönderildi!', 'success');
+        };
+        const finishError = (msg) => {
+          busy = false;
+          btnAdd.style.pointerEvents = 'auto';
+          btnAdd.innerHTML = original;
+          Toast.show(msg, 'error');
+        };
+
+        // BOT: gerçek kullanıcı yok → Firebase'e YAZMA, illüzyonu simüle et.
+        if (isBotPlayer(player)) {
+          setTimeout(finishSuccess, 600);
+          return;
+        }
+
+        // GERÇEK OYUNCU: sunucu bağlantısı yoksa erken çık.
+        if (PlayerState.state.firebaseError || !PlayerState.state.uid) {
+          finishError(t('no_server_connection') || 'Sunucu bağlantısı yok.');
+          return;
+        }
+
+        try {
+          // Profil olarak ad+seviye gönderiyoruz; avatar SEED'ini karşı taraf
+          // kabul ederken kendi yazar (liderlikteki avatar URL'dir, seed değil).
+          const res = await FriendService.sendFriendRequest(player.uid, {
+            name: player.name,
+            level: player.level || 1
           });
-        }, 800);
+          if (res && res.success) {
+            finishSuccess();
+          } else if (res && res.msg === 'already_friends') {
+            modal.close();
+            Toast.show(t('already_friends') || 'Zaten arkadaşsınız!', 'info');
+          } else {
+            finishError(t('friend_request_failed') || 'İstek gönderilemedi.');
+          }
+        } catch (e) {
+          console.error('sendFriendRequest failed', e);
+          finishError(t('friend_request_failed') || 'İstek gönderilemedi.');
+        }
       };
     }
 
@@ -392,13 +456,16 @@ export function Leaderboard(router) {
 
   initSwipeNavigation(container, router, 'leaderboard');
   
-    container.addEventListener('click', (e) => {
-      const card = e.target.closest('.lb-player-card');
-      if (card) {
-        const uid = card.getAttribute('data-uid');
-        if (uid) lbShowPlayer(uid);
+  container.addEventListener('click', (e) => {
+    const card = e.target.closest('.lb-player-card');
+    if (card) {
+      const uid = card.getAttribute('data-uid');
+      if (uid) {
+        const p = currentPlayersData.find(x => x.uid === uid);
+        if (p) showPlayerModal(p);
       }
-    });
+    }
+  });
 
   container.cleanup = () => {
     if (topBar.cleanup) topBar.cleanup();

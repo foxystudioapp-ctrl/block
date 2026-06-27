@@ -4,6 +4,7 @@ import { PlayerState } from '../state/playerState.js';
 import { Sounds } from '../utils/sounds.js';
 import { Haptics } from '../utils/haptics.js';
 import { Toast } from '../components/toast.js';
+import { debouncedSetItem } from '../utils/persist.js';
 import { TaskState } from '../state/taskState.js';
 import { t } from '../utils/i18n.js';
 
@@ -66,8 +67,13 @@ export class ClassicEngine {
   }
 
   getTargetScore() {
-    // Linear scaling: base 500 + 800 per level to support endless progression
-    return 500 + (this.level - 1) * 800;
+    // Linear scaling with soft cap to keep targets reachable at high levels
+    const linear = 500 + (this.level - 1) * 800;
+    const softCap = 100000; // ~level 125
+    if (linear <= softCap) return linear;
+    // After soft cap, growth slows to 30%
+    const excess = linear - softCap;
+    return Math.floor(softCap + excess * 0.3);
   }
 
   initLevel(lvl, keepBoard = false) {
@@ -500,11 +506,10 @@ export class ClassicEngine {
       activePieces: this.activePieces,
       gameOver: this.gameOver,
       justClearedLines: this.justClearedLines,
-      historyStack: this.historyStack,
       undoCount: this.undoCount,
       hammerCount: this.hammerCount
     };
-    localStorage.setItem(saveKey, JSON.stringify(state));
+    debouncedSetItem(saveKey, JSON.stringify(state));
   }
 
   loadFromLocalStorage() {
@@ -533,7 +538,7 @@ export class ClassicEngine {
       this.activePieces = state.activePieces;
       this.gameOver = state.gameOver;
       this.justClearedLines = state.justClearedLines;
-      this.historyStack = state.historyStack || [];
+      this.historyStack = []; // undo geçmişi oturum-içi; kalıcı kayıttan çıkarıldı
       this.undoCount = state.undoCount || 0;
       this.hammerCount = state.hammerCount || 0;
       this.levelUpReady = false;

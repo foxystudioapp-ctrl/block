@@ -6,14 +6,8 @@
     "SplashScreen": {
       "launchShowDuration": 0
     },
-    "FirebaseAuthentication": {
-      "skipNativeAuth": false,
-      "providers": ["google.com"]
-    },
-    "GoogleAuth": {
-      "scopes": ["profile", "email"],
-      "serverClientId": "244495803529-6iro7uhsrf9hkt641ch0cr1v03vrke06.apps.googleusercontent.com",
-      "forceCodeForRefreshToken": true
+    "GoogleSignIn": {
+      "clientId": "244495803529-6iro7uhsrf9hkt641ch0cr1v03vrke06.apps.googleusercontent.com"
     }
   }
 }

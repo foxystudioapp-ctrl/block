@@ -59,14 +59,14 @@
   }
 
   /* Classic 3D Blocks */
-  .block-3d-cyan { background: #06b6d4; box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.4), inset 0 -4px 0 rgba(0, 0, 0, 0.2), 0 2px 4px rgba(0, 0, 0, 0.2); }
-  .block-3d-purple { background: #a855f7; box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.4), inset 0 -4px 0 rgba(0, 0, 0, 0.2), 0 2px 4px rgba(0, 0, 0, 0.2); }
-  .block-3d-orange { background: #f97316; box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.4), inset 0 -4px 0 rgba(0, 0, 0, 0.2), 0 2px 4px rgba(0, 0, 0, 0.2); }
-  .block-3d-blue { background: #3b82f6; box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.4), inset 0 -4px 0 rgba(0, 0, 0, 0.2), 0 2px 4px rgba(0, 0, 0, 0.2); }
-  .block-3d-green { background: #22c55e; box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.4), inset 0 -4px 0 rgba(0, 0, 0, 0.2), 0 2px 4px rgba(0, 0, 0, 0.2); }
-  .block-3d-red { background: #ef4444; box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.4), inset 0 -4px 0 rgba(0, 0, 0, 0.2), 0 2px 4px rgba(0, 0, 0, 0.2); }
-  .block-3d-magenta { background: #ec4899; box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.4), inset 0 -4px 0 rgba(0, 0, 0, 0.2), 0 2px 4px rgba(0, 0, 0, 0.2); }
-  .block-3d-yellow { background: #eab308; box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.4), inset 0 -4px 0 rgba(0, 0, 0, 0.2), 0 2px 4px rgba(0, 0, 0, 0.2); }
+  .block-3d-cyan { background: #06b6d4; box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.4), inset 0 -4px 0 rgba(0, 0, 0, 0.2); }
+  .block-3d-purple { background: #a855f7; box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.4), inset 0 -4px 0 rgba(0, 0, 0, 0.2); }
+  .block-3d-orange { background: #f97316; box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.4), inset 0 -4px 0 rgba(0, 0, 0, 0.2); }
+  .block-3d-blue { background: #3b82f6; box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.4), inset 0 -4px 0 rgba(0, 0, 0, 0.2); }
+  .block-3d-green { background: #22c55e; box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.4), inset 0 -4px 0 rgba(0, 0, 0, 0.2); }
+  .block-3d-red { background: #ef4444; box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.4), inset 0 -4px 0 rgba(0, 0, 0, 0.2); }
+  .block-3d-magenta { background: #ec4899; box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.4), inset 0 -4px 0 rgba(0, 0, 0, 0.2); }
+  .block-3d-yellow { background: #eab308; box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.4), inset 0 -4px 0 rgba(0, 0, 0, 0.2); }
 
   /* Neon Blocks (Saved for Store) */
   .block-neon-cyan { background: rgba(6, 182, 212, 0.5); border: 2px solid #22d3ee; box-shadow: 0 0 10px rgba(34, 211, 238, 0.6), inset 0 0 8px rgba(34, 211, 238, 0.4); }
@@ -439,3 +439,55 @@ body {
   50% { opacity: .85; transform: scale(1.05); } 
 }
 .animate-pulse-slow { animation: pulse-slow 3s ease-in-out infinite; }
+
+/* VIP Premium Avatar Frame */
+.premium-avatar-frame {
+  position: relative;
+  z-index: 1;
+  border-radius: 50%;
+  padding: 4px;
+  background: linear-gradient(135deg, #FFDF00 0%, #D4AF37 25%, #FFF8DC 50%, #D4AF37 75%, #FFDF00 100%);
+  background-size: 200% 200%;
+  animation: premium-glow 3s linear infinite;
+  box-shadow: 0 0 12px rgba(255, 215, 0, 0.6), inset 0 0 8px rgba(255, 215, 0, 0.4);
+}
+
+.premium-avatar-frame img {
+  border: 2px solid #FFF8DC;
+}
+
+@keyframes premium-glow {
+  0% { background-position: 0% 50%; box-shadow: 0 0 12px rgba(255, 215, 0, 0.6); }
+  50% { background-position: 100% 50%; box-shadow: 0 0 20px rgba(255, 215, 0, 0.9); }
+  100% { background-position: 0% 50%; box-shadow: 0 0 12px rgba(255, 215, 0, 0.6); }
+}
+
+/* ============================================================================
+   DÜŞÜK SEGMENT (LOW-END) MODU
+   <html class="low-end"> main.js'teki cihaz tespitiyle eklenir.
+   Yalnız zayıf cihazlarda pahalı GPU efektlerini kapatır; yüksek-segment cihazlar
+   bu bloktan ETKİLENMEZ. Layer dışında olduğu için Tailwind utility'lerini override eder.
+   ============================================================================ */
+
+/* 1) backdrop-filter blur — low-end'in en pahalı işlemi. Tüm cam panel/bar/blur'ları düzleştir. */
+html.low-end .glass-panel,
+html.low-end .glass-card,
+html.low-end [class*="backdrop-blur"] {
+  backdrop-filter: none !important;
+}
+
+/* Blur gidince arka plan okunaklı kalsın diye yarı saydam camları biraz daha opak yap. */
+html.low-end .glass-panel { background: rgba(248, 250, 252, 0.97); }
+html.low-end.dark .glass-panel { background: rgba(15, 23, 42, 0.97); }
+html.low-end .glass-card { background: rgba(248, 250, 252, 0.97); }
+html.low-end.dark .glass-card { background: rgba(15, 23, 42, 0.96); }
+/* Sticky topBar / bottomNav (yarı saydam bg + backdrop-blur-md): blur kalkınca opaklığı yükselt. */
+html.low-end .sticky.backdrop-blur-md { background-color: rgba(245, 245, 247, 0.98) !important; }
+html.low-end.dark .sticky.backdrop-blur-md { background-color: rgba(1, 1, 2, 0.98) !important; }
+
+/* 2) box-shadow animasyonları (her kare repaint) — low-end'de durdur. Görsel statik kalır. */
+html.low-end .animate-badge-pulse,
+html.low-end .animate-streak-glow,
+html.low-end .premium-avatar-frame {
+  animation: none !important;
+}

@@ -20,11 +20,13 @@ public class MainActivity extends BridgeActivity {
     @SuppressLint("SetJavaScriptEnabled")
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        hideSystemUI();
     }
 
     @Override
     public void onResume() {
         super.onResume();
+        hideSystemUI();
 
         // Apply force dark to the WebView so app dark mode looks like system dark mode
         try {

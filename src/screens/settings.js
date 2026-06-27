@@ -11,7 +11,7 @@ export function showSettingsModal() {
 
   const overlay = document.createElement('div');
   overlay.id = 'settings-overlay';
-  overlay.className = 'fixed inset-0 z-50 flex justify-center bg-black/50 backdrop-blur-sm animate-fade-in';
+  overlay.className = 'fixed inset-0 z-[99999] flex justify-center bg-black/50 backdrop-blur-sm animate-fade-in';
 
   const container = document.createElement('div');
   container.className = 'w-full h-full max-w-full lg:max-w-4xl mx-auto flex flex-col justify-between bg-bg-light dark:bg-primary text-primary dark:text-white select-none animate-slide-up relative shadow-2xl';

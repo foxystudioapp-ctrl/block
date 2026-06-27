@@ -328,12 +328,27 @@ export function getBubbleLevelData(level) {
   const layout = generateLayout(params);
   const specials = placeSpecials(layout, params.plan, params.seed);
 
+  // ADALET / ÇÖZÜLEBİLİRLİK TABANI:
+  // Kazanma = tahtanın TAMAMEN temizlenmesi. Yüksek seviyede yoğun layout'lar (full/checker/
+  // stripes, ~70-80 balon) seviye-bazlı atış tabanına (8) düşünce pratikte kazanılamaz oluyordu.
+  // İyi bir atış (grup + tavandan kopan düşüş + bomba) ~8 balon temizler; bu yüzden atış sayısına
+  // doluluk-bazlı bir TABAN koyuyoruz: yoğun tahta asla atış açlığına düşmesin. Seyrek (erken)
+  // tahtalarda bu taban düşük kalır → mevcut eğri değişmez; yalnızca yoğun tahtalarda devreye girer.
+  // İyi bir atış (grup + tavandan kopan düşüş + bomba) ortalama ~7 balon temizler; yoğun "full"
+  // tahtalarda düşüş daha az olduğundan bölen 7 (cömert taraf) seçildi.
+  let filled = 0;
+  for (let r = 0; r < ROWS; r++)
+    for (let c = 0; c < COLS; c++)
+      if (layout[r][c] !== null || specials[r][c]) filled++;
+  const fairFloor = Math.ceil(filled / 7) + 2;
+  const shots = Math.max(params.shots, fairFloor);
+
   return {
     level,
     layout,
     specials,
     colors: params.colors,
-    shots: params.shots,
+    shots,
     layoutType: params.layoutType,
     objective: 'clear', // ileride: 'pop_color', 'drop_count' vb. için ayrılmış
   };

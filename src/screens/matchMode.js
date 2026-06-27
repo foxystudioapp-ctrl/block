@@ -11,6 +11,16 @@ import { createModal } from '../components/modal.js';
 import { checkAndShowTutorial } from '../components/tutorial.js';
 import { Storage } from '../utils/storage.js';
 import { Toast } from '../components/toast.js';
+import { createScope } from '../utils/lifecycle.js';
+
+// Skoru kompakt gösterir: 1M altı tam okunur (ör. "82.000"), üstü kısaltılır (1.2M / 3B).
+// Endless çok uzun oynanınca milyar+ skorların HUD/rozet taşmasını önler.
+function formatScore(n) {
+  n = Math.floor(n || 0);
+  if (n >= 1e9) return (n / 1e9).toFixed(n >= 1e10 ? 0 : 1).replace(/\.0$/, '') + 'B';
+  if (n >= 1e6) return (n / 1e6).toFixed(n >= 1e7 ? 0 : 1).replace(/\.0$/, '') + 'M';
+  return n.toLocaleString('tr-TR');
+}
 
 
 const COLORS = {
@@ -75,7 +85,11 @@ export function MatchMode(router) {
   // Cleanup listeners
   container.cleanup = () => {
     if (gameCleanup) gameCleanup();
+    AdService.hideBanner();
   };
+
+  // Show banner when screen opens
+  AdService.showBanner();
 
   // Banner spacer to prevent overlapping
   const bannerSpacer = document.createElement('div');
@@ -87,7 +101,16 @@ export function MatchMode(router) {
 
 // ========== GAME SCREEN ==========
 function startGame(container, router, mode, levelNum) {
-  const engine = new MatchEngine(mode, levelNum);
+  // --- Yaşam döngüsü kapsamı (mini-oyun izolasyonu) ---------------------------
+  // Bu satırdan itibaren tüm setTimeout / requestAnimationFrame çağrıları otomatik
+  // izlenir; scope.destroy()'da listener + timer + RAF + enjekte <style> eksiksiz
+  // iptal edilir. Ortak Sounds/style.css'e dokunulmaz.
+  const scope = createScope({ name: 'match' });
+  const setTimeout = scope.setT;
+  const clearTimeout = scope.clearT;
+  const requestAnimationFrame = scope.raf;
+
+  let engine = new MatchEngine(mode, levelNum);
   engine.init();
 
   container.innerHTML = '';
@@ -96,32 +119,57 @@ function startGame(container, router, mode, levelNum) {
   let isAnimating = false;
   let cellSize = 0;
   let extraMovesCount = 0;
+  let hammerUsages = 0;
+  let shuffleUsages = 0;
+  let hammerMode = false;            // çekiç booster'ı aktifken sıradaki dokunuş bloğu kırar
 
+  // Booster Maliyetleri ve Limitleri
+  const hammerCosts = [100, 200, 400];
+  const shuffleCosts = [120, 240, 480];
+  const extraMovesCosts = [50, 150, 300];
+  const maxBoosterUsages = 3;
   // Inject animation CSS
   const styleEl = document.createElement('style');
   styleEl.textContent = `
-    @keyframes particleFly { 0%{transform:translate(0,0) scale(1);opacity:1} 100%{transform:translate(var(--px),var(--py)) scale(0);opacity:0} }
-    @keyframes comboFloat { 0%{transform:translate(-50%,-50%) scale(0.5);opacity:0} 30%{transform:translate(-50%,-50%) scale(1.3);opacity:1} 70%{transform:translate(-50%,-80%) scale(1);opacity:1} 100%{transform:translate(-50%,-120%) scale(0.8);opacity:0} }
-    @keyframes scoreFloat { 0%{transform:translateY(0) scale(1);opacity:1} 100%{transform:translateY(-30px) scale(0.8);opacity:0} }
+    @keyframes particleFly { 0%{transform:translate3d(0,0,0) scale(1);opacity:1} 100%{transform:translate3d(var(--px),var(--py),0) scale(0);opacity:0} }
+    @keyframes comboFloat { 0%{transform:translate3d(-50%,-50%,0) scale(0.5);opacity:0} 30%{transform:translate3d(-50%,-50%,0) scale(1.3);opacity:1} 70%{transform:translate3d(-50%,-80%,0) scale(1);opacity:1} 100%{transform:translate3d(-50%,-120%,0) scale(0.8);opacity:0} }
+    @keyframes scoreFloat { 0%{transform:translate3d(0,0,0) scale(1);opacity:1} 100%{transform:translate3d(0,-30px,0) scale(0.8);opacity:0} }
     @keyframes hintBreathe { 0% { transform: scale(1); filter: drop-shadow(0 0 0 rgba(255,255,255,0)); } 50% { transform: scale(1.1); filter: drop-shadow(0 0 12px rgba(255,255,255,0.8)) brightness(1.2); } 100% { transform: scale(1); filter: drop-shadow(0 0 0 rgba(255,255,255,0)); } }
-    @keyframes boardShake { 0%{transform:translate(0,0)} 20%{transform:translate(-4px,3px) rotate(-1deg)} 40%{transform:translate(4px,-2px) rotate(1deg)} 60%{transform:translate(-3px,-3px) rotate(0deg)} 80%{transform:translate(3px,2px) rotate(1deg)} 100%{transform:translate(0,0)} }
+    @keyframes boardShake { 0%{transform:translate3d(0,0,0)} 20%{transform:translate3d(-4px,3px,0) rotate(-1deg)} 40%{transform:translate3d(4px,-2px,0) rotate(1deg)} 60%{transform:translate3d(-3px,-3px,0) rotate(0deg)} 80%{transform:translate3d(3px,2px,0) rotate(1deg)} 100%{transform:translate3d(0,0,0)} }
     .match-block { position:absolute; border-radius:1rem; display:flex; align-items:center; justify-content:center; cursor:pointer; overflow:hidden; border: 1px solid rgba(0,0,0,0.05); transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.2s; }
     .match-block > span { z-index: 2; position: relative; }
-    .match-block:active { transform: translateY(3px) scale(0.95); filter: brightness(0.9); }
+    .match-block:active { transform: translate3d(0,3px,0) scale(0.95); filter: brightness(0.9); }
     .match-block.hint-active { animation:hintBreathe 1.5s ease-in-out infinite; z-index: 15; }
     .match-block.glow-active { z-index: 25; filter: brightness(1.3); transform: scale(1.05); }
     .match-particle { position:absolute; border-radius:50%; pointer-events:none; animation:particleFly 0.5s ease-out forwards; }
-    .combo-text { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-size:1.5rem; font-weight:900; color:#facc15; pointer-events:none; animation:comboFloat 1.2s ease-out forwards; z-index:50; text-shadow:0 2px 8px rgba(0,0,0,0.5); }
+    .combo-text { position:absolute; top:50%; left:50%; transform:translate3d(-50%,-50%,0); font-size:1.5rem; font-weight:900; color:#facc15; pointer-events:none; animation:comboFloat 1.2s ease-out forwards; z-index:50; text-shadow:0 2px 8px rgba(0,0,0,0.5); }
     .score-popup { position:absolute; font-size:0.75rem; font-weight:900; color:#fff; pointer-events:none; animation:scoreFloat 0.8s ease-out forwards; z-index:40; text-shadow:0 1px 4px rgba(0,0,0,0.5); }
+    #game-board.hammer-active { cursor:crosshair; box-shadow:0 0 0 3px rgba(245,158,11,0.55), 0 0 22px rgba(245,158,11,0.35); border-radius:0.5rem; transition:box-shadow 0.15s ease; }
     .gem-fly { position:absolute; font-size:1.5rem; z-index:60; pointer-events:none; filter:drop-shadow(0 2px 4px rgba(0,0,0,0.5)); transition:all 0.6s cubic-bezier(0.25, 1, 0.5, 1); }
     .board-shake { animation:boardShake 0.4s ease-out; }
   `;
   document.head.appendChild(styleEl);
+  scope.adoptStyle(styleEl); // M1: bu ekrana özgü <style>, cleanup'ta head'den kaldırılır
 
   // === TOP BAR ===
   const matchBackTarget = mode === 'adventure' ? '#/adventure-map?game=match' : '#/menu';
   const topBar = createTopBar(t('menu_jewel') || 'BLOK PATLATMA', true, () => {
-    showQuitConfirmation(router, matchBackTarget);
+    showQuitConfirmation(router, matchBackTarget, {
+      text: t('restart') || 'YENİDEN BAŞLAT',
+      primary: false,
+      onClick: (closeFn) => {
+        closeFn();
+        if (container.cleanup) container.cleanup();
+        const gameCleanup = startGame(container, router, mode, levelNum);
+        container.cleanup = () => { 
+          if (gameCleanup) gameCleanup(); 
+          AdService.hideBanner();
+        };
+        const bannerSpacer = document.createElement('div');
+        bannerSpacer.className = 'w-full h-[65px] pointer-events-none shrink-0';
+        container.appendChild(bannerSpacer);
+      }
+    });
   });
   container.appendChild(topBar);
 
@@ -129,19 +177,44 @@ function startGame(container, router, mode, levelNum) {
   const controlsTray = document.createElement('div');
   controlsTray.className = 'px-4 md:px-6 lg:px-8 pt-1.5 md:pt-3 lg:pt-4 pb-0 w-full flex items-center justify-between gap-4 z-10 shrink-0';
   controlsTray.innerHTML = `
-    <button id="btn-help" class="w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 lg:w-11 lg:h-11 rounded-full bg-gradient-to-br from-white to-gray-50 dark:from-slate-800 dark:to-slate-900 border border-black/10 dark:border-white/10 shadow-sm flex items-center justify-center active:scale-95 transition-all text-red-500 dark:text-red-400">
+    <button id="btn-help" class="w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 lg:w-11 lg:h-11 rounded-full bg-gradient-to-br from-white to-gray-50 dark:from-slate-800 dark:to-slate-900 border border-black/10 dark:border-white/10 shadow-sm flex items-center justify-center active:scale-95 transition-all text-red-500 dark:text-red-400 shrink-0">
       <span class="material-symbols-outlined text-[18px] md:text-[20px] lg:text-[22px]">help</span>
     </button>
-    <button id="btn-extra-moves" class="flex items-center gap-1.5 px-2.5 md:px-3 lg:px-4 py-1 md:py-1.5 rounded-full bg-white dark:bg-primary-container border border-black/5 dark:border-white/5 shadow-sm active:scale-95 transition-all shrink-0">
-      <span class="material-symbols-outlined text-[14px] md:text-[16px] lg:text-[18px]">add_circle</span>
-      <span class="text-[9px] md:text-[11px] lg:text-[13px] font-black tracking-tight leading-none uppercase text-gray-700 dark:text-gray-200">+2 ${t('moves') || 'HAMLE'}</span>
-      <div id="extra-moves-badge" class="flex items-center gap-0.5 bg-cyan-500/10 dark:bg-cyan-500/20 px-1.5 py-0.5 rounded-full ml-0.5 transition-all">
-        <span class="material-symbols-outlined text-[10px] md:text-[12px] lg:text-[14px] fill text-cyan-500 dark:text-cyan-400">diamond</span>
-        <span id="extra-moves-cost" class="text-[10px] md:text-[11px] lg:text-[13px] font-black text-cyan-600 dark:text-cyan-300 leading-none">50</span>
-      </div>
-    </button>
+    <div class="flex items-center gap-2 md:gap-3 ml-auto">
+      <button id="btn-hammer" class="flex items-center gap-1.5 px-2.5 md:px-3 py-1.5 rounded-full bg-white dark:bg-primary-container border border-black/5 dark:border-white/5 shadow-md active:scale-95 transition-all shrink-0">
+        <span class="material-symbols-outlined text-[14px] md:text-[16px] text-amber-500">gavel</span>
+        <span class="hidden sm:inline text-[9px] md:text-[11px] font-black tracking-tight leading-none uppercase text-gray-700 dark:text-gray-200">${t('hammer') || 'ÇEKİÇ'}</span>
+        <div class="flex items-center gap-0.5 bg-cyan-500/10 dark:bg-cyan-500/20 px-1 py-0.5 rounded-full ml-0.5">
+          <span class="material-symbols-outlined text-[10px] fill text-cyan-500 dark:text-cyan-400">diamond</span>
+          <span class="text-[10px] md:text-[11px] font-black text-cyan-600 dark:text-cyan-300 leading-none">${hammerCosts[0]}</span>
+        </div>
+      </button>
+      <button id="btn-shuffle" class="flex items-center gap-1.5 px-2.5 md:px-3 py-1.5 rounded-full bg-white dark:bg-primary-container border border-black/5 dark:border-white/5 shadow-md active:scale-95 transition-all shrink-0">
+        <span class="material-symbols-outlined text-[14px] md:text-[16px] text-violet-500">shuffle</span>
+        <span class="hidden sm:inline text-[9px] md:text-[11px] font-black tracking-tight leading-none uppercase text-gray-700 dark:text-gray-200">${t('shuffle') || 'KARIŞTIR'}</span>
+        <div class="flex items-center gap-0.5 bg-cyan-500/10 dark:bg-cyan-500/20 px-1 py-0.5 rounded-full ml-0.5">
+          <span class="material-symbols-outlined text-[10px] fill text-cyan-500 dark:text-cyan-400">diamond</span>
+          <span class="text-[10px] md:text-[11px] font-black text-cyan-600 dark:text-cyan-300 leading-none">${shuffleCosts[0]}</span>
+        </div>
+      </button>
+      <button id="btn-extra-moves" class="flex items-center gap-1.5 px-2.5 md:px-3 py-1.5 rounded-full bg-white dark:bg-primary-container border border-black/5 dark:border-white/5 shadow-md active:scale-95 transition-all shrink-0">
+        <span class="material-symbols-outlined text-[14px] md:text-[16px]">add_circle</span>
+        <span class="hidden sm:inline text-[9px] md:text-[11px] font-black tracking-tight leading-none uppercase text-gray-700 dark:text-gray-200">+2 ${t('moves') || 'HAMLE'}</span>
+        <div id="extra-moves-badge" class="flex items-center gap-0.5 bg-cyan-500/10 dark:bg-cyan-500/20 px-1 py-0.5 rounded-full ml-0.5 transition-all">
+          <span class="material-symbols-outlined text-[10px] fill text-cyan-500 dark:text-cyan-400">diamond</span>
+          <span id="extra-moves-cost" class="text-[10px] md:text-[11px] font-black text-cyan-600 dark:text-cyan-300 leading-none">${extraMovesCosts[0]}</span>
+        </div>
+      </button>
+    </div>
   `;
   container.appendChild(controlsTray);
+
+  // Çekiç modu ipucu banner'ı (varsayılan gizli; setHammerMode ile açılır/kapanır)
+  const hammerHint = document.createElement('div');
+  hammerHint.id = 'hammer-hint';
+  hammerHint.className = 'hidden mx-auto mt-1 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-300 text-[11px] md:text-xs font-bold flex items-center gap-1.5 w-fit animate-pulse';
+  hammerHint.innerHTML = `<span class="material-symbols-outlined text-[14px] text-amber-500">gavel</span>${t('click_to_break') || 'Kırmak için bir bloğa dokun!'}`;
+  container.appendChild(hammerHint);
 
   // === SCORE SECTION ===
   const scoreSection = document.createElement('div');
@@ -171,7 +244,7 @@ function startGame(container, router, mode, levelNum) {
 
     <div class="flex flex-col items-center justify-center flex-1.5 px-2">
       <span class="text-[10px] md:text-xs lg:text-sm font-black text-gray-400 tracking-wider mb-0.5">${t('score').toUpperCase()}</span>
-      <span id="match-score" class="text-[32px] md:text-[40px] lg:text-[52px] font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500 drop-shadow-sm tracking-tight leading-none">${engine.score}</span>
+      <span id="match-score" class="text-[32px] md:text-[40px] lg:text-[52px] font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500 drop-shadow-sm tracking-tight leading-none">${formatScore(engine.score)}</span>
     </div>
 
     <div class="flex flex-col items-center justify-center flex-1">
@@ -186,11 +259,23 @@ function startGame(container, router, mode, levelNum) {
   `;
   container.appendChild(scoreSection);
 
+  // === POWERUPS TRAY REMOVED (Buttons moved to top and score section) ===
+
   const helpBtn = container.querySelector('#btn-help');
   if (helpBtn) {
     helpBtn.onclick = () => {
       Sounds.playSfx('button-tap');
-      checkAndShowTutorial('match', true);
+      let hasCages = false;
+      let hasWalls = false;
+      if (engine && engine.grid) {
+        for (let r = 0; r < engine.rows; r++) {
+          for (let c = 0; c < engine.cols; c++) {
+            if (engine.grid[r][c]?.cage) hasCages = true;
+            if (engine.grid[r][c]?.type === 'brick') hasWalls = true;
+          }
+        }
+      }
+      checkAndShowTutorial('match', true, { hasCages, hasWalls });
     };
   }
 
@@ -244,29 +329,71 @@ function startGame(container, router, mode, levelNum) {
     });
   }
 
-  const costs = [50, 150, 300];
-  const maxExtraMoves = 3;
+  function updateBoostersUI() {
+    // Extra Moves
+    const btnExtraMoves = container.querySelector('#btn-extra-moves');
+    const badgeExtra = container.querySelector('#extra-moves-badge');
+    const costElExtra = container.querySelector('#extra-moves-cost');
+    if (btnExtraMoves && badgeExtra && costElExtra) {
+      if (extraMovesCount >= maxBoosterUsages) {
+        btnExtraMoves.classList.add('opacity-50', 'pointer-events-none', 'grayscale');
+        costElExtra.textContent = 'MAX';
+        const icon = badgeExtra.querySelector('.material-symbols-outlined');
+        if (icon) icon.style.display = 'none';
+        costElExtra.classList.remove('text-cyan-600', 'dark:text-cyan-300');
+        costElExtra.classList.add('text-gray-500', 'dark:text-gray-400');
+      } else {
+        btnExtraMoves.classList.remove('opacity-50', 'pointer-events-none', 'grayscale');
+        costElExtra.textContent = extraMovesCosts[extraMovesCount];
+        const icon = badgeExtra.querySelector('.material-symbols-outlined');
+        if (icon) icon.style.display = '';
+        costElExtra.classList.remove('text-gray-500', 'dark:text-gray-400');
+        costElExtra.classList.add('text-cyan-600', 'dark:text-cyan-300');
+      }
+    }
 
-  function updateExtraMovesUI() {
-    const btn = container.querySelector('#btn-extra-moves');
-    const badge = container.querySelector('#extra-moves-badge');
-    const costEl = container.querySelector('#extra-moves-cost');
-    if (!btn || !badge || !costEl) return;
-    
-    if (extraMovesCount >= maxExtraMoves) {
-      btn.classList.add('opacity-50', 'pointer-events-none', 'grayscale');
-      costEl.textContent = 'MAX';
-      const icon = badge.querySelector('.material-symbols-outlined');
-      if (icon) icon.style.display = 'none';
-      costEl.classList.remove('text-cyan-600', 'dark:text-cyan-300');
-      costEl.classList.add('text-gray-500', 'dark:text-gray-400');
-    } else {
-      btn.classList.remove('opacity-50', 'pointer-events-none', 'grayscale');
-      costEl.textContent = costs[extraMovesCount];
-      const icon = badge.querySelector('.material-symbols-outlined');
-      if (icon) icon.style.display = '';
-      costEl.classList.remove('text-gray-500', 'dark:text-gray-400');
-      costEl.classList.add('text-cyan-600', 'dark:text-cyan-300');
+    // Hammer
+    const btnHammer = container.querySelector('#btn-hammer');
+    const costElHammer = btnHammer ? btnHammer.querySelector('span:last-child') : null;
+    const badgeHammer = costElHammer ? costElHammer.parentElement : null;
+    if (btnHammer && badgeHammer && costElHammer) {
+      if (hammerUsages >= maxBoosterUsages) {
+        btnHammer.classList.add('opacity-50', 'pointer-events-none', 'grayscale');
+        costElHammer.textContent = 'MAX';
+        const icon = badgeHammer.querySelector('.material-symbols-outlined');
+        if (icon) icon.style.display = 'none';
+        costElHammer.classList.remove('text-cyan-600', 'dark:text-cyan-300');
+        costElHammer.classList.add('text-gray-500', 'dark:text-gray-400');
+      } else {
+        btnHammer.classList.remove('opacity-50', 'pointer-events-none', 'grayscale');
+        costElHammer.textContent = hammerCosts[hammerUsages];
+        const icon = badgeHammer.querySelector('.material-symbols-outlined');
+        if (icon) icon.style.display = '';
+        costElHammer.classList.remove('text-gray-500', 'dark:text-gray-400');
+        costElHammer.classList.add('text-cyan-600', 'dark:text-cyan-300');
+      }
+    }
+
+    // Shuffle
+    const btnShuffle = container.querySelector('#btn-shuffle');
+    const costElShuffle = btnShuffle ? btnShuffle.querySelector('span:last-child') : null;
+    const badgeShuffle = costElShuffle ? costElShuffle.parentElement : null;
+    if (btnShuffle && badgeShuffle && costElShuffle) {
+      if (shuffleUsages >= maxBoosterUsages) {
+        btnShuffle.classList.add('opacity-50', 'pointer-events-none', 'grayscale');
+        costElShuffle.textContent = 'MAX';
+        const icon = badgeShuffle.querySelector('.material-symbols-outlined');
+        if (icon) icon.style.display = 'none';
+        costElShuffle.classList.remove('text-cyan-600', 'dark:text-cyan-300');
+        costElShuffle.classList.add('text-gray-500', 'dark:text-gray-400');
+      } else {
+        btnShuffle.classList.remove('opacity-50', 'pointer-events-none', 'grayscale');
+        costElShuffle.textContent = shuffleCosts[shuffleUsages];
+        const icon = badgeShuffle.querySelector('.material-symbols-outlined');
+        if (icon) icon.style.display = '';
+        costElShuffle.classList.remove('text-gray-500', 'dark:text-gray-400');
+        costElShuffle.classList.add('text-cyan-600', 'dark:text-cyan-300');
+      }
     }
   }
 
@@ -290,7 +417,7 @@ function startGame(container, router, mode, levelNum) {
   function updateUI() {
     const scoreEl = container.querySelector('#match-score');
     const movesEl = container.querySelector('#match-moves');
-    if (scoreEl) scoreEl.textContent = engine.score.toLocaleString('tr-TR');
+    if (scoreEl) scoreEl.textContent = formatScore(engine.score);
     if (movesEl) {
       movesEl.textContent = engine.movesLeft;
       if (engine.movesLeft <= 3 && mode === 'adventure') {
@@ -311,10 +438,12 @@ function startGame(container, router, mode, levelNum) {
       }
       updateTargetBar();
     }
+    updateBoostersUI();
   }
 
   // === BLOCK ELEMENTS (Persistent) ===
-  const blockEls = {}; // key "r,c" -> DOM element (tracks which element is at which position)
+  let blockEls = {}; // key "r,c" -> DOM element (tracks which element is at which position)
+  const DOM_POOL = []; // Havuz
   const GAP = 2;
 
   let boardOffsetX = 0, boardOffsetY = 0;
@@ -348,9 +477,39 @@ function startGame(container, router, mode, levelNum) {
     return { x: boardOffsetX + c * (cellSize + GAP), y: boardOffsetY + r * (cellSize + GAP) };
   }
 
-  function createBlockEl(cell, r, c) {
+  function getBlockElFromPool() {
+    if (DOM_POOL.length > 0) {
+      const el = DOM_POOL.pop();
+      el.style.display = '';
+      return el;
+    }
     const el = document.createElement('div');
     el.className = 'match-block flex items-center justify-center';
+    attachTouchEvents(el);
+    return el;
+  }
+
+  function releaseBlockElToPool(el) {
+    if (!el) return;
+    el.style.display = 'none';
+    el.style.transform = '';
+    el.style.transition = 'none';
+    el.style.opacity = '1';
+    el.style.filter = '';
+    el.style.zIndex = '';
+    el.style.willChange = '';
+    el.className = 'match-block flex items-center justify-center';
+    el.innerHTML = '';
+    el._cachedInner = '';
+    delete el.dataset.row;
+    delete el.dataset.col;
+    delete el.dataset.color;
+    delete el.dataset.type;
+    DOM_POOL.push(el);
+  }
+
+  function createBlockEl(cell, r, c) {
+    const el = getBlockElFromPool();
     el.style.width = cellSize + 'px';
     el.style.height = cellSize + 'px';
     const pos = posForCell(r, c);
@@ -360,8 +519,11 @@ function startGame(container, router, mode, levelNum) {
     el.dataset.col = c;
     if (cell) el.dataset.color = cell.color;
     applyBlockVisuals(el, cell);
-    attachTouchEvents(el, r, c);
-    boardEl.appendChild(el);
+    
+    if (!el.parentElement) {
+      boardEl.appendChild(el);
+    }
+    
     blockEls[`${r},${c}`] = el;
     return el;
   }
@@ -413,8 +575,8 @@ function startGame(container, router, mode, levelNum) {
     }
 
     if (cell.type === 'diamond_1' || cell.type === 'diamond_2') {
-      const glow = cell.type === 'diamond_2' ? 'drop-shadow(0 0 8px rgba(255,255,255,0.8))' : 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))';
-      inner += `<span style="font-size:1.8rem;position:relative;z-index:2;filter:${glow}">💎</span>`;
+      const glow = cell.type === 'diamond_2' ? 'text-shadow: 0 0 8px rgba(255,255,255,0.8)' : 'text-shadow: 0 2px 4px rgba(0,0,0,0.5)';
+      inner += `<span style="font-size:1.8rem;position:relative;z-index:2;${glow}">💎</span>`;
     } else if (cell.gem) {
       inner += `<span style="font-size:1rem;position:relative;z-index:2;display:flex;align-items:center;justify-content:center;">${GEM_ICONS[cell.gem] || ''}</span>`;
     }
@@ -442,7 +604,7 @@ function startGame(container, router, mode, levelNum) {
 
     if (cell.cage) {
       inner += `
-        <div style="position:absolute;inset:-2px;z-index:10;pointer-events:none;filter:drop-shadow(0 4px 4px rgba(0,0,0,0.6))">
+        <div style="position:absolute;inset:-2px;z-index:10;pointer-events:none;">
           <svg viewBox="0 0 100 100" width="100%" height="100%">
             <!-- Inner Cross (X) -->
             <line x1="10" y1="10" x2="90" y2="90" stroke="#111827" stroke-width="8" stroke-linecap="round" />
@@ -452,11 +614,18 @@ function startGame(container, router, mode, levelNum) {
       `;
     }
 
-    el.innerHTML = inner;
+    if (el._cachedInner !== inner) {
+      el.innerHTML = inner;
+      el._cachedInner = inner;
+    }
   }
 
   function buildBoard() {
     calcCellSize();
+    // clear pool to avoid memory leaks if resizing heavily
+    DOM_POOL.forEach(el => el.remove());
+    DOM_POOL.length = 0;
+    
     boardEl.innerHTML = '';
     Object.keys(blockEls).forEach(k => delete blockEls[k]);
 
@@ -470,9 +639,8 @@ function startGame(container, router, mode, levelNum) {
   }
 
   function refreshBoard() {
-    // Sync DOM with engine grid (no animation)
-    // Remove old
-    boardEl.querySelectorAll('.match-block').forEach(el => el.remove());
+    // Release all current elements to pool
+    Object.values(blockEls).forEach(el => releaseBlockElToPool(el));
     Object.keys(blockEls).forEach(k => delete blockEls[k]);
 
     for (let r = 0; r < engine.rows; r++) {
@@ -512,9 +680,26 @@ function startGame(container, router, mode, levelNum) {
   }
 
   // === TOUCH DRAG SYSTEM ===
+  // Aktif sürüklemenin window listener'larını söken fonksiyon (aynı anda tek sürükleme
+  // olabildiğinden tek referans yeter). Menüye sürükleme ortasında dönülürse scope
+  // cleanup bunu çağırıp listener'ları anında söker. NOT: per-drag listener'lar artık
+  // scope.on ile DEĞİL doğrudan bağlanıyor — scope.on her hamlede kalıcı diziye kayıt
+  // ekleyip hücre DOM'unu kapatan closure'larla GC'yi engelliyordu (seviye atladıkça
+  // biriken bellek/donma kaynağı buydu).
+  let activeDragTeardown = null;
+  scope.onCleanup(() => { if (activeDragTeardown) activeDragTeardown(); });
+
   function attachTouchEvents(el) {
     let startX, startY, startR, startC, dirLocked, dir, dragging;
     let neighborEl, neighborR, neighborC;
+
+    const removeDragListeners = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onEnd);
+      window.removeEventListener('touchmove', onMove);
+      window.removeEventListener('touchend', onEnd);
+      if (activeDragTeardown === removeDragListeners) activeDragTeardown = null;
+    };
 
     const onStart = (e) => {
       if (isAnimating) return;
@@ -526,6 +711,12 @@ function startGame(container, router, mode, levelNum) {
       startR = parseInt(el.dataset.row);
       startC = parseInt(el.dataset.col);
 
+      // Çekiç modu: sıradaki dokunuş swap başlatmaz, dokunulan hücreyi kırar.
+      if (hammerMode) {
+        useHammerAt(startR, startC);
+        return;
+      }
+
       // Prevent dragging cages and bricks
       const cell = engine.grid[startR][startC];
       if (cell && (cell.type === 'brick' || cell.cage)) return;
@@ -536,11 +727,16 @@ function startGame(container, router, mode, levelNum) {
       neighborEl = null;
       el.style.transition = 'none';
       el.classList.add('glow-active');
+      el.style.willChange = 'transform';
 
+      // Per-drag window listener'ları DOĞRUDAN bağlanır (scope.on DEĞİL). Sökme
+      // onEnd'de removeDragListeners ile yapılır; sürükleme ortasında menüye dönülürse
+      // scope cleanup activeDragTeardown'ı çağırıp anında söker.
       window.addEventListener('mousemove', onMove);
       window.addEventListener('mouseup', onEnd);
       window.addEventListener('touchmove', onMove, { passive: false });
       window.addEventListener('touchend', onEnd);
+      activeDragTeardown = removeDragListeners;
     };
 
     const onMove = (e) => {
@@ -580,6 +776,7 @@ function startGame(container, router, mode, levelNum) {
         if (neighborEl) {
           neighborEl.style.transition = 'none';
           neighborEl.style.zIndex = '10';
+          neighborEl.style.willChange = 'transform';
         }
       }
 
@@ -603,9 +800,9 @@ function startGame(container, router, mode, levelNum) {
         dx = 0;
       }
 
-      el.style.transform = `translate(${dx}px, ${dy}px)`;
+      el.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
       if (neighborEl) {
-        neighborEl.style.transform = `translate(${-dx}px, ${-dy}px)`;
+        neighborEl.style.transform = `translate3d(${-dx}px, ${-dy}px, 0)`;
       }
     };
 
@@ -613,10 +810,15 @@ function startGame(container, router, mode, levelNum) {
       if (!dragging) return;
       dragging = false;
 
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onEnd);
-      window.removeEventListener('touchmove', onMove);
-      window.removeEventListener('touchend', onEnd);
+      // Fix 1: sürükleme/swap katmanlarını animasyon bittikten sonra serbest bırak.
+      // (cascade'deki fall/blast kendi will-change'ini ayrıca yönetir.)
+      const _el = el, _nb = neighborEl;
+      setTimeout(() => {
+        if (_el) _el.style.willChange = '';
+        if (_nb) _nb.style.willChange = '';
+      }, 450);
+
+      removeDragListeners();
 
       el.classList.remove('glow-active');
       if (neighborEl) neighborEl.style.zIndex = '';
@@ -668,8 +870,8 @@ function startGame(container, router, mode, levelNum) {
     el1.style.zIndex = '20';
     el2.style.zIndex = '10';
 
-    el1.style.transform = `translate(${dx}px, ${dy}px)`;
-    el2.style.transform = `translate(${-dx}px, ${-dy}px)`;
+    el1.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
+    el2.style.transform = `translate3d(${-dx}px, ${-dy}px, 0)`;
 
     await sleep(TIMING.swap);
 
@@ -706,8 +908,8 @@ function startGame(container, router, mode, levelNum) {
     // First move to swapped position
     el1.style.transition = `transform ${TIMING.swapBack}ms ${EASE_OUT}`;
     el2.style.transition = `transform ${TIMING.swapBack}ms ${EASE_OUT}`;
-    el1.style.transform = `translate(${dx}px, ${dy}px)`;
-    el2.style.transform = `translate(${-dx}px, ${-dy}px)`;
+    el1.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
+    el2.style.transform = `translate3d(${-dx}px, ${-dy}px, 0)`;
 
     await sleep(TIMING.swapBack);
 
@@ -738,6 +940,7 @@ function startGame(container, router, mode, levelNum) {
 
       return new Promise(resolve => {
         // Phase 1: Grow + brighten
+        el.style.willChange = 'transform';
         el.style.transition = `transform ${TIMING.blastGrow}ms ease-out, filter ${TIMING.blastGrow}ms ease-out`;
         el.style.transform = 'scale(1.25)';
         el.style.filter = 'brightness(1.8)';
@@ -753,7 +956,7 @@ function startGame(container, router, mode, levelNum) {
           spawnParticles(r, c, cell);
 
           setTimeout(() => {
-            el.remove();
+            releaseBlockElToPool(el);
             delete blockEls[`${r},${c}`];
             resolve();
           }, TIMING.blastShrink);
@@ -788,7 +991,7 @@ function startGame(container, router, mode, levelNum) {
       if (targetIconEl) {
         const gemEl = document.createElement('div');
         gemEl.className = 'gem-fly';
-        gemEl.textContent = GEM_ICONS[cell.gem];
+        gemEl.innerHTML = GEM_ICONS[cell.gem];
         
         // Initial position (relative to screen)
         const boardRect = boardEl.getBoundingClientRect();
@@ -805,7 +1008,7 @@ function startGame(container, router, mode, levelNum) {
           const endX = targetRect.left + targetRect.width / 2 - 12; // approx center
           const endY = targetRect.top + targetRect.height / 2 - 12;
           
-          gemEl.style.transform = `translate(${endX - startX}px, ${endY - startY}px) scale(0.5)`;
+          gemEl.style.transform = `translate3d(${endX - startX}px, ${endY - startY}px, 0) scale(0.5)`;
           gemEl.style.opacity = '0';
           
           setTimeout(() => {
@@ -840,6 +1043,7 @@ function startGame(container, router, mode, levelNum) {
         const toPos = posForCell(fall.toR, fall.toC);
         
         el.style.transition = 'none';
+        el.style.willChange = 'transform';
 
         blocks.push({
           el,
@@ -857,8 +1061,7 @@ function startGame(container, router, mode, levelNum) {
       // new falls
       const newFalls = falls.filter(f => f.isNew);
       for (const fall of newFalls) {
-        const el = document.createElement('div');
-        el.className = 'match-block flex items-center justify-center';
+        const el = getBlockElFromPool();
         el.style.width = cellSize + 'px';
         el.style.height = cellSize + 'px';
 
@@ -867,12 +1070,14 @@ function startGame(container, router, mode, levelNum) {
         
         el.style.left = toPos.x + 'px';
         el.style.top = fromPos.y + 'px';
-        el.style.transform = 'translateY(0px)';
+        el.style.transform = 'translate3d(0px, 0px, 0px)';
         el.style.transition = 'none';
+        el.style.willChange = 'transform';
         
         applyBlockVisuals(el, fall.cell);
-        attachTouchEvents(el);
-        boardEl.appendChild(el);
+        if (!el.parentElement) {
+          boardEl.appendChild(el);
+        }
 
         blocks.push({
           el,
@@ -895,6 +1100,8 @@ function startGame(container, router, mode, levelNum) {
       const STOP_VELOCITY = 0.15; 
 
       function tick(now) {
+        // M2: ekran kapandıysa döngüyü durdur VE promise'i çöz (askıda kalmasın)
+        if (scope.destroyed || !container.isConnected) { resolve(); return; }
         const dt = now - lastTime;
         lastTime = now;
         
@@ -922,6 +1129,7 @@ function startGame(container, router, mode, levelNum) {
               
               b.el.style.transform = '';
               b.el.style.top = b.finalY + 'px';
+              b.el.style.willChange = '';
               b.el.dataset.row = b.toR;
               b.el.dataset.col = b.toC;
               blockEls[`${b.toR},${b.toC}`] = b.el;
@@ -929,7 +1137,7 @@ function startGame(container, router, mode, levelNum) {
           }
 
           if (!b.done) {
-            b.el.style.transform = `translateY(${b.currentY}px)`;
+            b.el.style.transform = `translate3d(0px, ${b.currentY}px, 0px)`;
           }
         }
 
@@ -1005,14 +1213,20 @@ function startGame(container, router, mode, levelNum) {
     // Step 4: Process blast for normal match
     let matches = swapResult.matches;
 
+    // İlk patlamada özel blok SWAP yapılan hücrede oluşsun diye koordinatları yalnızca
+    // ilk turda geçiyoruz. (Eskiden `comboCount === 1` ile kontrol ediliyordu ama trySwap
+    // comboCount'u 0'a çektiğinden bu hep false oluyor, özel blok hep ortada doğuyordu.)
+    let isFirstBlast = true;
+
     while (matches && matches.length > 0) {
       Sounds.playSfx('match-blast', { count: matches.length });
       const blastResult = engine.executeBlast(matches,
-        engine.comboCount === 1 ? r1 : undefined,
-        engine.comboCount === 1 ? c1 : undefined,
-        engine.comboCount === 1 ? r2 : undefined,
-        engine.comboCount === 1 ? c2 : undefined
+        isFirstBlast ? r1 : undefined,
+        isFirstBlast ? c1 : undefined,
+        isFirstBlast ? r2 : undefined,
+        isFirstBlast ? c2 : undefined
       );
+      isFirstBlast = false;
 
       // Animate blast
       await animateBlast(blastResult.blasted);
@@ -1050,7 +1264,8 @@ function startGame(container, router, mode, levelNum) {
   async function processCascades() {
     let matches = engine.findMatches();
     while (matches && matches.length > 0) {
-      engine.comboCount++;
+      // NOT: comboCount'u BURADA artırma — engine.executeBlast() zaten artırıyor.
+      // (Eskiden çift artıyordu: çarpan şişip ×5 tavanı anında doluyordu.)
       Sounds.playSfx('match-blast', { count: matches.length });
 
       const blastResult = engine.executeBlast(matches);
@@ -1068,6 +1283,155 @@ function startGame(container, router, mode, levelNum) {
       await sleep(TIMING.cascade);
       matches = engine.findMatches();
     }
+  }
+
+  // ==================== BOOSTERS: ÇEKİÇ & KARIŞTIR ====================
+
+  function setHammerMode(on) {
+    hammerMode = on;
+    const btn = container.querySelector('#btn-hammer');
+    const hint = container.querySelector('#hammer-hint');
+    const boardEl = container.querySelector('#game-board');
+    if (btn) btn.classList.toggle('ring-2', on);
+    if (btn) btn.classList.toggle('ring-amber-400', on);
+    if (hint) hint.classList.toggle('hidden', !on);
+    if (boardEl) boardEl.classList.toggle('hammer-active', on);
+  }
+
+  function cancelHammerMode() {
+    if (hammerMode) setHammerMode(false);
+  }
+
+  // Çekiç ile tek hücre kır → yerçekimi + cascade + bitiş kontrolü.
+  async function useHammerAt(r, c) {
+    if (isAnimating || engine.gameOver) return;
+    const cell = engine.grid[r][c];
+    if (!cell) { cancelHammerMode(); return; } // boş hücre: modu kapat, ücret alma
+    
+    if (hammerUsages >= maxBoosterUsages) { cancelHammerMode(); return; }
+    const cost = hammerCosts[hammerUsages];
+
+    if (PlayerState.state.diamonds < cost) {
+      cancelHammerMode();
+      boosterNeedDiamonds(cost, 'hammer');
+      return;
+    }
+    isAnimating = true;
+    PlayerState.useDiamonds(cost);
+    hammerUsages++;
+    cancelHammerMode();
+    Sounds.playSfx('match-blast', { count: 1 });
+    Haptics.vibrate('medium');
+
+    const btnHammer = container.querySelector('#btn-hammer');
+    if (btnHammer) {
+      const pop = document.createElement('div');
+      pop.className = 'absolute -top-6 left-1/2 transform -translate-x-1/2 text-cyan-400 font-black text-xl animate-fade-out drop-shadow-md z-50 pointer-events-none';
+      pop.textContent = '+1!';
+      btnHammer.appendChild(pop);
+      setTimeout(() => pop.remove(), 1000);
+    }
+
+    const result = engine.useHammer(r, c);
+    if (result && result.blasted.length > 0) {
+      await animateBlast(result.blasted);
+      const fallResult = engine.executeFalls();
+      await animateFalls(fallResult.falls);
+      Sounds.playSfx('match-fall');
+      await processCascades();
+    }
+    if (!engine.hasValidMoves() && !engine.gameOver) {
+      engine.shuffleBoard();
+      refreshBoard();
+    }
+    updateUI();
+    checkGameEnd();
+    isAnimating = false;
+    resetHintTimer();
+  }
+
+  // Karıştır booster'ı: tahtayı yeniden karıştır (hamle harcamaz).
+  function useShuffleBooster() {
+    if (isAnimating || engine.gameOver) return;
+    if (shuffleUsages >= maxBoosterUsages) return;
+    const cost = shuffleCosts[shuffleUsages];
+
+    if (PlayerState.state.diamonds < cost) {
+      boosterNeedDiamonds(cost, 'shuffle');
+      return;
+    }
+    PlayerState.useDiamonds(cost);
+    shuffleUsages++;
+    Sounds.playSfx('button-tap');
+    Haptics.vibrate('medium');
+    cancelHammerMode();
+
+    const btnShuffle = container.querySelector('#btn-shuffle');
+    if (btnShuffle) {
+      const pop = document.createElement('div');
+      pop.className = 'absolute -top-6 left-1/2 transform -translate-x-1/2 text-cyan-400 font-black text-xl animate-fade-out drop-shadow-md z-50 pointer-events-none';
+      pop.textContent = '+1!';
+      btnShuffle.appendChild(pop);
+      setTimeout(() => pop.remove(), 1000);
+    }
+
+    engine.shuffleBoard();
+    refreshBoard();
+    updateUI();
+    resetHintTimer();
+  }
+
+  // Yetersiz elmas: reklam izle (maliyeti hediye et) + elmas satın al seçenekleri.
+  function boosterNeedDiamonds(cost, kind) {
+    Sounds.playSfx('button-tap');
+    const adKey = kind === 'hammer'
+      ? (t('watch_ad_use_hammer') || 'Reklam İzle & Çekiç Kullan')
+      : (t('watch_ad') || 'Reklam İzle');
+    const needMsg = kind === 'hammer'
+      ? (t('need_diamonds_hammer') ? t('need_diamonds_hammer').replace('{cost}', cost) : `Çekiç için ${cost} elmas gerekli!`)
+      : `${cost} ${t('not_enough_diamonds') || 'elmas gerekli'}`;
+    const modal = createModal({
+      title: t('not_enough_diamonds') || 'Yetersiz Elmas',
+      content: `
+        <div class="flex flex-col items-center p-4">
+          <span class="text-5xl mb-3 drop-shadow-md">💎</span>
+          <p class="text-sm font-bold text-gray-400 mb-6 text-center">${needMsg}</p>
+          <div class="w-full flex flex-col gap-3">
+            <button id="booster-watch-ad" class="w-full py-4 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-2xl font-black shadow-[0_4px_15px_rgba(6,182,212,0.4)] active:scale-95 transition-all flex items-center justify-center gap-2">
+              <span class="material-symbols-outlined">play_circle</span>
+              <span>${adKey}</span>
+            </button>
+            <button id="booster-buy-diamonds" class="w-full py-4 bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 text-primary dark:text-white rounded-2xl font-bold active:scale-95 transition-all hover:bg-black/10 dark:hover:bg-white/10 flex items-center justify-center gap-2">
+              <span class="material-symbols-outlined">shopping_cart</span>
+              <span>${t('buy_diamonds_title') || 'Elmas Satın Al'}</span>
+            </button>
+          </div>
+        </div>
+      `,
+      actions: []
+    });
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'absolute top-4 right-4 w-8 h-8 flex items-center justify-center bg-black/5 dark:bg-white/5 rounded-full text-gray-500 hover:text-primary dark:hover:text-white transition-colors';
+    closeBtn.innerHTML = '<span class="material-symbols-outlined text-lg">close</span>';
+    closeBtn.onclick = () => modal.close();
+    modal.querySelector('.glass-card').appendChild(closeBtn);
+    document.body.appendChild(modal);
+
+    modal.querySelector('#booster-watch-ad').addEventListener('click', async () => {
+      Sounds.playSfx('button-tap');
+      const success = await AdService.showRewardVideoAd();
+      if (success) {
+        modal.close();
+        PlayerState.addDiamonds(cost); // reklam ödülü: maliyeti karşıla, oyuncu hemen kullanabilsin
+        updateUI();
+        Toast.show(`+${cost} 💎`, 'success');
+      }
+    });
+    modal.querySelector('#booster-buy-diamonds').addEventListener('click', () => {
+      Sounds.playSfx('button-tap');
+      modal.close();
+      router.navigate('#/buy-diamonds');
+    });
   }
 
   function showAwesomeText(comboCount, maxMatchLength, points) {
@@ -1092,11 +1456,11 @@ function startGame(container, router, mode, levelNum) {
       const randomOffsetY = (Math.random() - 0.5) * 60;
       floating.style.left = `calc(50% + ${randomOffsetX}px)`;
       floating.style.top = `calc(50% + ${randomOffsetY}px)`;
-      floating.style.transform = 'translate(-50%, -50%)';
+      floating.style.transform = 'translate3d(-50%, -50%, 0)';
       boardEl.appendChild(floating);
       
       requestAnimationFrame(() => {
-        floating.style.transform = 'translate(-50%, -200%) scale(1.1)';
+        floating.style.transform = 'translate3d(-50%, -200%, 0) scale(1.1)';
         floating.style.opacity = '0';
       });
       setTimeout(() => floating.remove(), 1200);
@@ -1121,7 +1485,7 @@ function startGame(container, router, mode, levelNum) {
     
     floating.style.left = '50%';
     floating.style.top = '50%';
-    floating.style.transform = 'translate(-50%, -50%) scale(0.1)';
+    floating.style.transform = 'translate3d(-50%, -50%, 0) scale(0.1)';
     floating.style.opacity = '0';
     floating.style.transition = 'all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
     
@@ -1132,12 +1496,12 @@ function startGame(container, router, mode, levelNum) {
     else if (maxMatchLength === 4) Haptics.vibrate('medium');
 
     requestAnimationFrame(() => {
-      floating.style.transform = 'translate(-50%, -50%) scale(1.2)';
+      floating.style.transform = 'translate3d(-50%, -50%, 0) scale(1.2)';
       floating.style.opacity = '1';
       
       setTimeout(() => {
         floating.style.transition = 'all 0.5s ease-in';
-        floating.style.transform = 'translate(-50%, -50%) scale(1.5)';
+        floating.style.transform = 'translate3d(-50%, -50%, 0) scale(1.5)';
         floating.style.opacity = '0';
         floating.style.filter = 'blur(10px)';
         
@@ -1207,7 +1571,7 @@ function startGame(container, router, mode, levelNum) {
 
     modal.querySelector('#modal-revive-ad').addEventListener('click', async () => {
       Sounds.playSfx('button-tap');
-      const success = await AdService.showInterstitial();
+      const success = await AdService.showRewardVideoAd();
       if (success) {
         engine.revive();
         container.isGameOverModalOpen = false;
@@ -1289,24 +1653,27 @@ function startGame(container, router, mode, levelNum) {
     if (isWin) {
       Sounds.playSfx('levelUp');
       Haptics.vibrate('success');
-      if (levelNum >= (PlayerState.state.jewelCrushLevel || 1)) {
+      // Ödül SADECE yeni en yüksek seviyede verilir (replay/farm engeli). Macera sonsuz
+      // olduğundan, gate olmadan Sv16+ tekrar oynanıp her seferinde 100 elmas basılabilirdi.
+      const isNewLevel = levelNum >= (PlayerState.state.jewelCrushLevel || 1);
+      if (isNewLevel) {
         PlayerState.state.jewelCrushLevel = levelNum + 1;
       }
       PlayerState.state.bestScoreJewel = (PlayerState.state.bestScoreJewel || 0) + engine.score;
       PlayerState.save();
-      const reward = Math.min(100, 20 + levelNum * 5);
-      PlayerState.addDiamonds(reward);
+      const reward = isNewLevel ? Math.min(100, 20 + levelNum * 5) : 0;
+      if (reward > 0) PlayerState.addDiamonds(reward);
 
       createModal({
         title: '🎉 ' + (t('level_complete')),
         content: `<div class="flex flex-col items-center p-2 text-center">
           <div class="w-20 h-20 rounded-full bg-gradient-to-tr from-yellow-400 to-amber-500 flex items-center justify-center shadow-lg mb-4 animate-bounce"><span class="text-4xl">⭐</span></div>
-          <p class="text-2xl font-black mb-2">${engine.score.toLocaleString('tr-TR')}</p>
+          <p class="text-2xl font-black mb-2">${formatScore(engine.score)}</p>
           <p class="text-sm text-gray-500 mb-1">${t('score') || 'Skor'}</p>
-          <div class="flex items-center gap-1 mt-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20">
+          ${reward > 0 ? `<div class="flex items-center gap-1 mt-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20">
             <span class="material-symbols-outlined fill text-cyan-400 text-sm">diamond</span>
             <span class="text-xs font-black text-cyan-600 dark:text-cyan-400">+${reward}</span>
-          </div>
+          </div>` : ''}
         </div>`,
         actions: [
           { text: t('next_level') || 'Sonraki Seviye', primary: true, onClick: (close) => { close(); startGame(container, router, mode, levelNum + 1); } },
@@ -1327,7 +1694,7 @@ function startGame(container, router, mode, levelNum) {
           <div class="w-20 h-20 rounded-full bg-gradient-to-br from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 flex items-center justify-center shadow-inner mb-4">
             <span class="text-4xl filter grayscale">💥</span>
           </div>
-          <p class="text-2xl font-black mb-2">${engine.score.toLocaleString('tr-TR')}</p>
+          <p class="text-2xl font-black mb-2">${formatScore(engine.score)}</p>
           <p class="text-sm text-gray-500">${t('score') || 'Skor'}</p>
         </div>`,
         actions: actions
@@ -1345,25 +1712,41 @@ function startGame(container, router, mode, levelNum) {
       buildTargetBar();
       buildBoard();
       updateUI();
-      updateExtraMovesUI();
       resetHintTimer();
-      
+
+      // Bind Hammer & Shuffle boosters
+      const btnHammer = container.querySelector('#btn-hammer');
+      if (btnHammer) {
+        btnHammer.addEventListener('click', () => {
+          if (engine.gameOver || isAnimating) return;
+          if (hammerUsages >= maxBoosterUsages) return;
+          Sounds.playSfx('button-tap');
+          if (hammerMode) { setHammerMode(false); return; } // tekrar dokunuş: iptal (ücretsiz)
+          const cost = hammerCosts[hammerUsages];
+          if (PlayerState.state.diamonds < cost) { boosterNeedDiamonds(cost, 'hammer'); return; }
+          setHammerMode(true); // hücre seçimini bekle; ücret kullanımda alınır
+        });
+      }
+      const btnShuffle = container.querySelector('#btn-shuffle');
+      if (btnShuffle) {
+        btnShuffle.addEventListener('click', () => useShuffleBooster());
+      }
+
       // Bind Extra Moves Button
       const btnExtraMoves = container.querySelector('#btn-extra-moves');
       if (btnExtraMoves) {
         btnExtraMoves.addEventListener('click', () => {
           if (engine.gameOver || isAnimating) return;
-          if (extraMovesCount >= maxExtraMoves) return;
+          if (extraMovesCount >= maxBoosterUsages) return;
           
-          const cost = costs[extraMovesCount];
+          const cost = extraMovesCosts[extraMovesCount];
           if (PlayerState.state.diamonds >= cost) {
             Sounds.playSfx('button-tap');
             PlayerState.useDiamonds(cost);
             extraMovesCount++;
             engine.movesLeft += 2;
             updateUI();
-            updateExtraMovesUI();
-            // Pop an animation over the button
+            
             const pop = document.createElement('div');
             pop.className = 'absolute -top-6 left-1/2 transform -translate-x-1/2 text-cyan-400 font-black text-xl animate-fade-out drop-shadow-md z-50 pointer-events-none';
             pop.textContent = '+2!';
@@ -1403,8 +1786,7 @@ function startGame(container, router, mode, levelNum) {
 
             modal.querySelector('#modal-watch-ad').addEventListener('click', async () => {
               Sounds.playSfx('button-tap');
-              const m = await import('../services/adService.js');
-              const success = await m.AdService.showInterstitial();
+              const success = await AdService.showRewardVideoAd();
               if (success) {
                 modal.close();
                 PlayerState.addDiamonds(cost);
@@ -1412,7 +1794,6 @@ function startGame(container, router, mode, levelNum) {
                 extraMovesCount++;
                 engine.movesLeft += 2;
                 updateUI();
-                updateExtraMovesUI();
                 
                 const pop = document.createElement('div');
                 pop.className = 'absolute -top-6 left-1/2 transform -translate-x-1/2 text-cyan-400 font-black text-xl animate-fade-out drop-shadow-md z-50 pointer-events-none';
@@ -1436,12 +1817,27 @@ function startGame(container, router, mode, levelNum) {
   // Auto-show tutorial on first entry
   const tutTimeout = setTimeout(() => {
     if (container.isConnected) {
-      checkAndShowTutorial('match');
+      let hasCages = false;
+      let hasWalls = false;
+      if (engine && engine.grid) {
+        for (let r = 0; r < engine.rows; r++) {
+          for (let c = 0; c < engine.cols; c++) {
+            if (engine.grid[r][c]?.cage) hasCages = true;
+            if (engine.grid[r][c]?.type === 'brick') hasWalls = true;
+          }
+        }
+      }
+      checkAndShowTutorial('match', false, { hasCages, hasWalls });
     }
   }, 500);
 
-  return () => {
-    clearTimeout(hintTimer);
-    clearTimeout(tutTimeout);
-  };
+  // Ekrana özgü teardown: scope.destroy() önce tüm listener/timer/RAF'ı iptal
+  // eder (enjekte <style> dahil), SONRA bu blok çalışır → engine/board GC'ye bırakılır.
+  // hintTimer & tutTimeout zaten scope tarafından izlendiği için ayrıca temizlemeye gerek yok.
+  scope.onCleanup(() => {
+    engine = null;
+    blockEls = null;
+  });
+
+  return () => scope.destroy();
 }

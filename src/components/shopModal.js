@@ -2,6 +2,7 @@ import { t } from '../utils/i18n.js';
 import { PlayerState } from '../state/playerState.js';
 import { Storage } from '../utils/storage.js';
 import { Sounds } from '../utils/sounds.js';
+import { AdService } from '../services/adService.js';
 
 export function showShopModal() {
   const overlay = document.createElement('div');
@@ -116,8 +117,7 @@ export function showShopModal() {
     if (btnWatchAd && isAdAvailable) {
       btnWatchAd.addEventListener('click', async () => {
         Sounds.playSfx('button-tap');
-        const m = await import('../services/adService.js');
-        const success = await m.AdService.showInterstitial();
+        const success = await AdService.showInterstitial();
         if (success) {
           PlayerState.addDiamonds(200);
           Storage.set('ad_diamonds_count', adCount + 1);

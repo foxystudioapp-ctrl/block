@@ -1,5 +1,8 @@
 import { Storage } from '../utils/storage.js';
 import { t } from '../utils/i18n.js';
+import { Sounds } from '../utils/sounds.js';
+import { Toast } from '../components/toast.js';
+import { AdService } from '../services/adService.js';
 
 class PlayerStateManager {
   constructor() {
@@ -49,6 +52,8 @@ class PlayerStateManager {
 
     // Load state from local storage or set default values
     this.state = {
+      isVip: Storage.get('player_is_vip', false),
+      lastVipRewardTime: Storage.get('player_last_vip_reward_time', 0),
       currentMonthKey: nowMonthKey,
       // Automatically convert legacy coins to diamonds for existing players
       diamonds: Storage.get('player_diamonds', Storage.get('player_coins', 500)),
@@ -81,8 +86,10 @@ class PlayerStateManager {
       lastLoginRewardTime: Storage.get('player_last_login_reward_time', null),
       loginStreak: Storage.get('player_login_streak', 0),
       welcomeBonusClaimed: Storage.get('player_welcome_bonus_claimed', false),
-      friends: [],
+      friends: Storage.get('player_friends', []),
+      _friendsFetchedAt: Storage.get('player__friends_fetched_at', 0),
       friendRequests: [],
+      sentRequests: [],
       linkedProvider: Storage.get('player_linked_provider', null),
       jewelCrushLevel: Storage.get('player_jewel_crush_level', 1),
       sortAdventureLevel: Storage.get('player_sort_adventure_level', 1),
@@ -98,8 +105,45 @@ class PlayerStateManager {
       globalTrophies: needsReset ? 0 : Storage.get('player_global_trophies', 0),
     };
 
-    if (needsReset) {
-      // Save the reset scores back to storage
+    // --- Legacy Save Migration ---
+    // Eğer oyuncu daha önce eski modlarda belli bir seviyeye gelmişse (örn: 420. seviye)
+    // ancak adventure level'ı 1 ise, eski seviyesini adventure level'a aktar.
+    const legacyMigrations = [
+      { legacyKey: 'x2_save_state', stateKey: 'x2AdventureLevel' },
+      { legacyKey: 'bubble_stars', stateKey: 'bubbleAdventureLevel', isMap: true },
+      { legacyKey: 'arrow_save', stateKey: 'arrowAdventureLevel' },
+      { legacyKey: 'sort_save_state', stateKey: 'sortAdventureLevel' },
+      { legacyKey: '2048_save_state', stateKey: 'g2048AdventureLevel' },
+      { legacyKey: 'merge_save_state', stateKey: 'mergeAdventureLevel' }
+    ];
+
+    let migrationOccurred = false;
+    legacyMigrations.forEach(migration => {
+      // Sadece macera modunda ilerlememişse (seviye 1 ise) aktarım yap
+      if (this.state[migration.stateKey] === 1) {
+        if (migration.isMap) {
+          // Object.keys(map).length mantığı (bubble_stars gibi)
+          const legacyState = Storage.get(migration.legacyKey);
+          if (legacyState && typeof legacyState === 'object') {
+            const maxLevel = Math.max(0, ...Object.keys(legacyState).map(Number)) + 1;
+            if (maxLevel > 1) {
+              this.state[migration.stateKey] = maxLevel;
+              migrationOccurred = true;
+            }
+          }
+        } else {
+          // Standart { level: N } mantığı
+          const legacyState = Storage.get(migration.legacyKey);
+          if (legacyState && legacyState.level && legacyState.level > 1) {
+            this.state[migration.stateKey] = legacyState.level;
+            migrationOccurred = true;
+          }
+        }
+      }
+    });
+
+    if (needsReset || migrationOccurred) {
+      // Save the reset scores or migrated levels back to storage
       this.saveNow();
     }
 
@@ -148,7 +192,7 @@ class PlayerStateManager {
     let changed = false;
     
     const fieldsToImport = [
-      'diamonds', 'xp', 'level', 'theme', 'unlockedThemes', 'streak', 
+      'isVip', 'lastVipRewardTime', 'diamonds', 'xp', 'level', 'theme', 'unlockedThemes', 'streak', 
       'bestScoreClassic', 'bestScoreHex', 'bestScoreSort', 'bestScore2048', 
       'bestScoreX2', 'bestScoreMerge', 'bestScoreBubble', 'bestScoreArrow', 'bestScoreDuel', 'duelMatches', 'duelWins', 'duelLosses',
       'currentAdventureLevel', 'adventureStars', 'profileName', 'profileTitle', 'avatarSeed',
@@ -270,17 +314,11 @@ class PlayerStateManager {
     
     if (leveledUp) {
       // Trigger level up sound
-      import('../utils/sounds.js').then(({ Sounds }) => {
-        Sounds.playSfx('level-up');
-      });
+      Sounds.playSfx('level-up');
       // Import and play toast
-      import('../components/toast.js').then(({ Toast }) => {
-        Toast.show((t('level_up_toast') || 'Tebrikler! Seviye {level} oldunuz!').replace('{level}', this.state.level));
-      });
+      Toast.show((t('level_up_toast') || 'Tebrikler! Seviye {level} oldunuz!').replace('{level}', this.state.level));
       // Attempt to show forced ad (if cooldown allows)
-      import('../services/adService.js').then(({ AdService }) => {
-        AdService.showForcedInterstitial('levelup');
-      });
+      AdService.showForcedInterstitial('levelup');
     }
     this.save();
   }
@@ -301,9 +339,7 @@ class PlayerStateManager {
     // Overtake logic
     const currentRival = this.state.currentRivals[lbMode];
     if (currentRival && score > currentRival.score) {
-      import('../components/toast.js').then(({ Toast }) => {
-        Toast.show((t('rival_passed_toast') || '🔥 {name} geçildi! Liderlikte yükseliyorsun!').replace('{name}', currentRival.name), 'success');
-      });
+      Toast.show((t('rival_passed_toast') || '🔥 {name} geçildi! Liderlikte yükseliyorsun!').replace('{name}', currentRival.name), 'success');
       this.state.currentRivals[lbMode] = null; // Clear to prevent spam
     }
 

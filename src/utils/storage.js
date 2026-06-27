@@ -1,3 +1,5 @@
+import { debouncedSetItem } from './persist.js';
+
 export const Storage = {
   get(key, defaultValue = null) {
     try {
@@ -15,6 +17,18 @@ export const Storage = {
       return true;
     } catch (e) {
       console.error(`Error writing key ${key} to storage:`, e);
+      return false;
+    }
+  },
+
+  // F3: hamle başına çağrılan oyun-durumu kayıtları için debounce'lı yazım.
+  // Aynı anahtar/prefix; yalnız diske yazım ertelenir + arka plana geçişte flush edilir.
+  setDebounced(key, value) {
+    try {
+      debouncedSetItem(`lumina_puzzle_${key}`, JSON.stringify(value));
+      return true;
+    } catch (e) {
+      console.error(`Error scheduling debounced write for ${key}:`, e);
       return false;
     }
   },

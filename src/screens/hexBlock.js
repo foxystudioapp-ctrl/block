@@ -17,7 +17,7 @@ import { Toast } from '../components/toast.js';
 
 export function HexBlock(router) {
   const container = document.createElement('div');
-  container.className = 'w-full max-w-full lg:max-w-4xl mx-auto h-[100dvh] relative overflow-hidden flex flex-col justify-between bg-bg-light dark:bg-primary text-primary dark:text-white select-none animate-pop-up pb-2 sm:pb-3 md:pb-6 lg:pb-10';
+  container.className = 'w-full max-w-full lg:max-w-4xl mx-auto h-[100dvh] relative overflow-hidden flex flex-col justify-between bg-bg-light dark:bg-primary text-primary dark:text-white select-none animate-pop-up pb-4 sm:pb-6 md:pb-10 lg:pb-16';
 
   let engine = new HexEngine(4);
   engine.loadFromLocalStorage();
@@ -50,7 +50,7 @@ export function HexBlock(router) {
 
   // 2. Score section
   const scoreSection = document.createElement('div');
-  scoreSection.className = 'px-4 md:px-6 lg:px-8 py-1 mt-4 sm:mt-6 md:mt-[6vh] lg:mt-[8vh] flex justify-between items-center w-full z-10';
+  scoreSection.className = 'px-4 md:px-6 lg:px-8 py-1 mt-4 sm:mt-6 md:mt-6 lg:mt-8 flex justify-between items-center w-full z-10';
   scoreSection.innerHTML = `
     <div class="flex flex-col items-center justify-center flex-1">
       <div class="relative w-12 h-12 md:w-16 md:h-16 lg:w-20 lg:h-20 flex items-center justify-center mb-1 drop-shadow-md">
@@ -115,7 +115,7 @@ export function HexBlock(router) {
 
   // 4. Tray
   const trayWrapper = document.createElement('div');
-  trayWrapper.className = 'px-4 pb-4 sm:pb-6 pt-0 -mt-4 md:-mt-10 lg:-mt-12 w-full z-10'; // Brought closer to board
+  trayWrapper.className = 'px-4 pb-6 md:pb-8 lg:pb-12 pt-0 mt-0 md:mt-2 lg:mt-4 w-full z-10'; // Added padding for ads and removed negative margins
   const trayEl = document.createElement('div');
   trayEl.className = 'grid grid-cols-3 gap-3 w-full h-28 md:h-36 lg:h-44 glass-panel border border-black/10 dark:border-white/10 rounded-3xl p-3 md:p-4 shadow-[0_8px_30px_rgb(0,0,0,0.12)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.3)] relative overflow-hidden';
   const glow = document.createElement('div');
@@ -181,6 +181,9 @@ export function HexBlock(router) {
     for (let [coord, color] of engine.board.entries()) {
       const hex = hexCellMap.get(coord);
       if (hex) {
+        if (hex.dataset.cachedColor === String(color)) continue;
+        hex.dataset.cachedColor = color;
+        
         if (color) {
           hex.className = `block-3d-${color} shadow-sm z-10`;
         } else {
@@ -220,7 +223,12 @@ export function HexBlock(router) {
       }
   };
 
+  let lastTraySignature = '';
   const renderTray = () => {
+    const currentSignature = JSON.stringify(engine.activePieces);
+    if (lastTraySignature === currentSignature) return;
+    lastTraySignature = currentSignature;
+
     trayEl.innerHTML = '';
     engine.activePieces.forEach((piece, idx) => {
       const itemContainer = document.createElement('div');
@@ -524,7 +532,7 @@ export function HexBlock(router) {
 
     modal.querySelector('#modal-revive-ad').addEventListener('click', async () => {
       Sounds.playSfx('button-tap');
-      const success = await AdService.showInterstitial();
+      const success = await AdService.showRewardVideoAd();
       if (success) doRevive();
     });
 

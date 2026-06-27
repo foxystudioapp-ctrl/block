@@ -55,7 +55,7 @@ export const MATCH_LEVELS = [
     level: 6,
     moves: 45,
     colors: [1, 2, 3, 4, 5],
-    gems: [{ color: 1, type: 'ruby', target: 20 }],
+    gems: [{ color: 1, type: 'ruby', target: 12 }],
     targetScore: 4000,
     boardSize: 8,
     title: 'Yakut Madeni',
@@ -64,7 +64,7 @@ export const MATCH_LEVELS = [
     level: 7,
     moves: 45,
     colors: [1, 2, 3, 4, 5],
-    gems: [{ color: 1, type: 'ruby', target: 30 }],
+    gems: [{ color: 1, type: 'ruby', target: 15 }],
     targetScore: 5000,
     boardSize: 8,
     title: 'Yakut Avı',
@@ -73,7 +73,7 @@ export const MATCH_LEVELS = [
     level: 8,
     moves: 42,
     colors: [1, 2, 3, 4, 5],
-    gems: [{ color: 2, type: 'sapphire', target: 25 }],
+    gems: [{ color: 2, type: 'sapphire', target: 14 }],
     targetScore: 4500,
     boardSize: 8,
     title: 'Safir Mağarası',
@@ -83,8 +83,8 @@ export const MATCH_LEVELS = [
     moves: 48,
     colors: [1, 2, 3, 4, 5],
     gems: [
-      { color: 1, type: 'ruby', target: 20 },
-      { color: 2, type: 'sapphire', target: 20 },
+      { color: 1, type: 'ruby', target: 12 },
+      { color: 2, type: 'sapphire', target: 12 },
     ],
     targetScore: 6000,
     boardSize: 8,
@@ -95,8 +95,8 @@ export const MATCH_LEVELS = [
     moves: 45,
     colors: [1, 2, 3, 4, 5],
     gems: [
-      { color: 1, type: 'ruby', target: 25 },
-      { color: 2, type: 'sapphire', target: 25 },
+      { color: 1, type: 'ruby', target: 14 },
+      { color: 2, type: 'sapphire', target: 14 },
     ],
     targetScore: 7500,
     boardSize: 8,
@@ -108,7 +108,7 @@ export const MATCH_LEVELS = [
     level: 11,
     moves: 50,
     colors: [1, 2, 3, 4, 5, 6],
-    gems: [{ color: 3, type: 'emerald', target: 25 }],
+    gems: [{ color: 3, type: 'emerald', target: 14 }],
     targetScore: 5500,
     boardSize: 8,
     title: 'Zümrüt Ormanı',
@@ -117,7 +117,7 @@ export const MATCH_LEVELS = [
     level: 12,
     moves: 48,
     colors: [1, 2, 3, 4, 5, 6],
-    gems: [{ color: 3, type: 'emerald', target: 35 }],
+    gems: [{ color: 3, type: 'emerald', target: 16 }],
     targetScore: 7000,
     boardSize: 8,
     title: 'Yeşil Derinlik',
@@ -127,8 +127,8 @@ export const MATCH_LEVELS = [
     moves: 45,
     colors: [1, 2, 3, 4, 5, 6],
     gems: [
-      { color: 1, type: 'ruby', target: 20 },
-      { color: 3, type: 'emerald', target: 20 },
+      { color: 1, type: 'ruby', target: 12 },
+      { color: 3, type: 'emerald', target: 12 },
     ],
     targetScore: 7000,
     boardSize: 8,
@@ -139,8 +139,8 @@ export const MATCH_LEVELS = [
     moves: 50,
     colors: [1, 2, 3, 4, 5, 6],
     gems: [
-      { color: 2, type: 'sapphire', target: 25 },
-      { color: 3, type: 'emerald', target: 25 },
+      { color: 2, type: 'sapphire', target: 13 },
+      { color: 3, type: 'emerald', target: 13 },
     ],
     targetScore: 8500,
     boardSize: 8,
@@ -150,7 +150,7 @@ export const MATCH_LEVELS = [
     level: 15,
     moves: 48,
     colors: [1, 2, 3, 4, 5, 6],
-    gems: [{ color: 4, type: 'gold', target: 35 }],
+    gems: [{ color: 4, type: 'gold', target: 16 }],
     targetScore: 9000,
     boardSize: 8,
     title: 'Altın Çağı',
@@ -162,8 +162,8 @@ export const MATCH_LEVELS = [
     moves: 50,
     colors: [1, 2, 3, 4, 5, 6],
     gems: [
-      { color: 1, type: 'ruby', target: 25 },
-      { color: 4, type: 'gold', target: 20 },
+      { color: 1, type: 'ruby', target: 12 },
+      { color: 4, type: 'gold', target: 12 },
     ],
     targetScore: 10000,
     boardSize: 8,
@@ -173,7 +173,7 @@ export const MATCH_LEVELS = [
     level: 17,
     moves: 45,
     colors: [1, 2, 3, 4, 5, 6],
-    gems: [{ color: 5, type: 'diamond', target: 25 }],
+    gems: [{ color: 5, type: 'diamond', target: 14 }],
     targetScore: 10000,
     boardSize: 8,
     title: 'Elmas Madeni',
@@ -183,8 +183,8 @@ export const MATCH_LEVELS = [
     moves: 48,
     colors: [1, 2, 3, 4, 5, 6],
     gems: [
-      { color: 5, type: 'diamond', target: 20 },
-      { color: 4, type: 'gold', target: 20 },
+      { color: 5, type: 'diamond', target: 12 },
+      { color: 4, type: 'gold', target: 12 },
     ],
     targetScore: 12000,
     boardSize: 8,
@@ -195,11 +195,11 @@ export const MATCH_LEVELS = [
     moves: 50,
     colors: [1, 2, 3, 4, 5, 6],
     gems: [
-      { color: 1, type: 'ruby', target: 15 },
-      { color: 2, type: 'sapphire', target: 15 },
-      { color: 3, type: 'emerald', target: 15 },
-      { color: 4, type: 'gold', target: 15 },
-      { color: 5, type: 'diamond', target: 15 },
+      { color: 1, type: 'ruby', target: 9 },
+      { color: 2, type: 'sapphire', target: 9 },
+      { color: 3, type: 'emerald', target: 9 },
+      { color: 4, type: 'gold', target: 9 },
+      { color: 5, type: 'diamond', target: 9 },
     ],
     targetScore: 15000,
     boardSize: 8,
@@ -210,9 +210,9 @@ export const MATCH_LEVELS = [
     moves: 55,
     colors: [1, 2, 3, 4, 5, 6],
     gems: [
-      { color: 5, type: 'diamond', target: 30 },
-      { color: 1, type: 'ruby', target: 20 },
-      { color: 2, type: 'sapphire', target: 20 },
+      { color: 5, type: 'diamond', target: 15 },
+      { color: 1, type: 'ruby', target: 11 },
+      { color: 2, type: 'sapphire', target: 11 },
     ],
     targetScore: 20000,
     boardSize: 8,
@@ -359,7 +359,10 @@ const LAYOUT_TEMPLATES = [
 ];
 
 function generateLevelData(levelNumber) {
-  const effectiveLevel = Math.min(100, levelNumber);
+  // Zorluk artık seviye 100'de DONMUYOR — seviyeyle birlikte (güvenli, achievable sınırlar
+  // içinde) artmaya devam eder. Renk paleti motor sınırı 6 ile kelepçeli; asıl zorluk
+  // kaldıracı gem hedefi + gem çeşididir (macera >20 zaten gem-toplama oynanışı).
+  const effectiveLevel = levelNumber;
 
   // 1. Difficulty scaling (Colors)
   let numColors = 4;
@@ -370,11 +373,15 @@ function generateLevelData(levelNumber) {
   for (let i = 1; i <= numColors; i++) colors.push(i);
 
   // 2. Target Score
-  const targetScore = 2000 + (effectiveLevel * 800);
+  // Gem seviyelerinde (macera >20) kazanma gem'e bağlı olduğundan skor ikincildir; yine de
+  // HUD makullüğü için makul bir tavanla büyür.
+  const targetScore = Math.min(120000, 2000 + (effectiveLevel * 800));
 
   // 3. Moves
-  // Max 55 moves. Base is 30, increases slightly.
-  const moves = Math.min(55, 30 + Math.floor(effectiveLevel / 2));
+  // Taban 44'e çekildi: 21. seviye (yeni prosedürel bölüm) elle-yapılmış 20. seviyenin
+  // 55 hamlesinin hemen altında başlasın (eski 30+lvl/2 = 40 cliff'i giderildi).
+  // Tavan 55: artan zorluk hamleyle değil gem hedefiyle gelir.
+  const moves = Math.min(55, 44 + Math.floor(effectiveLevel / 6));
 
   // 4. Layout
   // Levels 1-4: No layout (open board)
@@ -404,9 +411,21 @@ function generateLevelData(levelNumber) {
       { color: 5, type: 'diamond' },
       { color: 6, type: 'topaz' }
     ];
-    const numGems = effectiveLevel > 50 ? 3 : (effectiveLevel > 20 ? 2 : 1);
+    // Gem çeşidi en fazla 3. KALİBRASYON (headless engine simülasyonuyla doğrulandı):
+    //   - Tek renk hedefi 16 ile tavanlı. Tek renkli yüksek hedef en zor desendir,
+    //     çünkü gemi YALNIZCA o rengi eşleyerek toplayabilirsin.
+    //   - Çoklu-gem seviyelerinde toplam yük TOTAL_CAP (36) ile sınırlı; renk başına
+    //     hedef buna göre düşürülür. Eski formül (3 x 40 = 120) 55 hamlede imkânsızdı.
+    // NOT: Match-3'te zorluk sonsuza dek SAYIYLA artamaz (sınırlı hamlede sınırsız gem
+    // yok); üst seviyelerde magnitüd platoya oturur, çeşitlilik (gem rengi + layout
+    // rotasyonu) taşır. Gerçek üst-seviye kaldıraç engel yoğunluğu/yeni mekaniktir.
+    const numGems = effectiveLevel > 60 ? 3 : (effectiveLevel > 25 ? 2 : 1);
+    let gemTarget = Math.min(16, 9 + Math.floor(effectiveLevel / 8));
+    const TOTAL_CAP = 36;
+    if (numGems * gemTarget > TOTAL_CAP) {
+      gemTarget = Math.floor(TOTAL_CAP / numGems);
+    }
     for (let i = 0; i < numGems; i++) {
-       const gemTarget = 15 + Math.floor(effectiveLevel / 5);
        gems.push({ ...gemTypes[(levelNumber + i) % numColors], target: gemTarget });
     }
   }

@@ -1,4 +1,6 @@
 ﻿import { generateEndlessLevel } from './arrowGenerator.js';
+import { SHAPE_EN } from './shapeNames.js';
+import { getCurrentLang } from '../utils/i18n.js';
 
 export const DIRS = [
   [-1, 0], // 0: K
@@ -32,9 +34,11 @@ export function getShapeColor(shapeName) {
   return colors[Math.abs(hash) % (colors.length - 1)]; 
 }
 
-export function getShapeName(shapeName) {
-  if (!shapeName) return 'Gizemli';
-  return shapeName;
+export function getShapeName(shapeName, lang) {
+  const code = lang || getCurrentLang();
+  if (!shapeName) return code === 'tr' ? 'Gizemli' : 'Mystery';
+  if (code === 'tr') return shapeName;
+  return SHAPE_EN[shapeName] || shapeName;
 }
 
 export function getArrowLevelData(levelNum) {

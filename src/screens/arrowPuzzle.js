@@ -13,11 +13,20 @@ import { TaskState } from '../state/taskState.js';
 import { Storage } from '../utils/storage.js';
 import { checkAndShowTutorial } from '../components/tutorial.js';
 import { showQuitConfirmation } from '../utils/quitConfirm.js';
+import { Toast } from '../components/toast.js';
+import { createScope } from '../utils/lifecycle.js';
 
 const MAP_ROUTE = '#/adventure-map?game=arrow';
 
 export function ArrowPuzzle(router) {
   let activeBodyAppends = [];
+
+  // Birleşik yaşam döngüsü sözleşmesi: setTimeout/RAF izlenir; cleanup'ta scope.destroy()
+  // ile iptal edilir. NOT: arrowPuzzle çıkışta engine.saveState() yapar — bu yüzden
+  // engine BİLEREK null'lanmaz (save bozulmasın).
+  const scope = createScope({ name: 'arrow' });
+  const setTimeout = scope.setT;
+  const requestAnimationFrame = scope.raf;
 
   const queryParams = new URLSearchParams(location.hash.split('?')[1] || '');
   const mode = queryParams.get('mode');
@@ -36,7 +45,12 @@ export function ArrowPuzzle(router) {
   engine.init(startLevel);
   if (mode !== 'endless' && engine.loadState && engine.loadState()) { /* sürdürüldü */ }
 
-  const HINT_COSTS = [50, 150, 300];
+  // Endless ödülü küçük (stars*5 = 5-15) olduğundan ipucu maliyeti orada daha düşük; aksi halde
+  // tek ipucu (50) ödülün katı olup elmas kanatıyordu. Macera ödülü büyük → standart maliyet.
+  const HINT_COSTS = mode === 'endless' ? [20, 40, 60] : [50, 150, 300];
+  const HEART_BOOST_COST = 80;   // mid-level +1 can booster'ı (AYARLANABİLİR)
+  const MAX_BOOST_HEARTS = 9;    // can dolma tavanı (HUD taşmasını önler)
+  let clearStreak = 0;           // ardışık başarılı temizleme (yanlış dokunuşta sıfırlanır)
   let hintUsages = 0;
 
   // ===== Konteyner =====
@@ -61,13 +75,26 @@ export function ArrowPuzzle(router) {
   const topBar = createTopBar(t('menu_arrow') || 'Ok Bulmacası', true, goBack);
   container.appendChild(topBar);
 
-  // ===== SUB CONTROLS (Help / Tutorial) =====
+  // ===== SUB CONTROLS (Help / Tutorial & +3 Lives Boost) =====
   const subControls = document.createElement('div');
   subControls.className = 'px-4 md:px-6 lg:px-8 pt-1.5 md:pt-3 lg:pt-4 pb-0 flex items-center justify-between w-full z-30 shrink-0';
   subControls.innerHTML = `
+    <!-- Sol: Yardım Butonu -->
     <div class="flex items-center space-x-2">
       <button id="btn-help" class="w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 lg:w-11 lg:h-11 rounded-full bg-gradient-to-br from-white to-gray-50 dark:from-slate-800 dark:to-slate-900 flex items-center justify-center border border-black/10 dark:border-white/10 shadow-sm active:scale-90 transition-transform text-red-500 dark:text-red-400">
         <span class="material-symbols-outlined text-[18px] md:text-[20px] lg:text-[22px]">help</span>
+      </button>
+    </div>
+
+    <!-- Sağ: +3 Can Satın Alma Butonu (Klasik mod geri al tasarımı) -->
+    <div class="flex items-center space-x-2">
+      <button id="arrow-heart-boost" class="flex items-center gap-1.5 px-2.5 md:px-3 lg:px-4 py-1 md:py-1.5 rounded-full bg-white dark:bg-primary-container border border-black/5 dark:border-white/5 shadow-sm active:scale-95 transition-all shrink-0">
+        <span class="material-symbols-outlined text-[14px] md:text-[16px] lg:text-[18px] text-pink-500" style="font-variation-settings:'FILL' 1;">favorite</span>
+        <span class="text-[9px] md:text-[11px] lg:text-[13px] font-black tracking-tight leading-none uppercase text-gray-700 dark:text-gray-200">+3 ${(t('lives') || 'CAN')}</span>
+        <div class="flex items-center gap-0.5 bg-cyan-500/10 dark:bg-cyan-500/20 px-1.5 py-0.5 rounded-full ml-0.5 transition-all">
+          <span class="material-symbols-outlined text-[10px] md:text-[12px] lg:text-[14px] fill text-cyan-500 dark:text-cyan-400">diamond</span>
+          <span class="text-[10px] md:text-[11px] lg:text-[13px] font-black text-cyan-600 dark:text-cyan-300 leading-none">${HEART_BOOST_COST}</span>
+        </div>
       </button>
     </div>
   `;
@@ -83,7 +110,7 @@ export function ArrowPuzzle(router) {
 
   // ===== HUD (diğer modlarla aynı: seviye rozeti / canlar / rekor rozeti) =====
   const hud = document.createElement('div');
-  hud.className = 'w-full px-4 pt-1 pb-2 flex items-center justify-between shrink-0';
+  hud.className = 'w-full px-4 pt-4 sm:pt-5 md:pt-6 lg:pt-8 pb-2 flex items-center justify-between shrink-0';
   
   const hintHtml = `
       <div class="flex flex-col items-center justify-center flex-1 relative">
@@ -106,7 +133,7 @@ export function ArrowPuzzle(router) {
         <div class="relative w-12 h-12 md:w-16 md:h-16 lg:w-20 lg:h-20 flex items-center justify-center mb-1 drop-shadow-md opacity-60">
           <div class="text-3xl lg:text-4xl">♾️</div>
         </div>
-        <span class="text-[9px] md:text-[10px] lg:text-[12px] font-black text-gray-400 tracking-wider">KLASİK</span>
+        <span class="text-[9px] md:text-[10px] lg:text-[12px] font-black text-gray-400 tracking-wider">${(t('x2_play_now') || 'Hemen Oyna').toUpperCase()}</span>
       </div>
 
       <div class="flex flex-col items-center justify-center flex-1 px-1">
@@ -115,8 +142,6 @@ export function ArrowPuzzle(router) {
       </div>
 
       ${hintHtml}
-
-
     `;
   } else {
     hud.innerHTML = `
@@ -138,8 +163,6 @@ export function ArrowPuzzle(router) {
       </div>
 
       ${hintHtml}
-
-
     `;
   }
   container.appendChild(hud);
@@ -457,9 +480,76 @@ export function ArrowPuzzle(router) {
   const reveals = new Map();  // "r,c" -> t0  (yeni açılan silüet hücreleri pop)
   let entranceT0 = 0, entranceMax = 0; // kademeli giriş
   let winGlowT0 = 0;          // kazanınca silüet parıltısı
+  let tutorialAnim = null;    // öğretici animasyon durumu (free, blocked, vb)
   const FLY_MS = 1200, SHAKE_MS = 340, REVEAL_MS = 360, POP_DUR = 240;
   const WINDUP_MS = 50;       // Geri çekilme süresi
   const WINDUP_DIST = 0.12;   // Geri çekilme mesafesi (hücre oranı)
+
+  window.arrowTutorialApi = {
+    startAnim: (type, vCursor, vCursor2) => {
+       tutorialAnim = { type, t0: performance.now(), vCursor, vCursor2 };
+       if (type === 'free') {
+          // Önce orta ve alt satırlardan serbest ok bulalım
+          let freeArrow = null;
+          for(let r = Math.floor(engine.rows / 3); r < engine.rows; r++) {
+             for(let c = 0; c < engine.cols; c++) {
+                if (engine.grid[r][c] !== null && engine.isPathClear(r, c)) {
+                   freeArrow = {r, c}; break;
+                }
+             }
+             if (freeArrow) break;
+          }
+          // Bulunamazsa herhangi birini al
+          if (!freeArrow) {
+             const h = engine.getHint();
+             if (h) freeArrow = h;
+          }
+          if (freeArrow) {
+             tutorialAnim.r = freeArrow.r; tutorialAnim.c = freeArrow.c;
+             const snake = engine.getSnake(freeArrow.r, freeArrow.c);
+             const snakePath = snake.map(seg => cellCenter(seg.r, seg.c));
+             const pathDists = [0];
+             for (let si = 1; si < snakePath.length; si++) {
+               const dx = snakePath[si].x - snakePath[si - 1].x;
+               const dy = snakePath[si].y - snakePath[si - 1].y;
+               pathDists.push(pathDists[si - 1] + Math.hypot(dx, dy));
+             }
+             tutorialAnim.snake = snake;
+             tutorialAnim.path = snakePath;
+             tutorialAnim.pathDists = pathDists;
+          }
+       } else if (type === 'blocked') {
+          for(let r=0; r<engine.rows; r++) {
+            for(let c=0; c<engine.cols; c++) {
+               if (engine.grid[r][c] !== null && !engine.isPathClear(r, c)) {
+                  tutorialAnim.r = r; tutorialAnim.c = c;
+                  break;
+               }
+            }
+            if (tutorialAnim.r !== undefined) break;
+          }
+       } else if (type === 'reveal') {
+          // Bir grup ok bulup seçelim
+          const group = [];
+          for(let r=0; r<engine.rows && group.length<4; r++) {
+            for(let c=0; c<engine.cols && group.length<4; c++) {
+               if (engine.grid[r][c] !== null) group.push({r, c});
+            }
+          }
+          tutorialAnim.group = group;
+       } else if (type === 'hint') {
+          const hintBtn = document.querySelector('#arrow-top-hint');
+          if (hintBtn) {
+             const rect = hintBtn.getBoundingClientRect();
+             tutorialAnim.targetRect = rect;
+             tutorialAnim.hintBtn = hintBtn;
+          }
+       }
+       ensureLoop();
+       return () => { tutorialAnim = null; };
+    },
+    stopAnim: () => { tutorialAnim = null; }
+  };
 
   function easeOutBack(p) { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(p - 1, 3) + c1 * Math.pow(p - 1, 2); }
   function easeIn(p) { return p * p; }
@@ -486,8 +576,23 @@ export function ArrowPuzzle(router) {
   }
 
   function drawReveal(x, y, size, popScale, glow) {
-    // Ok kaldırıldığında hiçbir şey çizme — hücre boş kalacak (referans tasarım)
-    return;
+    // Açılan resim: oku temizlenmiş ŞEKİL hücresi dolu renkle gösterilir → okları
+    // temizledikçe gizli resim ortaya çıkar. (Eskiden burası boştu; resim hiç görünmüyordu.)
+    const s = size * 0.9 * (popScale || 1);
+    const r = s / 2;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.globalAlpha = 0.92;
+    ctx.fillStyle = revealColor;
+    roundRect(-r, -r, s, s, s * 0.2);
+    ctx.fill();
+    if (glow > 0) {
+      ctx.globalAlpha = Math.min(1, glow);
+      ctx.shadowColor = revealColor;
+      ctx.shadowBlur = size * 0.45;
+      ctx.fill();
+    }
+    ctx.restore();
   }
 
   // Arka plan — uygulama varsayılan koyu teması (canvas transparan, konteyner rengi görünsün)
@@ -501,10 +606,57 @@ export function ArrowPuzzle(router) {
 
     const now = performance.now();
     ctx.save();
+    
+    // Zoom tutorial için ek scale
+    let zoomScale = 1;
+    if (tutorialAnim && tutorialAnim.type === 'zoom') {
+        const elapsed = now - tutorialAnim.t0;
+        const p2000 = (elapsed % 2000) / 2000;
+        if (p2000 > 0.3 && p2000 < 0.7) {
+            const zp = (p2000 - 0.3) / 0.4;
+            // peaks at 1.4 in the middle
+            zoomScale = 1 + 0.4 * (0.5 - Math.abs(zp - 0.5)) * 2;
+        }
+    }
+    
+    const cx = cssW / 2, cy = cssH / 2;
+    ctx.translate(cx, cy);
+    ctx.scale(zoomScale, zoomScale);
+    ctx.translate(-cx, -cy);
+
     ctx.translate(viewX, viewY);
     ctx.scale(viewScale, viewScale);
 
-    // Grid çizimi kaldırıldı
+    // === NOKTA KAFESİ + HEDEF SİLÜET (oyun sırasında resmi görünür kılar) ===
+    // Eskiden ızgara/silüet hiç çizilmiyordu → oyuncu yalnızca ok kalabalığı görüyor, hedef
+    // şekli temizlemeden GÖREMİYORDU. Emsaller gibi: (a) her hücrede ince nokta (ızgara hissi),
+    // (b) şekil hücrelerinin ALTINA soluk renk tint → oyuncu hedef resmi okları kaldırmadan görür.
+    {
+      const isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const dotColor = isDark ? 'rgba(148,163,184,0.22)' : 'rgba(100,116,139,0.20)';
+      const dotR = Math.max(1, cell * 0.06);
+      const tintS = cell * 0.9, tintR = tintS / 2;
+      for (let r = 0; r < engine.rows; r++) {
+        for (let c = 0; c < engine.cols; c++) {
+          const { x, y } = cellCenter(r, c);
+          // (a) nokta — her hücre konumunda
+          ctx.beginPath();
+          ctx.fillStyle = dotColor;
+          ctx.arc(x, y, dotR, 0, Math.PI * 2);
+          ctx.fill();
+          // (b) ok hâlâ duruyorsa şekil hücresine soluk silüet tint
+          if (engine.grid[r][c] !== null && !engine.wall[r][c] && shapeSet.has(r + ',' + c)) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.globalAlpha = 0.18;
+            ctx.fillStyle = revealColor;
+            roundRect(-tintR, -tintR, tintS, tintS, tintS * 0.2);
+            ctx.fill();
+            ctx.restore();
+          }
+        }
+      }
+    }
 
     const hintGlow = hintCell ? (0.5 + 0.5 * Math.sin(now / 260)) : 0;
     const winPulse = winGlowT0 ? Math.max(0, 1 - (now - winGlowT0) / 900) : 0;
@@ -544,6 +696,21 @@ export function ArrowPuzzle(router) {
         
         // Eğer bu ok hint olan yılana aitse ana döngüde ÇİZME, aşağıda hint bloğunda çizeceğiz
         if (hintSnakeId !== null && engine.snakeIds[r][c] === hintSnakeId) continue;
+
+        // Öğretici animasyonunda gizlenmesi gerekenler
+        if (tutorialAnim) {
+           const type = tutorialAnim.type;
+           const elapsed = now - tutorialAnim.t0;
+           const p2000 = (elapsed % 2000) / 2000;
+           if (type === 'free') {
+              if (tutorialAnim.snake && tutorialAnim.snake.some(s => s.r === r && s.c === c)) continue;
+              else if (tutorialAnim.r === r && tutorialAnim.c === c) continue;
+           } else if (type === 'blocked') {
+              if (tutorialAnim.r === r && tutorialAnim.c === c) continue; // tutorialAnim bloğunda çizilecek
+           } else if (type === 'reveal' && tutorialAnim.group) {
+              if (tutorialAnim.group.some(g => g.r === r && g.c === c)) continue; // tutorialAnim bloğunda çizilecek
+           }
+        }
         
         drawArrowTile(x, y, cell, d, { glow: 0, scale: esc, r, c });
       }
@@ -714,13 +881,219 @@ export function ArrowPuzzle(router) {
       ctx.restore();
     }
 
+    // 5) Öğretici animasyonlar (tutorialAnim)
+    if (tutorialAnim) {
+      const elapsed = now - tutorialAnim.t0;
+      const p2000 = (elapsed % 2000) / 2000;
+      const type = tutorialAnim.type;
+      
+      if (type === 'free' || type === 'blocked') {
+        const tr = tutorialAnim.r, tc = tutorialAnim.c;
+        if (tr !== undefined && engine.grid[tr] && engine.grid[tr][tc] !== null) {
+           const { x, y } = cellCenter(tr, tc);
+           const d = engine.grid[tr][tc];
+           
+           if (type === 'free') {
+             if (p2000 > 0.35 && p2000 < 0.75) {
+                const flyElapsedMs = (p2000 - 0.35) / 0.40 * (FLY_MS + WINDUP_MS);
+                const f = tutorialAnim;
+                const snake = f.snake;
+                const path = f.path;           
+                const pathDists = f.pathDists; 
+                if (snake && path && pathDists) {
+                   const totalPathLen = pathDists[pathDists.length - 1];
+                   const headDir = snake[snake.length - 1].dir;
+                   const [flyDr, flyDc] = DIRS[headDir];
+                   const exitDist = (engine.rows + engine.cols) * cell * 1.5;
+                   
+                   let headPull = 0, tailPull = 0, windupPhase = false, alpha = 1;
+                   if (flyElapsedMs < WINDUP_MS) {
+                     windupPhase = true;
+                     const wp = flyElapsedMs / WINDUP_MS;
+                     headPull = tailPull = -Math.sin(wp * Math.PI) * WINDUP_DIST * cell;
+                   } else {
+                     const launchElapsed = flyElapsedMs - WINDUP_MS;
+                     const lp = Math.min(1, launchElapsed / FLY_MS);
+                     headPull = (1 - Math.pow(1 - lp, 4)) * (totalPathLen + exitDist);
+                     const TAIL_RELEASE_MS = 100;
+                     if (flyElapsedMs >= TAIL_RELEASE_MS) {
+                       const tailLp = Math.min(1, (flyElapsedMs - TAIL_RELEASE_MS) / (WINDUP_MS + FLY_MS - TAIL_RELEASE_MS));
+                       tailPull = (tailLp * tailLp) * (totalPathLen + exitDist);
+                     }
+                     alpha = Math.max(0, 1 - Math.pow(lp, 3));
+                   }
+                   
+                   const r_cell = cell / 2;
+                   const newTailDist = tailPull - r_cell;
+                   const newHeadDist = totalPathLen + headPull + r_cell;
+
+                   function getPosAtDist(dist) {
+                     if (dist <= 0) {
+                       const [tdr, tdc] = DIRS[(snake[0].dir + 4) % 8];
+                       return { x: path[0].x + tdc * (-dist), y: path[0].y + tdr * (-dist) };
+                     } else if (dist < totalPathLen) {
+                       let segIdx = 0;
+                       for (let k = 1; k < pathDists.length; k++) { if (pathDists[k] >= dist) { segIdx = k - 1; break; } }
+                       const ratio = (pathDists[segIdx + 1] > pathDists[segIdx]) ? (dist - pathDists[segIdx]) / (pathDists[segIdx + 1] - pathDists[segIdx]) : 0;
+                       return { x: path[segIdx].x + (path[segIdx + 1].x - path[segIdx].x) * ratio, y: path[segIdx].y + (path[segIdx + 1].y - path[segIdx].y) * ratio };
+                     } else {
+                       const overshoot = dist - totalPathLen;
+                       const hp = path[path.length - 1];
+                       return { x: hp.x + flyDc * overshoot, y: hp.y + flyDr * overshoot };
+                     }
+                   }
+
+                   const isDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+                   const lineColor = isDarkMode ? '#F8FAFC' : '#0F172A';
+                   const lw = Math.max(1.5, cell * 0.06);
+
+                   ctx.save();
+                   ctx.globalAlpha = alpha;
+                   ctx.strokeStyle = lineColor;
+                   ctx.lineWidth = lw;
+                   ctx.lineCap = 'square';
+                   ctx.lineJoin = 'miter';
+
+                   const headPos = getPosAtDist(newHeadDist);
+                   const tailPos = getPosAtDist(newTailDist);
+
+                   if (windupPhase) {
+                     const wp = flyElapsedMs / WINDUP_MS;
+                     const sc = 1.0 + wp * 0.12;
+                     ctx.translate(headPos.x, headPos.y); ctx.scale(sc, sc); ctx.translate(-headPos.x, -headPos.y);
+                   }
+
+                   ctx.beginPath();
+                   ctx.moveTo(tailPos.x, tailPos.y);
+                   for (let k = 0; k < pathDists.length; k++) {
+                     if (pathDists[k] > newTailDist && pathDists[k] < newHeadDist) ctx.lineTo(path[k].x, path[k].y);
+                   }
+                   ctx.lineTo(headPos.x, headPos.y);
+                   ctx.stroke();
+
+                   const dirAng = Math.atan2(flyDr, flyDc);
+                   const headLen = cell * 0.20, headW = cell * 0.16;
+                   ctx.translate(headPos.x + flyDc * (lw/2), headPos.y + flyDr * (lw/2));
+                   ctx.rotate(dirAng);
+                   ctx.fillStyle = lineColor;
+                   ctx.beginPath();
+                   ctx.moveTo(cell * 0.04, 0); ctx.lineTo(-headLen, -headW); ctx.lineTo(-headLen + cell*0.04, 0); ctx.lineTo(-headLen, headW); ctx.closePath(); ctx.fill();
+                   ctx.restore();
+                }
+             } else if (p2000 <= 0.35) {
+                if (tutorialAnim.snake) {
+                   tutorialAnim.snake.forEach(seg => {
+                      const { x, y } = cellCenter(seg.r, seg.c);
+                      drawArrowTile(x, y, cell, seg.dir, { glow: (seg.r===tr && seg.c===tc) ? 0.5 : 0, r: seg.r, c: seg.c });
+                   });
+                } else {
+                   drawArrowTile(x, y, cell, d, { glow: 0.5, r: tr, c: tc });
+                }
+             }
+           } else if (type === 'blocked') {
+             if (p2000 > 0.25 && p2000 < 0.5) {
+                const sp = (p2000 - 0.25) / 0.25;
+                const dx = Math.sin(sp * Math.PI * 7) * cell * 0.16 * (1 - sp);
+                drawArrowTile(x + dx, y, cell, d, { danger: true, r: tr, c: tc });
+             } else {
+                drawArrowTile(x, y, cell, d, { r: tr, c: tc });
+             }
+           }
+        }
+      } else if (type === 'reveal' && tutorialAnim.group) {
+        if (p2000 > 0.4 && p2000 < 0.8) {
+           const pathP = (p2000 - 0.4) / 0.4;
+           ctx.save();
+           ctx.globalAlpha = Math.max(0, 1 - pathP);
+           for(const g of tutorialAnim.group) {
+              const { x, y } = cellCenter(g.r, g.c);
+              const [flyDr, flyDc] = DIRS[engine.grid[g.r][g.c] || 0];
+              const dist = pathP * cell * 3;
+              drawArrowTile(x + flyDc * dist, y + flyDr * dist, cell, engine.grid[g.r][g.c], { r: g.r, c: g.c });
+           }
+           ctx.restore();
+        } else if (p2000 <= 0.4) {
+           for(const g of tutorialAnim.group) {
+              const { x, y } = cellCenter(g.r, g.c);
+              drawArrowTile(x, y, cell, engine.grid[g.r][g.c], { glow: 0.5, r: g.r, c: g.c });
+           }
+        }
+      }
+
+      if (tutorialAnim.vCursor) {
+        const rect = canvas.getBoundingClientRect();
+        if (type === 'free' || type === 'blocked') {
+           const tr = tutorialAnim.r, tc = tutorialAnim.c;
+           if (tr !== undefined) {
+             const pos = cellCenter(tr, tc);
+             const screenX = rect.left + pos.x * viewScale + viewX;
+             const screenY = rect.top + pos.y * viewScale + viewY;
+             tutorialAnim.vCursor.style.opacity = '1';
+             tutorialAnim.vCursor.style.left = (screenX - 24) + 'px';
+             tutorialAnim.vCursor.style.top = (screenY - 24) + 'px';
+             let clickScale = 1;
+             if (type === 'free' && p2000 > 0.25 && p2000 < 0.35) clickScale = 0.8;
+             if (type === 'blocked' && p2000 > 0.15 && p2000 < 0.25) clickScale = 0.8;
+             tutorialAnim.vCursor.style.transform = `scale(${clickScale})`;
+           }
+        } else if (type === 'reveal') {
+           tutorialAnim.vCursor.style.opacity = '0';
+        } else if (type === 'hint') {
+           if (tutorialAnim.targetRect) {
+              const hr = tutorialAnim.targetRect;
+              tutorialAnim.vCursor.style.opacity = '1';
+              tutorialAnim.vCursor.style.left = (hr.left + hr.width/2 - 24) + 'px';
+              tutorialAnim.vCursor.style.top = (hr.top + hr.height/2 - 24) + 'px';
+              let clickScale = 1;
+              if (p2000 > 0.3 && p2000 < 0.4) clickScale = 0.8;
+              tutorialAnim.vCursor.style.transform = `scale(${clickScale})`;
+              
+              if (p2000 > 0.3 && p2000 < 0.4) tutorialAnim.hintBtn.style.transform = 'scale(0.9)';
+              else tutorialAnim.hintBtn.style.transform = 'scale(1)';
+              
+              if (p2000 > 0.4 && p2000 < 0.8) tutorialAnim.hintBtn.style.boxShadow = '0 0 20px 10px rgba(250, 204, 21, 0.8)';
+              else tutorialAnim.hintBtn.style.boxShadow = '';
+           }
+        } else if (type === 'zoom') {
+           const cx = rect.left + rect.width / 2;
+           const cy = rect.top + rect.height / 2;
+           
+           let op = 0;
+           if (p2000 > 0.1 && p2000 < 0.9) op = 1;
+           if (p2000 > 0.8 && p2000 < 0.9) op = 1 - (p2000 - 0.8) / 0.1;
+
+           tutorialAnim.vCursor.style.opacity = op;
+           if (tutorialAnim.vCursor2) tutorialAnim.vCursor2.style.opacity = op;
+
+           let pinchDist = 0;
+           if (p2000 > 0.3 && p2000 < 0.7) {
+               const zp = (p2000 - 0.3) / 0.4;
+               pinchDist = (1 - Math.pow(1 - zp, 3)) * 60; // easeOutCubic
+           } else if (p2000 >= 0.7) {
+               pinchDist = 60;
+           }
+           
+           // vCursor 1 -> sol üst
+           tutorialAnim.vCursor.style.left = (cx - 15 - pinchDist - 24) + 'px';
+           tutorialAnim.vCursor.style.top = (cy - 15 - pinchDist - 24) + 'px';
+           
+           // vCursor 2 -> sağ alt
+           if (tutorialAnim.vCursor2) {
+               tutorialAnim.vCursor2.style.left = (cx + 15 + pinchDist - 24) + 'px';
+               tutorialAnim.vCursor2.style.top = (cy + 15 + pinchDist - 24) + 'px';
+               tutorialAnim.vCursor2.style.transform = 'rotate(180deg)';
+           }
+        }
+      }
+    }
+
     ctx.restore();
   }
 
   // ===== Render döngüsü (sadece animasyon varken döner) =====
   let rafId = null;
   function animActive(now) {
-    return flying.length > 0 || shake || hintCell || reveals.size > 0 ||
+    return flying.length > 0 || shake || hintCell || reveals.size > 0 || tutorialAnim ||
       (entranceT0 && now < entranceT0 + entranceMax) ||
       (winGlowT0 && now < winGlowT0 + 900);
   }
@@ -742,6 +1115,8 @@ export function ArrowPuzzle(router) {
     if (engine.grid[hit.r][hit.c] === null || engine.wall[hit.r][hit.c]) return;
     const res = engine.tapArrow(hit.r, hit.c);
     if (res.removed) {
+      clearStreak++;
+      if (clearStreak >= 5 && clearStreak % 5 === 0) showStreakCombo(clearStreak);
       // Zincir yolunu (path) ve kümülatif mesafeleri önceden hesapla
       const snakePath = res.snake.map(seg => cellCenter(seg.r, seg.c));
       const pathDists = [0];
@@ -758,6 +1133,7 @@ export function ArrowPuzzle(router) {
       Haptics.vibrate?.('block-place');
       if (res.win) { winGlowT0 = performance.now(); setTimeout(onWin, 420); }
     } else if (res.blocked) {
+      clearStreak = 0;
       shake = { r: hit.r, c: hit.c, t0: performance.now() };
       Sounds.playSfx?.('invalid');
       Haptics.vibrate?.('invalid');
@@ -937,7 +1313,7 @@ canvas.addEventListener('wheel', onWheel, { passive: false });
       overlayContainer.style.height = '100vh';
       overlayContainer.style.zIndex = '10000';
       
-      document.body.appendChild(overlayContainer); activeBodyAppends.push(overlayContainer); activeBodyAppends.push(overlayContainer);
+      document.body.appendChild(overlayContainer); activeBodyAppends.push(overlayContainer);
     };
     
     modal.querySelector('#btn-watch-ad').onclick = async () => {
@@ -969,6 +1345,43 @@ canvas.addEventListener('wheel', onWheel, { passive: false });
     }
   });
 
+  // +Can booster: oyun ortasında, ölmeden 1 can ekler (hamle/seri harcamaz). Tavan MAX_BOOST_HEARTS.
+  scope.on(subControls, 'click', (ev) => {
+    const btn = ev.target.closest('#arrow-heart-boost');
+    if (!btn) return;
+    if (engine.win || engine.fail || modalOpen) return;
+    if (engine.hearts >= MAX_BOOST_HEARTS) { Toast.show(t('max_hearts') || 'Canın dolu!', 'warning'); return; }
+    Sounds.playSfx?.('button-tap');
+    if (PlayerState.useDiamonds(HEART_BOOST_COST)) {
+      engine.addHearts(1);
+      renderHearts();
+      Haptics.vibrate?.('block-place');
+      const pop = document.createElement('div');
+      pop.className = 'absolute -top-4 left-1/2 -translate-x-1/2 text-pink-400 font-black text-lg z-50 pointer-events-none drop-shadow-sm';
+      pop.textContent = '+1';
+      btn.appendChild(pop);
+      setTimeout(() => pop.remove(), 800);
+    } else {
+      showNotEnoughDiamondsModal();
+    }
+  });
+
+  // Seri (kombo) kutlaması: yanlış dokunuşta sıfırlanan ardışık temizleme; milestone'larda flash.
+  function showStreakCombo(n) {
+    const el = document.createElement('div');
+    el.style.cssText = 'position:absolute;left:50%;top:34%;transform:translate(-50%,-50%);z-index:45;pointer-events:none;font-weight:900;font-size:' + Math.min(46, 26 + n) + 'px;color:#fff;text-shadow:0 2px 14px rgba(6,182,212,0.9),0 0 5px rgba(0,0,0,0.45);white-space:nowrap;';
+    el.textContent = n + ' ' + (t('txt_combo') || 'KOMBO') + '!';
+    container.appendChild(el);
+    el.animate([
+      { opacity: 0, transform: 'translate(-50%,-50%) scale(0.5)' },
+      { opacity: 1, transform: 'translate(-50%,-70%) scale(1.15)', offset: 0.3 },
+      { opacity: 1, transform: 'translate(-50%,-85%) scale(1)', offset: 0.7 },
+      { opacity: 0, transform: 'translate(-50%,-110%) scale(0.9)' }
+    ], { duration: 900, easing: 'ease-out' });
+    setTimeout(() => el.remove(), 920);
+    Haptics.vibrate?.('new-record');
+  }
+
   function resetHintTimer() {
     hintCell = null;
   }
@@ -980,6 +1393,7 @@ canvas.addEventListener('wheel', onWheel, { passive: false });
     Sounds.playSfx?.('level-up');
     Haptics.vibrate?.('new-record');
     const stars = engine.lastStars || 1;
+    const shapeLabel = getShapeName(engine.shape);
     
     let reward = 0;
     if (mode === 'endless') {
@@ -1015,7 +1429,8 @@ canvas.addEventListener('wheel', onWheel, { passive: false });
           <div class="w-16 h-16 rounded-full bg-gradient-to-br from-cyan-400 to-indigo-500 flex items-center justify-center shadow-lg">
             <span class="material-symbols-outlined text-3xl text-white">navigation</span>
           </div>
-          ${mode === 'endless' ? `<p class="text-sm font-bold text-gray-500">${(t('x2_endless_mode') || 'SONSUZ MOD').toUpperCase()}</p>` : `<p class="text-sm text-gray-500">${t('level') || 'Seviye'} ${engine.level}</p>`}
+          <p class="text-lg font-black text-gray-800 dark:text-gray-100 -mt-1">${shapeLabel}</p>
+          ${mode === 'endless' ? `<p class="text-sm font-bold text-gray-500"><span class="material-symbols-outlined text-[18px] align-middle">all_inclusive</span></p>` : `<p class="text-sm text-gray-500">${t('level') || 'Seviye'} ${engine.level}</p>`}
           ${reward > 0 ? `<div class="flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-cyan-400/15 border border-cyan-400/20"><span class="material-symbols-outlined text-cyan-400 text-lg" style="font-variation-settings:'FILL' 1;">diamond</span><span class="font-black text-cyan-500">+${reward}</span></div>` : ''}
         </div>`,
       actions: [
@@ -1025,11 +1440,13 @@ canvas.addEventListener('wheel', onWheel, { passive: false });
             close(); modalOpen = false; 
             if (mode === 'endless') {
               let nextLvl = Math.floor(Math.random() * getTotalArrowLevels()) + 1;
+              history.replaceState(null, '', `#/arrow?mode=endless&level=${nextLvl}`);
               engine.init(nextLvl);
             } else {
               let nextLvl = engine.level + 1;
               if (nextLvl > getTotalArrowLevels()) nextLvl = 1;
               PlayerState.updateArrowAdventureLevel(nextLvl);
+              history.replaceState(null, '', `#/arrow?level=${nextLvl}`);
               engine.init(nextLvl);
             }
             hintUsages = 0;
@@ -1060,7 +1477,7 @@ canvas.addEventListener('wheel', onWheel, { passive: false });
       resetHintTimer();
       ensureLoop();
     };
-    const toast = (key, fb, type) => import('../components/toast.js').then(m => m.Toast.show(t(key) || fb, type));
+    const toast = (key, fb, type) => Toast.show(t(key) || fb, type);
 
     const modal = createModal({
       title: t('second_chance') || 'İkinci Şans',
@@ -1112,7 +1529,7 @@ canvas.addEventListener('wheel', onWheel, { passive: false });
             overlayContainer.style.width = '100vw';
             overlayContainer.style.height = '100vh';
             overlayContainer.style.zIndex = '10000';
-            document.body.appendChild(overlayContainer); activeBodyAppends.push(overlayContainer); activeBodyAppends.push(overlayContainer);
+            document.body.appendChild(overlayContainer); activeBodyAppends.push(overlayContainer);
           });
       }
     });
@@ -1151,6 +1568,7 @@ canvas.addEventListener('wheel', onWheel, { passive: false });
   container.appendChild(bannerSpacer);
 
   container.cleanup = () => {
+    scope.destroy(); // izlenen setTimeout/RAF iptali (mevcut manuel teardown + saveState korunur)
     activeBodyAppends.forEach(el => el && el.parentNode && el.remove());
     if (typeof hintTimer !== 'undefined') clearTimeout(hintTimer);
     if (rafId !== null) cancelAnimationFrame(rafId);
