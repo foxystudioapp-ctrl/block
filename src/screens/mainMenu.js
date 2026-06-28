@@ -7,7 +7,6 @@ import { Storage } from '../utils/storage.js';
 import { initSwipeNavigation } from '../utils/swipeNav.js';
 import { t } from '../utils/i18n.js';
 import { Sounds } from '../utils/sounds.js';
-import { createClassicHint, createAdventureHint, createHexHint, createSortHint, create2048Hint, createMergeHint, createX2Hint, createBubbleHint, createArrowHint } from '../components/gameHints.js';
 import { showDailyRewardModal } from '../components/dailyReward.js';
 import { showConsentModal } from '../components/consentModal.js';
 import { createModal } from '../components/modal.js';
@@ -24,9 +23,11 @@ export function MainMenu(router) {
   container.className = 'w-full max-w-full lg:max-w-4xl mx-auto h-[100dvh] flex flex-col justify-between bg-bg-light dark:bg-primary text-primary dark:text-white select-none relative overflow-hidden';
 
   // Sezon Sonu Ödül Kontrolü
+  let seasonTimer = null;
   if (PlayerState.state.pendingSeasonRewards) {
     const rewards = PlayerState.state.pendingSeasonRewards;
-    setTimeout(() => {
+    seasonTimer = setTimeout(() => {
+      if (!container.isConnected) return; // kullanıcı 600ms içinde çıktıysa modalı açma
       const rewardModal = createModal({
         title: t('season_ended') || 'Sezon Sona Erdi!',
         content: `
@@ -865,8 +866,13 @@ export function MainMenu(router) {
 
   initSwipeNavigation(container, router, 'menu');
 
+  // Menü müziğini başlat. Oyun ekranları çıkışta stopMusic() yaptığından, bir oyundan
+  // dönüldüğünde menü sessiz kalıyordu; startMusic aynı tema çalıyorsa idempotent.
+  Sounds.startMusic('menu');
+
   // Consent and Daily Reward logic
-  setTimeout(() => {
+  const consentTimer = setTimeout(() => {
+    if (!container.isConnected) return; // kullanıcı 800ms içinde çıktıysa modalı açma
     showConsentModal(async () => {
       // Daily login reward check happens AFTER consent
       if (PlayerState.checkDailyReward()) {
@@ -877,6 +883,8 @@ export function MainMenu(router) {
 
   // Cleanup topBar listeners + hint animations
   container.cleanup = () => {
+    clearTimeout(consentTimer);
+    if (seasonTimer) clearTimeout(seasonTimer);
     if (topBar.cleanup) topBar.cleanup();
     hintCleanups.forEach(fn => fn());
   };

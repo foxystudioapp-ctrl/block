@@ -57,6 +57,3 @@ export const SHAPE_EN = {
   "Savaş Gemisi": "Battleship", "Zeplin Detay": "Zeppelin", "Fırtına": "Storm", "Dev Gemi": "Giant Ship",
   "Dev Ejderha": "Giant Dragon", "Labirent": "Labyrinth", "DNA": "DNA", "Kartal": "Eagle"
 };
-
-// İstersen diğer dilleri buraya ekle: { [trAd]: { es:'', fr:'', de:'', ... } }
-export const SHAPE_I18N = {};

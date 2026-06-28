@@ -285,6 +285,14 @@ export function BubbleShooter() {
   let canvasW = 0, canvasH = 0;
   let offsetX = 0, offsetY = 0;
   let gridOffsetY = 0;
+  // Yüksek-DPI'da canvas arka tamponunu SINIRLA. Her balon gölge (shadowBlur) + radial
+  // gradient ile çiziliyor ve uçan balon her karede TÜM grid'i yeniden çizdiriyor; bu yüzden
+  // ölçeklenmemiş dpr (örn. 3) arka tamponu ~9 kat büyütüp fırlatmayı dondurabiliyordu.
+  // Low-end'de 1x (orijinal performans), diğerlerinde en çok 2x (keskinlik/perf dengesi).
+  // resizeCanvas ve draw AYNI ölçeği kullanmalı, yoksa içerik yanlış boyutta çizilir.
+  const isLowEndDevice = document.documentElement.classList.contains('low-end');
+  const renderScale = Math.min(window.devicePixelRatio || 1, isLowEndDevice ? 1 : 2);
+
   function resizeCanvas() {
     const rect = canvasWrap.getBoundingClientRect();
     const padding = 16;
@@ -294,12 +302,18 @@ export function BubbleShooter() {
     const wByCols = availW / (engine.cols + 0.5);
     const hByRows = availH / ((engine.rows + 2) * 0.866); // +2: nişancı alanı
     cellSize = Math.floor(Math.min(wByCols, hByRows));
-    canvas.width = cellSize * (engine.cols + 0.5);
-    canvas.height = cellSize * (engine.rows + 2) * 0.866;
-    canvas.style.width = canvas.width + 'px';
-    canvas.style.height = canvas.height + 'px';
-    canvasW = canvas.width;
-    canvasH = canvas.height;
+
+    const cssW = cellSize * (engine.cols + 0.5);
+    const cssH = cellSize * (engine.rows + 2) * 0.866;
+    const dpr = renderScale;
+
+    canvas.width = cssW * dpr;
+    canvas.height = cssH * dpr;
+    canvas.style.width = cssW + 'px';
+    canvas.style.height = cssH + 'px';
+    
+    canvasW = cssW;
+    canvasH = cssH;
     offsetX = 0;
     offsetY = 0;
     gridOffsetY = 0;
@@ -696,7 +710,11 @@ export function BubbleShooter() {
   function draw() {
     if (!canvas.getContext) return;
     const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvasW, canvasH);
+    const dpr = renderScale; // resizeCanvas ile aynı ölçek (uyumsuzluk içerik boyutunu bozar)
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.scale(dpr, dpr);
+    
     updateShooterPos();
 
     const r = cellSize / 2 - 1; // hafif boşluk
@@ -1498,6 +1516,11 @@ export function BubbleShooter() {
     if (gridRafId) cancelAnimationFrame(gridRafId);
     if (flyingRafId) cancelAnimationFrame(flyingRafId);
     engine = null;
+    // Global referansları bırak: aksi halde engine/grid closure'ları sonsuza dek
+    // bellekte kalır ve bgParticles bir sonraki açılışta bayat (eski canvas boyutu) kalır.
+    delete window.bubbleEngine;
+    delete window.bubbleApi;
+    delete window.bgParticles;
   };
 
   // Banner için altta boşluk (banner canvas'ı kapatmasın)

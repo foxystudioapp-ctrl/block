@@ -7,7 +7,7 @@ leoProfanity.clearList();
 leoProfanity.add(englishDictionary);
 leoProfanity.add(turkishDictionary);
 
-export function normalizeText(text) {
+function normalizeText(text) {
   if (typeof text !== 'string') return '';
   
   // 1. Map Turkish uppercase İ -> i and I -> ı before general lowercasing.

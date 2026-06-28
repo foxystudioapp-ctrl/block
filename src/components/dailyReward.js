@@ -123,10 +123,19 @@ export function showDailyRewardModal() {
       <span class="material-symbols-outlined text-2xl drop-shadow-sm">diamond</span>
     `;
 
+    // Kullanıcı modal açıkken gezinirse overlay orphan kalmasın ve promise asılı durmasın.
+    const onHashChange = () => {
+      window.removeEventListener('hashchange', onHashChange);
+      if (overlay.parentNode) overlay.remove();
+      resolve(0);
+    };
+    window.addEventListener('hashchange', onHashChange);
+
     claimBtn.addEventListener('click', () => {
       Sounds.playSfx('coin-collect');
+      window.removeEventListener('hashchange', onHashChange);
       const amount = PlayerState.claimDailyReward();
-      
+
       // Close modal smoothly
       overlay.style.opacity = '0';
       modal.style.transform = 'scale(0.95) translateY(10px)';

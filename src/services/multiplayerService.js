@@ -40,8 +40,8 @@ export class MultiplayerService {
       const challengeData = {
         id: challengeId,
         challenger: PlayerState.state.uid,
-        challengerName: PlayerState.state.username || 'Player',
-        challengerAvatar: PlayerState.state.avatar || 'cat',
+        challengerName: PlayerState.state.profileName || 'Player',
+        challengerAvatar: PlayerState.state.avatarSeed || 'cat',
         mode: mode,
         status: 'pending',
         timestamp: Date.now()

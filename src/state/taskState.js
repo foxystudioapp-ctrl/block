@@ -66,7 +66,9 @@ class DailyTaskManager {
   }
 
   save() {
-    Storage.set('daily_tasks', this.tasks);
+    // updateProgress her satır/eşleşme/balon başına çağrılıyor; senkron yazım yerine
+    // debounce'lı yazım (persist.js arka plana geçişte/kapanışta flush eder). notify anında kalır.
+    Storage.setDebounced('daily_tasks', this.tasks);
     this.notify();
   }
 
@@ -99,10 +101,10 @@ class DailyTaskManager {
 
     if (task.rewardType === 'diamonds') {
       PlayerState.addDiamonds(task.rewardAmount);
-      Toast.show((t('reward_diamonds_earned') || '${task.rewardAmount} Elmas kazanıldı!').replace('{amount}', task.rewardAmount), 'success');
+      Toast.show((t('reward_diamonds_earned') || '{amount} Elmas kazanıldı!').replace(/{amount}|{count}/g, task.rewardAmount), 'success');
     } else if (task.rewardType === 'xp') {
       PlayerState.addXp(task.rewardAmount);
-      Toast.show((t('reward_xp_earned') || '${task.rewardAmount} XP kazanıldı!').replace('{amount}', task.rewardAmount), 'success');
+      Toast.show((t('reward_xp_earned') || '{amount} XP kazanıldı!').replace(/{amount}|{count}/g, task.rewardAmount), 'success');
     }
 
     task.claimed = true;

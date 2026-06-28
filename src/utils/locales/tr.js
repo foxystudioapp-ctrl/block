@@ -530,5 +530,7 @@ export default {
   "badge_bubble_master_desc": "Baloncuk Patlat'ta {target} puan yap",
   "task_bubble_score": "Baloncuk Patlat: 500 puan yap",
   "adventure_map_title": "Macera Haritası",
-  "level_locked_msg": "Önce kaldığın seviyeyi bitir!"
+  "level_locked_msg": "Önce kaldığın seviyeyi bitir!",
+  "no_internet_warning": "İnternete bağlı değilsiniz, lütfen internetinizi açın.",
+  "tut_skip": "Atla",
 };

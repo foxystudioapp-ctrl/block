@@ -406,7 +406,12 @@ export function Game2048(router) {
       } else if (engine.won && !engine.keptPlaying) {
         engine.keptPlaying = true;
         Sounds.playSfx('new-record');
-        alert(t('win') || "Tebrikler! 2048'e ulaştınız!");
+        // Bloklayıcı native alert yerine uygulama modali (Capacitor'da tutarlı UX).
+        createModal({
+          title: '🎉 2048',
+          content: `<p class="text-center text-sm font-bold text-gray-400 p-4">${t('win') || "Tebrikler! 2048'e ulaştınız!"}</p>`,
+          actions: [{ text: t('continue') || 'Devam Et', primary: true, onClick: (close) => close() }]
+        });
       } else if (mode !== 'adventure') {
         // Sonsuz modda periyodik reklam kontrolü
         AdService.showForcedInterstitial('periodic');

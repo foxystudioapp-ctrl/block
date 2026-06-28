@@ -100,6 +100,24 @@ export class MergeEngine {
     this.saveGameState();
   }
 
+  // Adventure modunda oyun bitince "Tekrar Oyna" bunu çağırır. Constructor'la yeniden
+  // kurmak kayıtlı (oyun-bitti) state'i geri yükleyeceğinden, mevcut seviyeyi yerinde
+  // sıfırlayıp taze state'i kaydederiz (2048/classic ile aynı desen).
+  restartCurrentLevel() {
+    this.grid = Array(this.gridSize).fill(null).map(() => Array(this.gridSize).fill(0));
+    this.score = 0;
+    this.levelScore = 0;
+    this.tray = [];
+    this.history = [];
+    this.undoCount = 0;
+    this.gameOver = false;
+    this.levelUpReady = false;
+    this.maxSpawnValue = 4;
+    this.spawnInitialBoard();
+    this.fillTray();
+    this.saveGameState();
+  }
+
   // Tahta tıkanma koruması (EŞİK TABANLI rahatlatma) — x2'deki kanıtlanmış desenle aynı.
   // NEDEN: 5x5 tahtada (25 hücre) birleşme 3+ bağlı grup gerektirdiğinden, eşi/grubu
   // tamamlanamayan büyük tekiller birikip tahtayı kilitliyor (oyun-bitiş = tahta tamamen

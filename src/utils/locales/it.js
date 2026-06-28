@@ -529,5 +529,9 @@ export default {
   "vip_desc": "Nessuna Pubblicità + 5000 Diamanti / Mese",
   "vip_desc_no_ads": "Nessuna Pubblicità",
   "vip_desc_diamonds": "5000 Diamanti / Mese",
-  "vip_enjoy": "Goditi i tuoi privilegi VIP!"
+  "vip_enjoy": "Goditi i tuoi privilegi VIP!",
+  "no_internet_warning": "Non sei connesso a Internet, per favore controlla la tua connessione.",
+  "top_percent": "Top %{p}",
+  "level_complete_desc": "Hai completato il livello {level}.",
+  "tut_skip": "Salta",
 };

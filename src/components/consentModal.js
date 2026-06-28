@@ -45,10 +45,17 @@ export function showConsentModal(onAccept) {
     Kabul Et ve Oyna
   `;
   
+  // Kullanıcı modal açıkken gezinirse (hashchange) overlay body'de orphan kalmasın.
+  const onHashChange = () => { overlay.remove(); window.removeEventListener('hashchange', onHashChange); };
+  window.addEventListener('hashchange', onHashChange);
+
   btn.addEventListener('click', () => {
     Sounds.playSfx('button-tap');
     Storage.set('legal_accepted', true);
-    overlay.classList.add('animate-fade-out');
+    window.removeEventListener('hashchange', onHashChange);
+    // Inline opacity ile kapat: animate-in inline opacity:1 verdiğinden 'animate-fade-out'
+    // class'ı kazanamıyordu; transition (duration-200) inline değeri animasyonlar.
+    overlay.style.opacity = '0';
     modal.classList.add('scale-95', 'opacity-0');
     setTimeout(() => {
       overlay.remove();

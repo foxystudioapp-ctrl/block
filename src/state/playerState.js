@@ -147,10 +147,14 @@ class PlayerStateManager {
       this.saveNow();
     }
 
-    // Ensure data is saved when the user closes the window or tab
+    // Ensure data is saved when the user closes the window or tab.
+    // beforeunload Android WebView'de güvenilmez; visibilitychange:hidden + pagehide
+    // arka plana alma/kapanışta da flush eder (500ms debounce dolmadan veri kaybını önler).
     if (typeof window !== 'undefined') {
-      window.addEventListener('beforeunload', () => {
-        this.saveNow();
+      window.addEventListener('beforeunload', () => this.saveNow());
+      window.addEventListener('pagehide', () => this.saveNow());
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') this.saveNow();
       });
     }
   }
@@ -176,8 +180,16 @@ class PlayerStateManager {
 
   saveNow() {
     if (this._saveTimeout) clearTimeout(this._saveTimeout);
+    // Dirty-tracking: her kayıtta ~45 senkron setItem yerine yalnız DEĞİŞEN anahtarları yaz.
+    // Depolama formatı (anahtar başına `player_*`) aynı kalır — kayıtlı ilerleme bozulmaz.
+    if (!this._lastWritten) this._lastWritten = {};
     Object.keys(this.state).forEach(key => {
-      Storage.set(`player_${this.decamelize(key)}`, this.state[key]);
+      const storageKey = this.decamelize(key);
+      let serialized;
+      try { serialized = JSON.stringify(this.state[key]); } catch (e) { serialized = undefined; }
+      if (serialized !== undefined && this._lastWritten[storageKey] === serialized) return;
+      this._lastWritten[storageKey] = serialized;
+      Storage.set(`player_${storageKey}`, this.state[key]);
     });
   }
 
@@ -190,24 +202,35 @@ class PlayerStateManager {
     
     const progress = cloudData.progress;
     let changed = false;
-    
+
     const fieldsToImport = [
-      'isVip', 'lastVipRewardTime', 'diamonds', 'xp', 'level', 'theme', 'unlockedThemes', 'streak', 
-      'bestScoreClassic', 'bestScoreHex', 'bestScoreSort', 'bestScore2048', 
+      'isVip', 'lastVipRewardTime', 'diamonds', 'xp', 'level', 'theme', 'unlockedThemes', 'streak',
+      'bestScoreClassic', 'bestScoreHex', 'bestScoreSort', 'bestScore2048',
       'bestScoreX2', 'bestScoreMerge', 'bestScoreBubble', 'bestScoreArrow', 'bestScoreDuel', 'duelMatches', 'duelWins', 'duelLosses',
       'currentAdventureLevel', 'adventureStars', 'profileName', 'profileTitle', 'avatarSeed',
-      'unlockedAvatars', 'jewelCrushLevel', 'sortAdventureLevel', 'sortEndlessLevel', 
+      'unlockedAvatars', 'jewelCrushLevel', 'sortAdventureLevel', 'sortEndlessLevel',
       'g2048AdventureLevel', 'mergeAdventureLevel', 'bubbleAdventureLevel', 'x2AdventureLevel', 'arrowAdventureLevel',
       'minerCurrentArea', 'bestScoreJewel', 'pastSeasons', 'globalTrophies'
     ];
-    
+
+    // Para/sayaç gibi DÜŞEBİLEN alanlar Math.max ile birleştirilmemeli — aksi halde
+    // harcanan elmas bulut değeriyle geri yüklenir (dupe açığı). Bunlar bulut-yetkili
+    // (son yazan kazanır) olarak doğrudan atanır.
+    const cloudAuthoritativeFields = new Set([
+      'diamonds', 'isVip', 'lastVipRewardTime', 'theme', 'profileTitle',
+    ]);
+
     fieldsToImport.forEach(key => {
       if (progress[key] !== undefined) {
-        if (typeof this.state[key] === 'number') {
-        this.state[key] = Math.max(this.state[key] || 0, progress[key] || 0);
-      } else {
-        this.state[key] = progress[key];
-      }
+        if (cloudAuthoritativeFields.has(key)) {
+          this.state[key] = progress[key];
+        } else if (typeof this.state[key] === 'number') {
+          // Yalnız monoton artan alanlar (skor/seviye/yıldız) için max birleştirme.
+          const cloudVal = Number(progress[key]);
+          this.state[key] = Math.max(this.state[key] || 0, Number.isFinite(cloudVal) ? cloudVal : 0);
+        } else {
+          this.state[key] = progress[key];
+        }
         changed = true;
       }
     });
@@ -227,7 +250,11 @@ class PlayerStateManager {
   }
 
   addDiamonds(amount) {
-    this.state.diamonds += amount;
+    const amt = Number(amount);
+    // Geçersiz (NaN/undefined) miktar elmasları kalıcı olarak bozar; sessizce yok say.
+    if (!Number.isFinite(amt) || amt === 0) return;
+    const current = Number.isFinite(this.state.diamonds) ? this.state.diamonds : 0;
+    this.state.diamonds = Math.max(0, current + amt);
     this.save();
   }
 
@@ -248,8 +275,11 @@ class PlayerStateManager {
   }
 
   useDiamonds(amount) {
-    if (this.state.diamonds >= amount) {
-      this.state.diamonds -= amount;
+    const amt = Number(amount);
+    if (!Number.isFinite(amt) || amt < 0) return false;
+    const current = Number.isFinite(this.state.diamonds) ? this.state.diamonds : 0;
+    if (current >= amt) {
+      this.state.diamonds = current - amt;
       this.save();
       return true;
     }

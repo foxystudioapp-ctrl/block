@@ -172,5 +172,10 @@ export function BuyDiamonds(router, onBack = null) {
   content.appendChild(packagesGrid);
   container.appendChild(content);
 
+  // topBar'ın PlayerState aboneliği her ziyarette sızmasın diye sökülür.
+  container.cleanup = () => {
+    if (topBar.cleanup) topBar.cleanup();
+  };
+
   return container;
 }

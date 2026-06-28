@@ -529,5 +529,9 @@ export default {
   "vip_desc": "広告なし + 5000 ダイヤモンド / 月",
   "vip_desc_no_ads": "広告なし",
   "vip_desc_diamonds": "5000 ダイヤモンド / 月",
-  "vip_enjoy": "VIPの特典をお楽しみください！"
+  "vip_enjoy": "VIPの特典をお楽しみください！",
+  "no_internet_warning": "インターネットに接続されていません。接続を確認してください。",
+  "top_percent": "上位 %{p}",
+  "level_complete_desc": "レベル{level}をクリアしました。",
+  "tut_skip": "スキップ",
 };

@@ -42,6 +42,13 @@ class ToastManager {
 
     this.container.appendChild(toast);
 
+    // Eşzamanlı toast sayısını sınırla: spam çağrılarda (örn. çevrimdışı hata döngüsü)
+    // en eskileri hemen kaldır, sınırsız DOM/timer birikmesini önle.
+    const MAX_TOASTS = 3;
+    while (this.container.children.length > MAX_TOASTS) {
+      this.container.firstElementChild.remove();
+    }
+
     // Trigger animate-in
     setTimeout(() => {
       toast.classList.remove('opacity-0', 'translate-y-[-20px]');

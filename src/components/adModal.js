@@ -33,7 +33,7 @@ export function showAdModal(cost, retryCallback, type = 'undo') {
   closeBtn.onclick = () => modal.close();
   modal.querySelector('.glass-card').appendChild(closeBtn);
 
-  document.body.appendChild(modal);
+  // createModal zaten body'ye ekliyor; ikinci appendChild gereksizdi.
 
   modal.querySelector('#modal-watch-ad').addEventListener('click', async () => {
     Sounds.playSfx('button-tap');

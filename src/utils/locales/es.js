@@ -530,5 +530,8 @@ export default {
   "vip_desc": "Sin Anuncios + 5000 Diamantes / Mes",
   "vip_desc_no_ads": "Sin Anuncios",
   "vip_desc_diamonds": "5000 Diamantes / Mes",
-  "vip_enjoy": "¡Disfruta de tus privilegios VIP!"
+  "vip_enjoy": "¡Disfruta de tus privilegios VIP!",
+  "no_internet_warning": "No estás conectado a internet, por favor verifica tu conexión.",
+  "level_complete_desc": "Has completado el nivel {level}.",
+  "tut_skip": "Saltar",
 };

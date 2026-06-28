@@ -45,8 +45,14 @@ export function Leaderboard(router) {
       </div>
     `;
 
-    // 1. Fetch Real Players
-    const realPlayers = await MultiplayerService.getTopPlayers();
+    // 1. Fetch Real Players — arka uç hatası tüm render'ı reddedip spinner'ı sonsuza
+    // kilitlemesin diye güvenli; hata olursa yalnız botlar + sen gösterilir.
+    let realPlayers = [];
+    try {
+      realPlayers = (await MultiplayerService.getTopPlayers()) || [];
+    } catch (e) {
+      console.warn('Leaderboard: getTopPlayers başarısız, botlarla devam', e);
+    }
     
     // 2. Generate Local Bots (Eksik olan name ve avatar özelliklerini haritalıyoruz)
     const topBots = BotManager.getTopBots(50).map(b => ({
@@ -125,8 +131,8 @@ export function Leaderboard(router) {
       }
     });
 
-    // Re-find 'me' and determine percentile
-    const myRank = mockData.find(p => p.uid === myUid).rank;
+    // Re-find 'me' and determine percentile (bulunamazsa render patlamasın)
+    const myRank = mockData.find(p => p.uid === myUid)?.rank ?? (TOTAL_PLAYERS);
     let percentileText = '';
     if (myRank > 50) {
       const percentile = Math.max(1, Math.round((myRank / TOTAL_PLAYERS) * 100));

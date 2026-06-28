@@ -88,6 +88,23 @@ export class Engine2048 {
     this.saveGameState();
   }
 
+  // Adventure modunda oyun bitince "Tekrar Oyna" bunu çağırır. Constructor'la yeniden
+  // kurmak kayıtlı (oyun-bitti) state'i geri yükleyeceğinden, mevcut seviyeyi yerinde
+  // sıfırlayıp taze state'i kaydederiz.
+  restartCurrentLevel() {
+    this.grid = Array(this.gridSize).fill(null).map(() => Array(this.gridSize).fill(0));
+    this.score = 0;
+    this.levelScore = 0;
+    this.history = [];
+    this.undoCount = 0;
+    this.gameOver = false;
+    this.won = false;
+    this.levelUpReady = false;
+    this.keptPlaying = false;
+    this.init();          // iki başlangıç taşı üret
+    this.saveGameState(); // oyun-bitti kaydının üzerine taze state yaz
+  }
+
   init() {
     this.spawnTile();
     this.spawnTile();

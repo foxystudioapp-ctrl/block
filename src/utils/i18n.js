@@ -16,23 +16,13 @@ export const availableLanguages = [
 
 const loadedTranslations = {};
 
-export const translations = new Proxy({}, {
-  get(target, prop) {
-    return loadedTranslations[prop];
-  },
-  set(target, prop, value) {
-    loadedTranslations[prop] = value;
-    return true;
-  }
-});
-
 let currentLang = 'en';
 
 const RTL_LANGS = ['ar'];
 
 const isValidLang = (lang) => availableLanguages.some(l => l.code === lang);
 
-export function applyTextDirection(langCode) {
+function applyTextDirection(langCode) {
   const dir = RTL_LANGS.includes(langCode) ? 'rtl' : 'ltr';
   document.documentElement.dir = dir;
   document.documentElement.setAttribute('dir', dir);

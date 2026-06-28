@@ -490,13 +490,17 @@ class SoundManager {
         osc.frequency.setValueAtTime(300, t);
         osc.frequency.exponentialRampToValueAtTime(100, t + 0.1);
 
-        // Add a noise layer for friction
-        const noiseSize = this.ctx.sampleRate * 0.1;
-        const buffer = this.ctx.createBuffer(1, noiseSize, this.ctx.sampleRate);
-        const data = buffer.getChannelData(0);
-        for (let i = 0; i < noiseSize; i++) data[i] = Math.random() * 2 - 1;
+        // Add a noise layer for friction. Gürültü buffer'ı her kayışta JS RNG döngüsüyle
+        // yeniden doldurmak yerine bir kez üretilip yeniden kullanılır (buffer'lar tekrar
+        // kullanılabilir; yalnız source düğümü tek-atımlıktır).
+        if (!this._slideNoiseBuffer) {
+          const noiseSize = Math.floor(this.ctx.sampleRate * 0.1);
+          this._slideNoiseBuffer = this.ctx.createBuffer(1, noiseSize, this.ctx.sampleRate);
+          const data = this._slideNoiseBuffer.getChannelData(0);
+          for (let i = 0; i < noiseSize; i++) data[i] = Math.random() * 2 - 1;
+        }
         const noiseSource = this.ctx.createBufferSource();
-        noiseSource.buffer = buffer;
+        noiseSource.buffer = this._slideNoiseBuffer;
         const noiseFilter = this.ctx.createBiquadFilter();
         noiseFilter.type = 'bandpass';
         noiseFilter.frequency.value = 800;
@@ -768,13 +772,17 @@ class SoundManager {
   // Generates beautiful lush ambient generative music
   startMusic(theme = 'menu') {
     this.init();
-    this.activeTheme = theme;
-    if (!this.ctx || !this.musicEnabled) return;
+    if (!this.ctx || !this.musicEnabled) { this.activeTheme = theme; return; }
 
     if (this.ctx.state === 'suspended') {
       this.ctx.resume();
     }
 
+    // Aynı tema zaten çalıyorsa baştan başlatma — menü/sekme dönüşlerinde gereksiz
+    // fade-restart'ı (ve üst üste binen müzik katmanlarını) önler.
+    if (this.isPlayingMusic && this.activeTheme === theme) return;
+
+    this.activeTheme = theme;
     this.stopMusic();
 
     this.musicNodes = []; // Track all playing nodes for cleanup

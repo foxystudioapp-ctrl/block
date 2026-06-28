@@ -128,12 +128,12 @@ export function showShopModal() {
           
           const newCount = adCount + 1;
           const isNowAvailable = newCount < maxAds;
-          btnWatchAd.className = `w-full glass-panel p-3 rounded-2xl flex items-center justify-between active:scale-95 transition-transform shadow-md \${isNowAvailable ? 'bg-gradient-to-r from-blue-500/20 to-cyan-500/20 border border-cyan-500/30' : 'opacity-50 grayscale border border-white/5'}`;
-          btnWatchAd.querySelector('.text-sm').className = `font-black text-sm \${isNowAvailable ? 'text-cyan-400' : 'text-gray-400'}`;
-          btnWatchAd.querySelector('.text-\\[10px\\]').textContent = isNowAvailable ? `\${newCount}/\${maxAds}` : (t('ad_limit_reached') || 'Günlük Sınır Doldu');
-          
+          btnWatchAd.className = `w-full glass-panel p-3 rounded-2xl flex items-center justify-between active:scale-95 transition-transform shadow-md ${isNowAvailable ? 'bg-gradient-to-r from-blue-500/20 to-cyan-500/20 border border-cyan-500/30' : 'opacity-50 grayscale border border-white/5'}`;
+          btnWatchAd.querySelector('.text-sm').className = `font-black text-sm ${isNowAvailable ? 'text-cyan-400' : 'text-gray-400'}`;
+          btnWatchAd.querySelector('.text-\\[10px\\]').textContent = isNowAvailable ? `${newCount}/${maxAds}` : (t('ad_limit_reached') || 'Günlük Sınır Doldu');
+
           const iconContainer = btnWatchAd.querySelector('.rounded-full.flex');
-          iconContainer.className = `w-10 h-10 rounded-full \${isNowAvailable ? 'bg-cyan-500' : 'bg-gray-500'} flex items-center justify-center shadow-inner`;
+          iconContainer.className = `w-10 h-10 rounded-full ${isNowAvailable ? 'bg-cyan-500' : 'bg-gray-500'} flex items-center justify-center shadow-inner`;
           
           if (!isNowAvailable) {
             btnWatchAd.replaceWith(btnWatchAd.cloneNode(true)); // remove listeners

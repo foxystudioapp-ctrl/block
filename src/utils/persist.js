@@ -49,7 +49,7 @@ export function debouncedSetItem(key, value) {
 }
 
 // Bekleyen tüm yazımları hemen diske yaz (arka plana geçiş / kapanış için).
-export function flushPersist() {
+function flushPersist() {
   for (const key of [...pending.keys()]) writeNow(key);
 }
 

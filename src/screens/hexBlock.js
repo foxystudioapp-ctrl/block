@@ -1,5 +1,4 @@
 import { HexEngine } from '../game/hexEngine.js';
-import { showFeedback } from '../utils/feedback.js';
 import { createTopBar } from '../components/topBar.js';
 import { PlayerState } from '../state/playerState.js';
 import { Sounds } from '../utils/sounds.js';
@@ -543,9 +542,6 @@ export function HexBlock(router) {
   };
 
   engine.clearEventCallback = (detail) => {
-    const clearedCount = typeof detail.lines === 'number' ? detail.lines : ((detail.lines ? detail.lines.length : 0) + (detail.rows ? detail.rows.length : 0) + (detail.cols ? detail.cols.length : 0));
-    showFeedback(typeof boardWrapper !== 'undefined' ? boardWrapper : container, clearedCount);
-
     const isCombo = !!detail.comboText;
 
     // 1. Shake the board

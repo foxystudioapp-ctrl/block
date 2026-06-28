@@ -14,16 +14,24 @@ export function initSwipeNavigation(container, router, currentTab) {
   const minSwipeDistance = 60; // minimum distance to be considered a swipe
   const maxVerticalDev = 50;   // maximum vertical deviation to ignore diagonal swipes
 
-  container.addEventListener('touchstart', (e) => {
+  const onTouchStart = (e) => {
     touchStartX = e.changedTouches[0].screenX;
     touchStartY = e.changedTouches[0].screenY;
-  }, { passive: true });
-
-  container.addEventListener('touchend', (e) => {
+  };
+  const onTouchEnd = (e) => {
     touchEndX = e.changedTouches[0].screenX;
     touchEndY = e.changedTouches[0].screenY;
     handleSwipe();
-  }, { passive: true });
+  };
+  container.addEventListener('touchstart', onTouchStart, { passive: true });
+  container.addEventListener('touchend', onTouchEnd, { passive: true });
+
+  // Çağıran ekran isterse listener'ları sökebilsin (container'lar zaten ekranla GC edilir
+  // ama hijyen + tekrar-init durumlarında güvenli).
+  const cleanup = () => {
+    container.removeEventListener('touchstart', onTouchStart);
+    container.removeEventListener('touchend', onTouchEnd);
+  };
 
   function handleSwipe() {
     const deltaX = touchEndX - touchStartX;
@@ -46,4 +54,6 @@ export function initSwipeNavigation(container, router, currentTab) {
       }
     }
   }
+
+  return cleanup;
 }

@@ -263,9 +263,7 @@ export function X2Block(router) {
   // Add listeners for powerups now that they are in DOM
   setTimeout(() => {
     const swapBtn = container.querySelector('#x2-power-swap');
-    const changeBtn = container.querySelector('#x2-power-change');
     if (swapBtn) swapBtn.addEventListener('click', () => handlePowerUp('swap'));
-    if (changeBtn) changeBtn.addEventListener('click', () => handlePowerUp('change'));
   }, 0);
 
   // ============ BLOCK COLORS ============
@@ -902,25 +900,7 @@ export function X2Block(router) {
       }
     }
 
-    if (type === 'change') {
-      const result = engine.useChangeNext();
-      if (result) {
-        Haptics.vibrate('button-tap');
-        renderNextBlocks();
-        updatePowerUpUI();
-        // Animate current and next block preview
-        const currentEl = container.querySelector('#x2-current-block');
-        const nextEl = container.querySelector('#x2-next-block');
-        if (currentEl) {
-          currentEl.style.transform = 'scale(1.3)';
-          setTimeout(() => currentEl.style.transform = 'scale(1)', 200);
-        }
-        if (nextEl) {
-          nextEl.style.transform = 'scale(1.3)';
-          setTimeout(() => nextEl.style.transform = 'scale(1)', 200);
-        }
-      }
-    } else {
+    {
       // Toggle power-up mode
       if (powerUpMode === type) {
         powerUpMode = null;

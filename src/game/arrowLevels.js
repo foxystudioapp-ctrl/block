@@ -13,7 +13,7 @@ export const DIRS = [
   [-1, -1] // 7: KB
 ];
 
-export const SHAPE_COLORS = {
+const SHAPE_COLORS = {
   'cyan': '#06b6d4',
   'blue': '#3b82f6',
   'orange': '#f97316',

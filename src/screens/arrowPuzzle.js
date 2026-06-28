@@ -53,6 +53,12 @@ export function ArrowPuzzle(router) {
   let clearStreak = 0;           // ardışık başarılı temizleme (yanlış dokunuşta sıfırlanır)
   let hintUsages = 0;
 
+  // Dark mode'u bir kez değerlendir; her karo/karede window.matchMedia(...) parse etmek
+  // yerine 'change' olayında güncelle (low-end'de kare başına onlarca parse'ı önler).
+  const _darkMql = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+  let isDarkMode = _darkMql ? _darkMql.matches : false;
+  if (_darkMql) scope.on(_darkMql, 'change', (e) => { isDarkMode = e.matches; });
+
   // ===== Konteyner =====
   const container = document.createElement('div');
   container.className = 'w-full max-w-full lg:max-w-2xl mx-auto h-[100dvh] flex flex-col bg-bg-light dark:bg-primary text-primary dark:text-white select-none relative overflow-hidden';
@@ -315,7 +321,6 @@ export function ArrowPuzzle(router) {
     const sc = opts.scale === undefined ? 1 : opts.scale;
     
     // Sistem karanlık moduna göre dinamik renk
-    const isDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
     const baseLineColor = isDarkMode ? '#F8FAFC' : '#0F172A'; // Koyu modda beyaz, açık modda siyah
     const lineColor = opts.danger ? '#EF4444' : baseLineColor;
 
@@ -632,8 +637,7 @@ export function ArrowPuzzle(router) {
     // şekli temizlemeden GÖREMİYORDU. Emsaller gibi: (a) her hücrede ince nokta (ızgara hissi),
     // (b) şekil hücrelerinin ALTINA soluk renk tint → oyuncu hedef resmi okları kaldırmadan görür.
     {
-      const isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-      const dotColor = isDark ? 'rgba(148,163,184,0.22)' : 'rgba(100,116,139,0.20)';
+      const dotColor = isDarkMode ? 'rgba(148,163,184,0.22)' : 'rgba(100,116,139,0.20)';
       const dotR = Math.max(1, cell * 0.06);
       const tintS = cell * 0.9, tintR = tintS / 2;
       for (let r = 0; r < engine.rows; r++) {
@@ -828,7 +832,6 @@ export function ArrowPuzzle(router) {
         }
       }
 
-      const isDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
       const lineColor = isDarkMode ? '#F8FAFC' : '#0F172A';
       const lw = Math.max(1.5, cell * 0.06);
 
@@ -943,7 +946,6 @@ export function ArrowPuzzle(router) {
                      }
                    }
 
-                   const isDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
                    const lineColor = isDarkMode ? '#F8FAFC' : '#0F172A';
                    const lw = Math.max(1.5, cell * 0.06);
 
@@ -1099,8 +1101,19 @@ export function ArrowPuzzle(router) {
   }
   function loop() {
     render();
-    if (animActive(performance.now())) { rafId = requestAnimationFrame(loop); }
-    else { rafId = null; render(); }
+    const now = performance.now();
+    if (animActive(now)) {
+      // Yalnız ipucu parlaması aktifse (kullanıcı idle) tam 60fps yerine ~20fps yeterli;
+      // tüm board'u her kare yeniden çizip pil/CPU yakmak yerine throttle edilir.
+      const onlyHint = hintCell && flying.length === 0 && !shake && reveals.size === 0 && !tutorialAnim &&
+        !(entranceT0 && now < entranceT0 + entranceMax) && !(winGlowT0 && now < winGlowT0 + 900);
+      if (onlyHint) {
+        rafId = -1; // sentinel: throttle timer'ı ile sürüyor (null değil → çift başlatma olmaz)
+        setTimeout(() => { rafId = requestAnimationFrame(loop); }, 50);
+      } else {
+        rafId = requestAnimationFrame(loop);
+      }
+    } else { rafId = null; render(); }
   }
   function requestRender() { if (rafId === null) render(); }
   function ensureLoop() { if (rafId === null) rafId = requestAnimationFrame(loop); }
@@ -1582,6 +1595,8 @@ canvas.addEventListener('wheel', onWheel, { passive: false });
     if (topBar.cleanup) topBar.cleanup();
     AdService.hideBanner?.();
     if (!engine.win && !engine.fail) engine.saveState();
+    // Tutorial API global'i closure ile engine/canvas'ı tuttuğundan ekran kapanınca bırakılır.
+    delete window.arrowTutorialApi;
   };
 
   return container;

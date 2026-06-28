@@ -530,5 +530,8 @@ export default {
   "vip_desc": "بدون إعلانات + 5000 ماسة / شهر",
   "vip_desc_no_ads": "بدون إعلانات",
   "vip_desc_diamonds": "5000 ماسة / شهر",
-  "vip_enjoy": "استمتع بمزايا VIP الخاصة بك!"
+  "vip_enjoy": "استمتع بمزايا VIP الخاصة بك!",
+  "no_internet_warning": "أنت غير متصل بالإنترنت، يرجى التحقق من اتصالك.",
+  "level_complete_desc": "لقد أكملت المستوى {level}.",
+  "tut_skip": "تخطٍ",
 };

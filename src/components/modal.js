@@ -53,12 +53,18 @@ export function createModal({ title, content, actions = [], onClose = null }) {
 
   modalContainer.appendChild(modalBody);
 
-  // Close helper
+  // Close helper — idempotent: çift kapatmada onClose iki kez ateşlenmesin ve
+  // __activeModals'ta stale referans kalmasın (closeAllModals navigasyonda yeniden çağırabilir).
   modalContainer.close = () => {
+    if (modalContainer._closed) return;
+    modalContainer._closed = true;
+    const idx = window.__activeModals.indexOf(modalContainer);
+    if (idx !== -1) window.__activeModals.splice(idx, 1);
+
     modalContainer.classList.remove('opacity-100');
     modalBody.classList.remove('scale-100');
     modalBody.classList.add('scale-90');
-    
+
     setTimeout(() => {
       modalContainer.remove();
       if (onClose) onClose();

@@ -530,5 +530,7 @@ export default {
   "badge_bubble_master_desc": "Reach {target} points in Bubble Pop",
   "task_bubble_score": "Bubble Pop: Score 500 points",
   "adventure_map_title": "Adventure Map",
-  "level_locked_msg": "Finish your current level first!"
+  "level_locked_msg": "Finish your current level first!",
+  "no_internet_warning": "You are not connected to the internet, please check your connection.",
+  "tut_skip": "Skip",
 };

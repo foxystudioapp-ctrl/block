@@ -32,7 +32,7 @@ function getApp() {
   return app;
 }
 
-export function getAuth() {
+function getAuth() {
   if (!auth) {
     const appInstance = getApp();
     if (appInstance) {
@@ -103,8 +103,13 @@ export const initFirebaseUser = () => {
       return resolve(null);
     }
     const dbInstance = getDb();
+    // Token yenilemesi onAuthStateChanged'i aynı kullanıcıyla yeniden tetikler; ağır
+    // getDoc/setDoc/loadFromCloud/setupPresence bloğunu uid başına yalnız bir kez çalıştır.
+    let authProcessedUid = null;
     onAuthStateChanged(authInstance, async (user) => {
       if (user) {
+        if (authProcessedUid === user.uid) { resolve(user); return; }
+        authProcessedUid = user.uid;
         // Logged in
         PlayerState.state.firebaseError = false; // Reset error flag
         const userRef = doc(dbInstance, 'users', user.uid);
@@ -140,7 +145,7 @@ export const initFirebaseUser = () => {
               name: PlayerState.state.profileName || "Player",
               avatar: PlayerState.state.avatarSeed || "akita",
               level: PlayerState.state.level || 1,
-              score: PlayerState.state.bestScore || 0,
+              score: PlayerState.state.bestScoreClassic || 0,
               createdAt: Date.now()
             });
           }
@@ -199,15 +204,6 @@ function setupPresence(uid) {
     }
   });
 }
-
-export const setPresenceState = (uid, state) => {
-  const rtdbInstance = getRtdb();
-  if (!rtdbInstance || !uid) return;
-  const statusRef = ref(rtdbInstance, 'status/' + uid);
-  set(statusRef, { state: state, last_changed: Date.now() }).catch(e => {
-    console.warn("RTDB setPresenceState Error:", e.message);
-  });
-};
 
 import { Capacitor } from '@capacitor/core';
 import { GoogleSignIn } from '@capawesome/capacitor-google-sign-in';

@@ -498,6 +498,7 @@ export class MatchEngine {
     if (r < 0 || r >= this.rows || c < 0 || c >= this.cols) return null;
     const cell = this.grid[r][c];
     if (!cell) return null;
+    this.comboCount = 0; // yeni eylem: sonraki cascade combo'yu önceki hamleden devraldığı için sıfırla (skor şişmesini önler)
     if (cell.gem) this._collectGem(cell.gem);
     const blasted = [{ r, c, cell: { ...cell } }];
     this.grid[r][c] = null;
@@ -676,15 +677,23 @@ export class MatchEngine {
       let combined = [...matches[i].cells];
       let directions = [matches[i].direction];
 
-      for (let j = i + 1; j < matches.length; j++) {
-        if (used.has(j)) continue;
-        const overlap = matches[j].cells.some(cj => combined.some(ci => ci.r === cj.r && ci.c === cj.c));
-        if (overlap) {
-          used.add(j);
-          for (const cell of matches[j].cells) {
-            if (!combined.some(cc => cc.r === cell.r && cc.c === cell.c)) combined.push(cell);
+      // Tek geçiş, yalnız sonradan birleşen bir parça üzerinden örtüşen başka bir parçayı
+      // (daha küçük index'te taranıp geçilmiş olabilir) kaçırır. `combined` büyüdükçe yeni
+      // örtüşme doğabileceğinden, hiç ekleme kalmayana kadar (fixpoint) tekrar tara.
+      let added = true;
+      while (added) {
+        added = false;
+        for (let j = i + 1; j < matches.length; j++) {
+          if (used.has(j)) continue;
+          const overlap = matches[j].cells.some(cj => combined.some(ci => ci.r === cj.r && ci.c === cj.c));
+          if (overlap) {
+            used.add(j);
+            for (const cell of matches[j].cells) {
+              if (!combined.some(cc => cc.r === cell.r && cc.c === cell.c)) combined.push(cell);
+            }
+            directions.push(matches[j].direction);
+            added = true;
           }
-          directions.push(matches[j].direction);
         }
       }
 

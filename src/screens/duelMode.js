@@ -1,5 +1,4 @@
 import { DuelEngine } from '../game/duelEngine.js';
-import { showFeedback } from '../utils/feedback.js';
 import { createTopBar } from '../components/topBar.js';
 import { PlayerState } from '../state/playerState.js';
 import { Sounds } from '../utils/sounds.js';
@@ -685,7 +684,9 @@ export function DuelMode(router) {
     
     turnOverlay.classList.remove('opacity-0', 'pointer-events-none');
     
+    clearTimeout(botTurnTimeout);
     botTurnTimeout = setTimeout(() => {
+      if (!container.isConnected) return; // ekran kapandıysa bot hamlesi yapma
       const move = engine.calculateBotMove();
       if (move) {
         const piece = engine.activePieces[move.pieceIdx];
@@ -978,7 +979,8 @@ export function DuelMode(router) {
       if (engine.gameOver) {
         showGameOver();
       } else if (typeof isMultiplayer !== 'undefined' && !isMultiplayer) {
-        botTurnTimeout = setTimeout(() => executeBotTurn(), 500);
+        clearTimeout(botTurnTimeout);
+        botTurnTimeout = setTimeout(() => { if (container.isConnected) executeBotTurn(); }, 500);
       }
     } else {
       Sounds.playSfx('invalid');
@@ -1024,6 +1026,11 @@ export function DuelMode(router) {
     if (isMultiplayer && window.location.hash !== '#/duel') {
       Multiplayer.leaveRoom();
     }
+    // Multiplayer singleton callback'leri null'lanmazsa geç gelen RTDB event'leri
+    // ayrılmış ekranda showGameOver()/navigate() çalıştırır.
+    Multiplayer.onRoomStateChange = null;
+    Multiplayer.onOpponentMove = null;
+    if (topBar.cleanup) topBar.cleanup();
     AdService.hideBanner();
     clearInterval(turnTimerInterval);
     clearInterval(disconnectTimerInterval);

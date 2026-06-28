@@ -3,7 +3,7 @@ import { Capacitor } from '@capacitor/core';
 import { PlayerState } from '../state/playerState.js';
 import { Toast } from '../components/toast.js';
 
-export class IAPService {
+class IAPService {
   constructor() {
     this.isInitialized = false;
     this.packages = [];
@@ -88,15 +88,16 @@ export class IAPService {
     try {
       const { customerInfo } = await Purchases.purchasePackage({ aPackage: pkg });
       
-      // Determine how many diamonds to give based on the product identifier
+      // Determine how many diamonds to give based on the product identifier.
+      // Substring eşleştirme ('500' içinde '5000' yakalanır) yanlış miktar verebildiğinden
+      // ID içindeki sayı GRUPLARI çıkarılıp tam tier eşleşmesi aranır (örn. 'diamonds_5000' -> 5000,
+      // 'diamonds_50000' -> bilinen tier değil -> 0).
       const productId = pkg.product.identifier;
+      const DIAMOND_TIERS = { '500': 500, '1000': 1000, '2000': 2000, '5000': 5000, '10000': 10000 };
       let diamondsToAdd = 0;
-
-      if (productId.includes('500') && !productId.includes('5000')) diamondsToAdd = 500;
-      else if (productId.includes('1000') && !productId.includes('10000')) diamondsToAdd = 1000;
-      else if (productId.includes('2000')) diamondsToAdd = 2000;
-      else if (productId.includes('5000')) diamondsToAdd = 5000;
-      else if (productId.includes('10000')) diamondsToAdd = 10000;
+      for (const numStr of (productId.match(/\d+/g) || [])) {
+        if (DIAMOND_TIERS[numStr]) { diamondsToAdd = DIAMOND_TIERS[numStr]; break; }
+      }
 
       if (diamondsToAdd > 0) {
         PlayerState.addDiamonds(diamondsToAdd);

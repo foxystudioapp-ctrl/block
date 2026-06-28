@@ -1,4 +1,4 @@
-export const SHAPES = [
+const SHAPES = [
   // 1. Single (1x1)
   {
     matrix: [[1]],

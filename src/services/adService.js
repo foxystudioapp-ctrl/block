@@ -1,4 +1,4 @@
-import { AdMob, BannerAdSize, BannerAdPosition } from '@capacitor-community/admob';
+import { AdMob, BannerAdSize, BannerAdPosition, RewardAdPluginEvents, InterstitialAdPluginEvents } from '@capacitor-community/admob';
 import { Capacitor } from '@capacitor/core';
 import { Sounds } from '../utils/sounds.js';
 import { Toast } from '../components/toast.js';
@@ -43,12 +43,12 @@ class AdServiceManager {
         
         this.initialized = true;
 
-        AdMob.addListener('interstitialAdDismissed', () => {
+        AdMob.addListener(InterstitialAdPluginEvents.Dismissed, () => {
           this.interstitialLoaded = false;
           this.prepareInterstitial();
         });
 
-        AdMob.addListener('rewardedVideoAdDismissed', () => {
+        AdMob.addListener(RewardAdPluginEvents.Dismissed, () => {
           this.rewardedLoaded = false;
           this.prepareRewardVideoAd();
         });
@@ -160,29 +160,51 @@ class AdServiceManager {
     
     return new Promise(async (resolve) => {
       let rewarded = false;
+      let settled = false;
+      let safetyTimer = null;
 
-      const rewardListener = AdMob.addListener('rewardedVideoAdReward', (rewardItem) => {
+      const rewardListener = AdMob.addListener(RewardAdPluginEvents.Rewarded, (rewardItem) => {
         rewarded = true;
       });
 
-      const dismissListener = AdMob.addListener('rewardedVideoAdDismissed', () => {
+      // Tüm listener'ları tek noktadan sök; çift resolve'u engelle. Aksi halde dismissed
+      // event'i hiç gelmezse (OS reklamı kapatır / app arka plana atılır) listener'lar birikir
+      // ve await eden çağıran sonsuza dek askıda kalır.
+      const finish = (result) => {
+        if (settled) return;
+        settled = true;
+        if (safetyTimer) clearTimeout(safetyTimer);
         rewardListener.remove();
         dismissListener.remove();
+        failListener.remove();
+        resolve(result);
+      };
+
+      const dismissListener = AdMob.addListener(RewardAdPluginEvents.Dismissed, () => {
         if (rewarded) {
           this.adsWatchedCount++;
           this.lastAdWatchTime = Date.now();
         }
-        resolve(rewarded);
+        finish(rewarded);
+      });
+
+      const failListener = AdMob.addListener(RewardAdPluginEvents.FailedToShow, () => {
+        finish(false);
       });
 
       try {
         Sounds.stopMusic();
         await AdMob.showRewardVideoAd();
+        // Güvenlik ağı: Dismissed/FailedToShow hiç gelmezse (OS reklamı sessizce kapatır)
+        // Promise sonsuza kadar asılı kalmasın. 120s her ödüllü reklamdan uzun olduğundan
+        // meşru izlemeyi kesmez; ödül geldiyse yine de verilir.
+        safetyTimer = setTimeout(() => {
+          if (rewarded) { this.adsWatchedCount++; this.lastAdWatchTime = Date.now(); }
+          finish(rewarded);
+        }, 120000);
       } catch (e) {
         console.warn('Rewarded show error:', e);
-        rewardListener.remove();
-        dismissListener.remove();
-        resolve(false);
+        finish(false);
       }
     });
   }

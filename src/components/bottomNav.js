@@ -1,5 +1,6 @@
 import { Router } from '../router.js';
 import { t } from '../utils/i18n.js';
+import { Toast } from './toast.js';
 
 export function createBottomNav(activeTab) {
   const footer = document.createElement('nav');
@@ -31,6 +32,10 @@ export function createBottomNav(activeTab) {
     btn.addEventListener('click', () => {
       const hash = btn.getAttribute('data-hash');
       if (hash) {
+        if (hash === '#/leaderboard' && !navigator.onLine) {
+          Toast.show(t('no_internet_warning') || 'İnternete bağlı değilsiniz, lütfen internetinizi açın.', 'error');
+          return;
+        }
         Router.navigate(hash);
       }
     });

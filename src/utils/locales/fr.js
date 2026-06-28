@@ -523,12 +523,14 @@ export default {
   "badge_bubble_master_desc": "Atteins {target} points en Bubble Pop",
   "task_bubble_score": "Bubble Pop : Marque 500 points",
   "adventure_map_title": "Carte d'Aventure",
-  "level_locked_msg": "Termine d'abord ton niveau actuel !"
-,
+  "level_locked_msg": "Termine d'abord ton niveau actuel !",
   "vip_pass_title": "VIP PASS",
   "vip_active": "Abonnement Actif",
   "vip_desc": "Sans Pub + 5000 Diamants / Mois",
   "vip_desc_no_ads": "Sans Pub",
   "vip_desc_diamonds": "5000 Diamants / Mois",
-  "vip_enjoy": "Profitez de vos privilèges VIP !"
+  "vip_enjoy": "Profitez de vos privilèges VIP !",
+  "no_internet_warning": "Vous n'êtes pas connecté à Internet, veuillez vérifier votre connexion.",
+  "level_complete_desc": "Vous avez terminé le niveau {level}.",
+  "tut_skip": "Passer",
 };

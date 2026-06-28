@@ -520,7 +520,10 @@ export class X2Engine {
   }
 
   useSwap(r1, c1, r2, c2) {
-    if (this.grid[r1][c1] === 0 && this.grid[r2][c2] === 0) return false;
+    // İki gerçek bloğu takas etmek için her iki hücre de DOLU olmalı. Dolu↔boş takasında
+    // applyGravity bloğu hemen geri çekiyor (no-op) ve oyuncu boşuna elmas ödüyordu.
+    if (this.grid[r1][c1] === 0 || this.grid[r2][c2] === 0) return false;
+    if (r1 === r2 && c1 === c2) return false; // aynı hücre = no-op
     const cost = this.getPowerCost('swap');
     if (cost === -1) {
       Toast.show(t('max_powerup_reached') || 'Maksimum kullanım hakkını doldurdun!', 'warning');
@@ -553,21 +556,4 @@ export class X2Engine {
     return { swapped: true, steps: steps, merges: mergeResult, levelUpReady: this.levelUpReady };
   }
 
-  useChangeNext() {
-    const cost = this.getPowerCost('change');
-    if (cost === -1) {
-      Toast.show(t('max_powerup_reached') || 'Maksimum kullanım hakkını doldurdun!', 'warning');
-      return false;
-    }
-    if (!PlayerState.useDiamonds(cost)) {
-      const msg = (t('need_diamonds_change') || `Değiştirmek için {cost} elmas gerekli!`).replace('{cost}', cost).replace('${cost}', cost);
-      Toast.show(msg, 'error');
-      return false;
-    }
-    this.powerCounts.change++;
-    this.currentBlock = this.generateBlock();
-    this.nextBlock = this.generateBlock();
-    this.saveState();
-    return true;
-  }
 }

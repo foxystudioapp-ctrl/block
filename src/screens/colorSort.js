@@ -27,6 +27,9 @@ export function ColorSort(router) {
 
   let engine = new SortEngine(mode);
   let selectedTubeIdx = null;
+  // Sürükleme ortasında ekrandan çıkılırsa window'a eklenen move/up listener'ları
+  // sökebilmek için aktif sürüklemenin teardown'ı burada izlenir.
+  let activeDragCleanup = null;
 
   // 1. Header
   const topBar = createTopBar(t('menu_sort') || 'Renk Sıralama', true, () => {
@@ -202,7 +205,14 @@ export function ColorSort(router) {
                const upFn = (ev) => {
                  window.removeEventListener('mousemove', moveFn);
                  window.removeEventListener('mouseup', upFn);
+                 activeDragCleanup = null;
                  onEnd(ev.clientX, ev.clientY);
+               };
+               activeDragCleanup = () => {
+                 window.removeEventListener('mousemove', moveFn);
+                 window.removeEventListener('mouseup', upFn);
+                 if (rafSortId) cancelAnimationFrame(rafSortId);
+                 if (floatingEl) { floatingEl.remove(); floatingEl = null; }
                };
                window.addEventListener('mousemove', moveFn);
                window.addEventListener('mouseup', upFn);
@@ -220,7 +230,14 @@ export function ColorSort(router) {
                const endFn = (ev) => {
                  window.removeEventListener('touchmove', moveFn);
                  window.removeEventListener('touchend', endFn);
+                 activeDragCleanup = null;
                  onEnd(ev.changedTouches[0].clientX, ev.changedTouches[0].clientY);
+               };
+               activeDragCleanup = () => {
+                 window.removeEventListener('touchmove', moveFn);
+                 window.removeEventListener('touchend', endFn);
+                 if (rafSortId) cancelAnimationFrame(rafSortId);
+                 if (floatingEl) { floatingEl.remove(); floatingEl = null; }
                };
                window.addEventListener('touchmove', moveFn, { passive: false });
                window.addEventListener('touchend', endFn);
@@ -433,7 +450,8 @@ export function ColorSort(router) {
   const elSortLvl = container.querySelector('#sort-lvl');
 
   // Initial render
-  setTimeout(() => {
+  const initTimer = setTimeout(() => {
+    if (!container.isConnected) return; // ekran 100ms içinde kapandıysa müziği yeniden başlatma
     renderTubes();
     updateUndoUI();
     Sounds.startMusic('game');
@@ -441,10 +459,12 @@ export function ColorSort(router) {
   }, 100);
 
   container.cleanup = () => {
+    clearTimeout(initTimer);
+    if (activeDragCleanup) { activeDragCleanup(); activeDragCleanup = null; }
     if (topBar.cleanup) topBar.cleanup();
     Sounds.stopMusic();
-  
-    AdService.hideBanner();};
+    AdService.hideBanner();
+  };
 
   // Show banner when screen opens
   AdService.showBanner();

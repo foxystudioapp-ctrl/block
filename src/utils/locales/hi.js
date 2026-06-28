@@ -525,5 +525,13 @@ export default {
   "vip_desc": "विज्ञापन मुक्त + 5000 हीरे / माह",
   "vip_desc_no_ads": "विज्ञापन मुक्त",
   "vip_desc_diamonds": "5000 हीरे / माह",
-  "vip_enjoy": "अपने VIP विशेषाधिकारों का आनंद लें!"
+  "vip_enjoy": "अपने VIP विशेषाधिकारों का आनंद लें!",
+  "no_internet_warning": "आप इंटरनेट से जुड़े नहीं हैं, कृपया अपना कनेक्शन जांचें।",
+  "menu_classic_play": "खेलें",
+  "day_n": "{n}. दिन",
+  "day_7_title": "7वें दिन बड़ा इनाम",
+  "day_7_chest": "रहस्यमय प्रीमियम संदूक",
+  "attention": "ध्यान दें:",
+  "level_complete_desc": "आपने स्तर {level} पूरा कर लिया।",
+  "tut_skip": "छोड़ें",
 };

@@ -2909,7 +2909,10 @@ export function checkAndShowTutorial(mode = 'classic', force = false, options = 
     card.innerHTML = `
       <div class="flex items-center space-x-2 mb-2 text-secondary dark:text-accent-cyan">
         <span class="material-symbols-outlined text-2xl animate-bounce">school</span>
-        <h3 class="text-lg font-black tracking-tight">${step.title}</h3>
+        <h3 class="text-lg font-black tracking-tight flex-1">${step.title}</h3>
+        <button id="tutorial-skip" class="shrink-0 text-[11px] font-bold text-gray-400 hover:text-gray-200 bg-black/5 dark:bg-white/5 px-2 py-1 rounded-full active:scale-95 transition-all">
+          ${t('tut_skip') || 'Atla'}
+        </button>
       </div>
       <p class="text-sm text-gray-700 dark:text-gray-200 mb-4 font-medium leading-relaxed">${step.text}</p>
       <div class="flex items-center justify-between w-full mt-1 pt-3 border-t border-black/10 dark:border-white/10">
@@ -2935,9 +2938,18 @@ export function checkAndShowTutorial(mode = 'classic', force = false, options = 
       }
 
       if (step.animate) {
-        step.animate(animationCleanups);
+        // Bir adımın animasyonu hata atarsa tüm tutorial akışı kırılmasın / isPlaying takılmasın.
+        try { step.animate(animationCleanups); } catch (e) { console.warn('Tutorial animate error:', e); }
       }
     }, 100);
+
+    // Atla: tutorial'ı kapat ve bir daha otomatik açılmaması için tamamlandı işaretle.
+    const skipBtn = card.querySelector('#tutorial-skip');
+    if (skipBtn) skipBtn.addEventListener('click', () => {
+      Sounds.playSfx('button-tap');
+      Storage.set(`tutorial_completed_${mode}`, true);
+      abortTutorial();
+    });
 
     card.querySelector('#tutorial-next').addEventListener('click', () => {
       Sounds.playSfx('button-tap');

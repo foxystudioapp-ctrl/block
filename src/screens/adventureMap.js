@@ -120,7 +120,9 @@ export function AdventureMap(router) {
   // Progress bar (sabit)
   const progressSection = document.createElement('div');
   progressSection.className = 'px-5 pt-1 pb-4 shrink-0 mt-14'; // mt-14 to give space from absolute header
-  const pct = Math.min(100, Math.round((currentLevel / config.total) * 100));
+  // Sonsuz modda config.total (300) anlamsız bir tavan; ilerleme görünür aralığa (displayTotal) göre hesaplanır.
+  const pctDenom = config.isEndless ? displayTotal : config.total;
+  const pct = Math.min(100, Math.round((currentLevel / pctDenom) * 100));
   progressSection.innerHTML = `
     <div class="flex justify-between items-center mb-1.5">
       <span class="text-sm font-black tracking-tight text-gray-700 dark:text-gray-200">
@@ -230,7 +232,7 @@ export function AdventureMap(router) {
       // Pulse halkası
       const pulse = document.createElement('span');
       pulse.className = 'absolute inset-0 rounded-full pointer-events-none';
-      pulse.style.animation = 'mapPulse 1.8s ease-out infinite';
+      pulse.style.animation = `mapPulse_${game} 1.8s ease-out infinite`;
       pulse.style.boxShadow = `0 0 0 0 ${config.accentFrom}cc`;
       btn.appendChild(pulse);
       // ★ ikonu (üstte küçük)
@@ -333,21 +335,24 @@ export function AdventureMap(router) {
   }
 
   let scrollRaf = false;
-  scrollWrap.addEventListener('scroll', () => {
+  const onScroll = () => {
     if (scrollRaf) return;
     scrollRaf = true;
     requestAnimationFrame(() => { scrollRaf = false; updateWindow(); });
-  }, { passive: true });
+  };
+  scrollWrap.addEventListener('scroll', onScroll, { passive: true });
 
   scrollWrap.appendChild(list);
   container.appendChild(scrollWrap);
 
-  // Pulse keyframes injection (CSS yoksa)
-  if (!document.getElementById('map-pulse-style')) {
+  // Pulse keyframes injection. Tek bir paylaşılan id ilk açılan modun rengini sabitliyordu;
+  // mod başına ayrı id kullanılır, böylece her macera kendi accent rengini alır.
+  const pulseStyleId = `map-pulse-style-${game}`;
+  if (!document.getElementById(pulseStyleId)) {
     const style = document.createElement('style');
-    style.id = 'map-pulse-style';
+    style.id = pulseStyleId;
     style.textContent = `
-      @keyframes mapPulse {
+      @keyframes mapPulse_${game} {
         0%   { box-shadow: 0 0 0 0    ${config.accentFrom}99; }
         70%  { box-shadow: 0 0 0 18px ${config.accentFrom}00; }
         100% { box-shadow: 0 0 0 0    ${config.accentFrom}00; }
@@ -357,12 +362,19 @@ export function AdventureMap(router) {
   }
 
   // İlk açılış: current level'ı ortala (aritmetik), sonra ilk pencereyi render et.
-  setTimeout(() => {
+  const initTimer = setTimeout(() => {
+    if (!container.isConnected) return;
     const vh = scrollWrap.clientHeight || window.innerHeight;
     const target = rowTop(currentLevel) + ROW_H / 2 - vh / 2;
     scrollWrap.scrollTop = Math.max(0, target);
     updateWindow();
   }, 0);
+
+  container.cleanup = () => {
+    clearTimeout(initTimer);
+    scrollWrap.removeEventListener('scroll', onScroll);
+    rendered.clear();
+  };
 
   return container;
 }

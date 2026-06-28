@@ -73,7 +73,6 @@ Router.add('#/shop', (r) => import('./screens/shop.js').then(m => m.Shop(r)));
 
 // Tembel (lazy) yüklenen ekranlar: ilk ziyaret edildiklerinde indirilirler.
 Router.add('#/classic', (r) => import('./screens/classicBlock.js').then(m => m.ClassicBlock(r)));
-Router.add('#/adventure', (r) => import('./screens/adventure.js').then(m => m.Adventure(r)));
 Router.add('#/hex', (r) => import('./screens/hexBlock.js').then(m => m.HexBlock(r)));
 Router.add('#/sort', (r) => import('./screens/colorSort.js').then(m => m.ColorSort(r)));
 Router.add('#/2048', (r) => import('./screens/game2048.js').then(m => m.Game2048(r)));
@@ -99,7 +98,7 @@ Router.add('#/buy-diamonds', (r) => import('./screens/buyDiamonds.js').then(m =>
 App.addListener('backButton', () => {
   const hash = window.location.hash || '#/';
   const routePath = hash.split('?')[0];
-  const gameModes = ['#/classic', '#/hex', '#/sort', '#/2048', '#/x2', '#/merge', '#/duel', '#/adventure', '#/match', '#/bubble'];
+  const gameModes = ['#/classic', '#/hex', '#/sort', '#/2048', '#/x2', '#/merge', '#/duel', '#/match', '#/bubble'];
   const subMenus = ['#/leaderboard', '#/tasks', '#/profile'];
   
   if (hash === '#/' || hash === '#/menu') {
