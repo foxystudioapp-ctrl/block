@@ -2,12 +2,14 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- Uygulama reklam (AdMob) + analytics için izleme yapıyor; kimlikler/etkinlik
-	     reklam ağlarıyla paylaşılıyor (bkz. Privacy Policy bölüm 6 & 14). -->
+	<!-- Reklam/analitik izlemesini AdMob (GoogleMobileAds) ve diğer SDK'lar yapıyor;
+	     bu SDK'lar izleme + tracking domainlerini KENDİ privacy manifest'lerinde
+	     bildiriyor. Uygulamanın kendi (first-party) kodu bağımsız izleme yapmadığı
+	     için app seviyesinde NSPrivacyTracking = false (Google AdMob resmi önerisi).
+	     NOT: true yapmak için NSPrivacyTrackingDomains'in BOŞ OLMAMASI gerekir;
+	     boş array Apple tarafından reddedilir (ITMS-91064). -->
 	<key>NSPrivacyTracking</key>
-	<true/>
-	<key>NSPrivacyTrackingDomains</key>
-	<array/>
+	<false/>
 
 	<key>NSPrivacyCollectedDataTypes</key>
 	<array>
@@ -57,8 +59,10 @@
 			<string>NSPrivacyCollectedDataTypeDeviceID</string>
 			<key>NSPrivacyCollectedDataTypeLinked</key>
 			<false/>
+			<!-- Tracking bayrağını AdMob SDK kendi manifest'inde bildiriyor; app
+			     seviyesinde NSPrivacyTracking=false ile tutarlı olması için false. -->
 			<key>NSPrivacyCollectedDataTypeTracking</key>
-			<true/>
+			<false/>
 			<key>NSPrivacyCollectedDataTypePurposes</key>
 			<array>
 				<string>NSPrivacyCollectedDataTypePurposeThirdPartyAdvertising</string>
@@ -83,8 +87,10 @@
 			<string>NSPrivacyCollectedDataTypeProductInteraction</string>
 			<key>NSPrivacyCollectedDataTypeLinked</key>
 			<false/>
+			<!-- Tracking bayrağını analitik/reklam SDK'ları kendi manifest'lerinde
+			     bildiriyor; app seviyesinde NSPrivacyTracking=false ile tutarlı olması için false. -->
 			<key>NSPrivacyCollectedDataTypeTracking</key>
-			<true/>
+			<false/>
 			<key>NSPrivacyCollectedDataTypePurposes</key>
 			<array>
 				<string>NSPrivacyCollectedDataTypePurposeAnalytics</string>
