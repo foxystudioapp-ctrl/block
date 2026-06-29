@@ -4,6 +4,7 @@ import { Sounds } from '../utils/sounds.js';
 import { Toast } from '../components/toast.js';
 import { t } from '../utils/i18n.js';
 import { IAP } from '../services/iapService.js';
+import { Capacitor } from '@capacitor/core';
 
 export function BuyDiamonds(router, onBack = null) {
   const container = document.createElement('div');
@@ -105,14 +106,16 @@ export function BuyDiamonds(router, onBack = null) {
           await IAP.purchasePackage(vipPackage);
           // Re-render to update UI if successful
           if (PlayerState.state.isVip) renderPackages();
-        } else {
-          // Web Modu Test
+        } else if (!Capacitor.isNativePlatform()) {
+          // YALNIZCA web/geliştirme ortamı — gerçek cihazda bedava VIP verilmez.
           PlayerState.state.isVip = true;
           PlayerState.addDiamonds(5000);
           PlayerState.state.lastVipRewardTime = Date.now();
           PlayerState.save();
           Toast.show('👑 VIP Aktifleşti! (TEST) +5000 Elmas', 'success');
           renderPackages();
+        } else {
+          Toast.show('Mağazaya şu an ulaşılamıyor. Lütfen tekrar deneyin.', 'error');
         }
       });
     }
@@ -156,10 +159,12 @@ export function BuyDiamonds(router, onBack = null) {
           Toast.show('Mağaza ile bağlantı kuruluyor...', 'info');
           const success = await IAP.purchasePackage(rcPackage);
           // success ise iapService içinden elmas eklendi ve toast gösterildi zaten
-        } else {
-          // Web/Test modu
+        } else if (!Capacitor.isNativePlatform()) {
+          // YALNIZCA web/geliştirme ortamı — gerçek cihazda bedava elmas verilmez.
           PlayerState.addDiamonds(item.value);
           Toast.show(`+${item.fallback} Elmas başarıyla eklendi! (TEST)`, 'success');
+        } else {
+          Toast.show('Mağazaya şu an ulaşılamıyor. Lütfen tekrar deneyin.', 'error');
         }
       });
 

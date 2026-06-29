@@ -220,9 +220,11 @@ document.addEventListener('DOMContentLoaded', async () => {
               };
 
               let responded = false;
+              let autoCloseTimer = null;
                 banner.querySelector('#btn-decline').onclick = () => {
                   if (responded) return;
                   responded = true;
+                if (autoCloseTimer) clearTimeout(autoCloseTimer);
                 MultiplayerService.respondToChallenge(false);
                 PlayerState.state.ignoreDuelRequests = true; // Ignore future requests
                 PlayerState.save();
@@ -233,21 +235,22 @@ document.addEventListener('DOMContentLoaded', async () => {
               banner.querySelector('#btn-accept').onclick = () => {
                   if (responded) return;
                   responded = true;
+                if (autoCloseTimer) clearTimeout(autoCloseTimer);
                 MultiplayerService.respondToChallenge(true);
                 closeBanner();
-                
+
                 Storage.set('duel_multiplayer', true);
                 Storage.set('duel_multiplayer_action', 'join');
                 Storage.set('duel_room_code', challengeData.roomId);
                 Router.navigate('#/duel');
               };
 
-              // Auto close after 15 seconds
-              setTimeout(() => {
-                if (banner.parentNode) {
-                  MultiplayerService.respondToChallenge(false);
-                  closeBanner();
-                }
+              // Auto close after 15 seconds — yalnızca henüz yanıtlanmadıysa reddet.
+              autoCloseTimer = setTimeout(() => {
+                if (responded) return;
+                responded = true;
+                MultiplayerService.respondToChallenge(false);
+                closeBanner();
               }, 15000);
             });
           });
@@ -256,7 +259,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             // Birleşik canlı dinleyici: tek onSnapshot ile arkadaşlar + gelen
             // istekler + gönderilen (bekleyen) istekler. Tüm friend state'i
             // canlı güncellenir; profil ekranı ek okuma yapmaz.
-            FriendService.listenToFriendships((data) => {
+            // Dönen unsubscribe'ı sakla; hesap silme/çıkış akışı kapatabilsin
+            // (aksi halde dinleyici eski uid sorgusuyla reload'a kadar açık kalır).
+            window.__friendshipsUnsub = FriendService.listenToFriendships((data) => {
               PlayerState.state.friends = data.friends;
               PlayerState.state.friendRequests = data.incoming;
               PlayerState.state.sentRequests = data.outgoing.map(o => o.otherUid);

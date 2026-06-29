@@ -157,7 +157,15 @@ class AdServiceManager {
       return false; // Fail on web, don't give free rewards
     }
     if (!this.initialized || !this.rewardedLoaded) return false;
-    
+    // Çift-tık / eşzamanlı çağrı koruması: aynı anda yalnızca BİR ödüllü reklam akışı.
+    // Bu merkezi kilit, tüm oyun ekranlarındaki revive/booster butonlarını çift ödüle
+    // karşı korur — her butona ayrı disabled eklemeye gerek kalmaz.
+    // Backstop: kilit bir şekilde takılı kalırsa (beklenmedik istisna) 130 sn sonra
+    // serbest bırak; ödüllü reklam kalıcı olarak bloke olmasın.
+    if (this._rewardInFlight && (Date.now() - (this._rewardInFlightAt || 0) < 130000)) return false;
+    this._rewardInFlight = true;
+    this._rewardInFlightAt = Date.now();
+
     return new Promise(async (resolve) => {
       let rewarded = false;
       let settled = false;
@@ -173,6 +181,7 @@ class AdServiceManager {
       const finish = (result) => {
         if (settled) return;
         settled = true;
+        this._rewardInFlight = false;
         if (safetyTimer) clearTimeout(safetyTimer);
         rewardListener.remove();
         dismissListener.remove();
@@ -189,6 +198,11 @@ class AdServiceManager {
       });
 
       const failListener = AdMob.addListener(RewardAdPluginEvents.FailedToShow, () => {
+        // Gösterim başarısız olursa rewardedLoaded false'ta kalır; yalnız Dismissed
+        // re-prepare ettiğinden bir sonraki sefere kadar "hazır değil" kalırdı.
+        // Burada da yeniden hazırla ki kullanıcı tekrar deneyince reklam hazır olsun.
+        this.rewardedLoaded = false;
+        this.prepareRewardVideoAd();
         finish(false);
       });
 

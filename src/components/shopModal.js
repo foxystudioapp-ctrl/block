@@ -116,8 +116,13 @@ export function showShopModal() {
     const btnWatchAd = overlay.querySelector('#btn-watch-ad');
     if (btnWatchAd && isAdAvailable) {
       btnWatchAd.addEventListener('click', async () => {
+        if (btnWatchAd.disabled) return;
+        btnWatchAd.disabled = true;
         Sounds.playSfx('button-tap');
-        const success = await AdService.showInterstitial();
+        // Ödüllü reklam kullan (profile.js ile tutarlı): interstitial VIP'te false döner
+        // ve "tamamlandı" sinyali vermez; ödül vermek için doğru tip rewarded'dır.
+        const success = await AdService.showRewardVideoAd();
+        btnWatchAd.disabled = false;
         if (success) {
           PlayerState.addDiamonds(200);
           Storage.set('ad_diamonds_count', adCount + 1);

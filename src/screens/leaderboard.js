@@ -74,14 +74,17 @@ export function Leaderboard(router) {
       isVip: PlayerState.state.isVip
     };
 
-    // 4. Friends
+    // 4. Friends — gerçek skorları global leaderboard'dan (RTDB) eşle. realPlayers
+    // (ilk 50) içindeki arkadaşların gerçek trophy'si kullanılır; listede olmayanlar 0.
+    // ESKİ HATA: Math.random() her render'da farklı skor üretiyordu (kaldırıldı).
+    const scoreMap = new Map();
+    realPlayers.forEach(p => { if (p && p.uid) scoreMap.set(p.uid, p.globalTrophies || 0); });
     const friends = PlayerState.state.friends || [];
     const friendData = friends.map(f => {
-      // In a real scenario, you'd fetch live friend scores. For now, use local cached if any.
       return {
         uid: f.uid,
         name: f.name || 'Friend',
-        globalTrophies: f.globalTrophies || Math.floor(Math.random() * 50000), // Fallback
+        globalTrophies: scoreMap.get(f.uid) ?? (f.globalTrophies || 0),
         level: f.level || 1,
         avatar: getAvatarUrl(f.avatar || 'akita'),
         isFriend: true

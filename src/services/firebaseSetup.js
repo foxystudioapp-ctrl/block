@@ -1,7 +1,7 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth as fbGetAuth, signInAnonymously, onAuthStateChanged, GoogleAuthProvider, linkWithPopup, signInWithPopup, signInWithCredential, linkWithCredential } from 'firebase/auth';
-import { getFirestore as fbGetFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
-import { getDatabase as fbGetDatabase, ref, onDisconnect, set, onValue } from 'firebase/database';
+import { getAuth as fbGetAuth, signInAnonymously, onAuthStateChanged, GoogleAuthProvider, linkWithPopup, signInWithPopup, signInWithCredential, linkWithCredential, deleteUser } from 'firebase/auth';
+import { getFirestore as fbGetFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, setDoc, getDoc, updateDoc, deleteDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { getDatabase as fbGetDatabase, ref, onDisconnect, set, onValue, remove } from 'firebase/database';
 import { PlayerState } from '../state/playerState.js';
 
 // Firebase configuration from environment variables
@@ -299,7 +299,6 @@ export const syncToCloud = async () => {
       level: PlayerState.state.level,
       theme: PlayerState.state.theme,
       unlockedThemes: PlayerState.state.unlockedThemes,
-      streak: PlayerState.state.streak,
       bestScoreClassic: PlayerState.state.bestScoreClassic,
       bestScoreHex: PlayerState.state.bestScoreHex,
       bestScoreSort: PlayerState.state.bestScoreSort,
@@ -340,10 +339,103 @@ export const syncToCloud = async () => {
       score: PlayerState.state.bestScoreClassic || 0,
       lastSync: Date.now()
     });
-    
+
+    // Global leaderboard kaydı (RTDB). getTopPlayers 'leaderboards/global'i okur;
+    // buraya yazılmadığı sürece tablo boş kalırdı. RTDB kuralları yalnız kendi uid'ine
+    // ve globalTrophies sınırlarına izin verir (bkz. database.rules.json).
+    try {
+      const rtdbInstance = getRtdb();
+      if (rtdbInstance) {
+        const lbUid = authInstance.currentUser.uid;
+        await set(ref(rtdbInstance, 'leaderboards/global/' + lbUid), {
+          uid: lbUid,
+          name: PlayerState.state.profileName || "Player",
+          avatar: PlayerState.state.avatarSeed || "akita",
+          level: PlayerState.state.level || 1,
+          globalTrophies: safeNum(PlayerState.state.globalTrophies, 10_000_000)
+        });
+      }
+    } catch (e) {
+      console.warn("Leaderboard write warn:", e?.message);
+    }
+
     return { success: true };
   } catch (error) {
     console.error("Cloud Sync Error", error);
     return { success: false, msg: error.message };
+  }
+};
+
+// Hesabı ve buluttaki TÜM kullanıcı verisini kalıcı olarak siler:
+// arkadaşlık kayıtları, Firestore kullanıcı dokümanı, RTDB presence ve Auth hesabı.
+// Yerel (cihaz) verisinin temizlenmesi çağıran tarafın sorumluluğundadır (PlayerState.wipeLocalData).
+export const deleteAccountAndData = async () => {
+  const authInstance = getAuth();
+  const dbInstance = getDb();
+  const user = authInstance && authInstance.currentUser;
+  if (!user) {
+    // Firebase yoksa/çevrimdışıysa bile yerel veri silinebilsin diye 'no-user' döner.
+    return { success: false, msg: 'no-user' };
+  }
+  const uid = user.uid;
+
+  // Canlı dinleyicileri kapat — aksi halde silinen dokümanlar üzerinde tetiklenip
+  // hata/yeniden yazma üretebilirler.
+  try {
+    if (typeof window !== 'undefined' && window.__friendshipsUnsub) {
+      window.__friendshipsUnsub();
+      window.__friendshipsUnsub = null;
+    }
+  } catch (e) { /* yoksay */ }
+  try {
+    const { MultiplayerService } = await import('./multiplayerService.js');
+    MultiplayerService.stopListeningForChallenges();
+  } catch (e) { /* yoksay */ }
+
+  try {
+    if (dbInstance) {
+      // 1) Bu kullanıcının yer aldığı tüm arkadaşlık kayıtlarını sil
+      try {
+        const fq = query(collection(dbInstance, 'friendships'), where('members', 'array-contains', uid));
+        const snap = await getDocs(fq);
+        await Promise.all(snap.docs.map(d => deleteDoc(d.ref).catch(() => {})));
+      } catch (e) {
+        console.warn('friendships delete warn:', e?.message);
+      }
+
+      // 2) Kullanıcı dokümanını sil (elmas, seviye, skorlar, ilerleme — hepsi burada)
+      try {
+        await deleteDoc(doc(dbInstance, 'users', uid));
+      } catch (e) {
+        console.warn('user doc delete warn:', e?.message);
+      }
+    }
+
+    // 3) RTDB kayıtlarını sil: online/presence ve bekleyen meydan okuma
+    try {
+      const rtdbInstance = getRtdb();
+      if (rtdbInstance) {
+        await remove(ref(rtdbInstance, 'status/' + uid)).catch(() => {});
+        await remove(ref(rtdbInstance, 'challenges/' + uid)).catch(() => {});
+      }
+    } catch (e) {
+      console.warn('rtdb cleanup warn:', e?.message);
+    }
+
+    // 4) Auth hesabını sil. Anonim/yeni oturumlarda çalışır; son giriş çok eskiyse
+    //    'auth/requires-recent-login' verebilir — bu durumda bulut verisi yine
+    //    silinmiş olur, yalnızca kimlik kaydı kalır; yerel temizliğe devam edilir.
+    let authDeleted = true;
+    try {
+      await deleteUser(user);
+    } catch (e) {
+      authDeleted = false;
+      console.warn('auth user delete warn:', e?.code || e?.message);
+    }
+
+    return { success: true, authDeleted };
+  } catch (error) {
+    console.error('Delete account error', error);
+    return { success: false, msg: error?.message };
   }
 };

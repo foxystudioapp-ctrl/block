@@ -1,4 +1,11 @@
 export default {
+  // --- Hesap silme ---
+  "delete_account_btn": "Mein Konto und meine Daten löschen",
+  "delete_account_title": "Bist du sicher?",
+  "delete_account_desc": "Wenn du bestätigst, werden dein Konto und alle deine Daten (Diamanten, Level, Punktzahlen, Freunde usw.) dauerhaft gelöscht. Diese Aktion kann nicht rückgängig gemacht werden.",
+  "delete_account_confirm": "Ja, löschen",
+  "delete_account_done": "Dein Konto wurde gelöscht.",
+  "deleting": "Wird gelöscht...",
   // --- Arkadaş: engelleme/hata (eklenen) ---
   "block_user": "Blockieren",
   "user_blocked": "Benutzer blockiert.",
@@ -285,6 +292,7 @@ export default {
   "popular_badge": "BELIEBT",
   "premium_packages": "Premium-Pakete",
   "privacy_policy": "Datenschutzrichtlinie",
+  "rate_app": "Bewerte uns",
   "profanity_not_allowed": "Namen mit unangemessenen Wörtern sind nicht erlaubt!",
   "progress": "Fortschritt",
   "quit_game": "Spiel verlassen",

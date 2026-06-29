@@ -5,6 +5,10 @@ import { Haptics } from '../utils/haptics.js';
 import { t, getCurrentLang, setLang, availableLanguages } from '../utils/i18n.js';
 import { App } from '@capacitor/app';
 import { createModal } from '../components/modal.js';
+import { PlayerState } from '../state/playerState.js';
+import { deleteAccountAndData } from '../services/firebaseSetup.js';
+import { Toast } from '../components/toast.js';
+import { RatingService } from '../services/ratingService.js';
 
 export function showSettingsModal() {
   if (document.getElementById('settings-overlay')) return;
@@ -123,7 +127,7 @@ export function showSettingsModal() {
   const legalSection = document.createElement('div');
   legalSection.className = 'w-full flex flex-col space-y-2 mt-6';
   legalSection.innerHTML = `
-    <a href="/privacy.html" target="_blank" class="w-full glass-panel p-4 rounded-2xl flex items-center justify-between active:scale-[0.98] transition-transform">
+    <a href="https://bloxyapp.blogspot.com/2026/06/privacy-policy.html" target="_blank" rel="noopener noreferrer" class="w-full glass-panel p-4 rounded-2xl flex items-center justify-between active:scale-[0.98] transition-transform">
       <div class="flex items-center gap-3">
         <span class="material-symbols-outlined text-blue-500">policy</span>
         <span class="font-bold text-sm text-primary dark:text-white">${t('privacy_policy') || 'Gizlilik Politikası'}</span>
@@ -139,6 +143,25 @@ export function showSettingsModal() {
     </a>
   `;
   content.appendChild(legalSection);
+
+  // Rate App Button
+  const rateSection = document.createElement('div');
+  rateSection.className = 'w-full flex flex-col space-y-2 mt-2';
+  rateSection.innerHTML = `
+    <button id="btn-rate-app" class="w-full glass-panel p-4 rounded-2xl flex items-center justify-between active:scale-[0.98] transition-transform">
+      <div class="flex items-center gap-3">
+        <span class="material-symbols-outlined text-yellow-500 fill">star</span>
+        <span class="font-bold text-sm text-primary dark:text-white">${t('rate_app') || 'Bizi Puanla'}</span>
+      </div>
+      <span class="material-symbols-outlined text-gray-400 text-sm">open_in_new</span>
+    </button>
+  `;
+  rateSection.querySelector('#btn-rate-app').onclick = () => {
+    Sounds.playSfx('button-tap');
+    Haptics.vibrate('button-tap');
+    RatingService.openStorePage();
+  };
+  content.appendChild(rateSection);
 
   // About Section
   const aboutSection = document.createElement('div');
@@ -178,6 +201,49 @@ export function showSettingsModal() {
   exitSection.appendChild(exitBtn);
   content.appendChild(exitSection);
 
+  // Delete Account Section (en altta — kalıcı ve geri alınamaz)
+  const deleteSection = document.createElement('div');
+  deleteSection.className = 'w-full flex flex-col items-center mt-4 pb-8';
+  const deleteBtn = document.createElement('button');
+  deleteBtn.className = 'px-6 py-3 bg-red-600 text-white rounded-2xl font-black text-sm active:scale-95 transition-transform flex items-center gap-2 shadow-lg';
+  deleteBtn.innerHTML = `
+    <span class="material-symbols-outlined text-lg">delete_forever</span>
+    ${t('delete_account_btn') || 'Hesabımı ve Verilerimi Sil'}
+  `;
+  deleteBtn.onclick = () => {
+    Sounds.playSfx('button-tap');
+    Haptics.vibrate('button-tap');
+    createModal({
+      title: t('delete_account_title') || 'Emin misiniz?',
+      content: `<p class="text-center text-gray-500 dark:text-gray-400 text-sm font-bold leading-relaxed">${t('delete_account_desc') || 'Evet derseniz hesabınız ve tüm verileriniz (elmaslar, seviyeler, skorlar, arkadaşlar vb.) kalıcı olarak silinecektir. Bu işlem geri alınamaz.'}</p>`,
+      actions: [
+        { text: t('cancel') || 'İptal', onClick: (close) => close() },
+        {
+          text: t('delete_account_confirm') || 'Evet, Sil',
+          danger: true,
+          onClick: async (close, btn) => {
+            // Çift dokunmayı engelle ve işlemi göster
+            btn.disabled = true;
+            btn.textContent = t('deleting') || 'Siliniyor...';
+            btn.classList.add('opacity-60');
+            try {
+              await deleteAccountAndData();
+            } catch (e) {
+              console.error('deleteAccountAndData failed', e);
+            }
+            // Bulut sonucu ne olursa olsun yerel veriyi temizle ve uygulamayı sıfırla.
+            PlayerState.wipeLocalData();
+            Toast.show(t('delete_account_done') || 'Hesabınız silindi.', 'success');
+            // Toast görünsün diye kısa gecikme, sonra temiz başlangıç için reload.
+            setTimeout(() => window.location.reload(), 800);
+          }
+        }
+      ]
+    });
+  };
+  deleteSection.appendChild(deleteBtn);
+  content.appendChild(deleteSection);
+
   container.appendChild(content);
 
   // Background decoration
@@ -190,6 +256,16 @@ export function showSettingsModal() {
   
   overlay.appendChild(container);
   document.body.appendChild(overlay);
+
+  // Ayarlar bir createModal değil; router cleanup/closeAllModals'a takılmaz. Hash
+  // değişirse (navigasyon) overlay'i kapat ki body'de orphan kalmasın.
+  const onHashChange = () => { if (overlay.parentNode) overlay.remove(); };
+  window.addEventListener('hashchange', onHashChange);
+  const origRemove = overlay.remove.bind(overlay);
+  overlay.remove = () => {
+    window.removeEventListener('hashchange', onHashChange);
+    origRemove();
+  };
 
   return overlay;
 }

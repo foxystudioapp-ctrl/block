@@ -1,4 +1,11 @@
 export default {
+  // --- Hesap silme ---
+  "delete_account_btn": "حذف حسابي وبياناتي",
+  "delete_account_title": "هل أنت متأكد؟",
+  "delete_account_desc": "إذا أكدت، فسيتم حذف حسابك وجميع بياناتك (الألماس، المستويات، النقاط، الأصدقاء، إلخ) نهائيًا. لا يمكن التراجع عن هذا الإجراء.",
+  "delete_account_confirm": "نعم، احذف",
+  "delete_account_done": "تم حذف حسابك.",
+  "deleting": "جارٍ الحذف...",
   // --- Arkadaş: engelleme/hata (eklenen) ---
   "block_user": "حظر",
   "user_blocked": "تم حظر المستخدم.",
@@ -285,6 +292,7 @@ export default {
   "popular_badge": "شائع",
   "premium_packages": "الحزم المميزة",
   "privacy_policy": "سياسة الخصوصية",
+  "rate_app": "قيّمنا",
   "profanity_not_allowed": "الأسماء التي تحتوي على كلمات غير لائقة غير مسموح بها!",
   "progress": "التقدم",
   "quit_game": "الخروج من اللعبة",

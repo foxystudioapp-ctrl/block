@@ -4,6 +4,7 @@ import { Sounds } from '../utils/sounds.js';
 import { Toast } from '../components/toast.js';
 import { t } from '../utils/i18n.js';
 import { AdService } from '../services/adService.js';
+import { RatingService } from '../services/ratingService.js';
 
 export function showGameOverModal({ score, mode = 'classic', isWin, myScore, opponentScore, myAvatar, myName, opponentAvatar, opponentName, onPlayAgain, onMainMenu }) {
   const container = document.createElement('div');
@@ -305,6 +306,10 @@ export function showGameOverModal({ score, mode = 'classic', isWin, myScore, opp
   container.appendChild(modalBody);
   document.body.appendChild(container);
 
+  // Olumlu sonuç: yeni rekor veya düello galibiyeti → "mutluluk anı" puanlama tetikleyicisi.
+  const positiveOutcome = isNewRecord ||
+    ((mode === 'duel' || mode === 'multiplayer_duel') && isWin === true);
+
   // Close helper
   const close = (callback) => {
     container.classList.remove('opacity-100');
@@ -313,6 +318,10 @@ export function showGameOverModal({ score, mode = 'classic', isWin, myScore, opp
     setTimeout(() => {
       container.remove();
       if (callback) callback();
+      // Modal kapandıktan sonra (kutlama dağılınca) native puanlama iste — sıklık sınırlı.
+      if (positiveOutcome) {
+        setTimeout(() => RatingService.maybeRequestReview(), 600);
+      }
     }, 300);
   };
 

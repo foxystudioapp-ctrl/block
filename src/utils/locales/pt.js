@@ -1,4 +1,11 @@
 export default {
+  // --- Hesap silme ---
+  "delete_account_btn": "Excluir minha conta e dados",
+  "delete_account_title": "Tem certeza?",
+  "delete_account_desc": "Se confirmar, sua conta e todos os seus dados (diamantes, níveis, pontuações, amigos, etc.) serão excluídos permanentemente. Esta ação não pode ser desfeita.",
+  "delete_account_confirm": "Sim, excluir",
+  "delete_account_done": "Sua conta foi excluída.",
+  "deleting": "Excluindo...",
   // --- Arkadaş: engelleme/hata (eklenen) ---
   "block_user": "Bloquear",
   "user_blocked": "Usuário bloqueado.",
@@ -284,6 +291,7 @@ export default {
   "popular_badge": "POPULAR",
   "premium_packages": "Pacotes Premium",
   "privacy_policy": "Política de Privacidade",
+  "rate_app": "Avalie-nos",
   "profanity_not_allowed": "Nomes com palavras impróprias não são permitidos!",
   "progress": "Progresso",
   "quit_game": "Sair do Jogo",

@@ -1,4 +1,11 @@
 export default {
+  // --- Hesap silme ---
+  "delete_account_btn": "मेरा खाता और डेटा हटाएं",
+  "delete_account_title": "क्या आप निश्चित हैं?",
+  "delete_account_desc": "यदि आप पुष्टि करते हैं, तो आपका खाता और आपका सारा डेटा (हीरे, स्तर, स्कोर, मित्र आदि) स्थायी रूप से हटा दिया जाएगा। इस क्रिया को पूर्ववत नहीं किया जा सकता।",
+  "delete_account_confirm": "हाँ, हटाएं",
+  "delete_account_done": "आपका खाता हटा दिया गया है।",
+  "deleting": "हटाया जा रहा है...",
   // --- Arkadaş: engelleme/hata (eklenen) ---
   "block_user": "ब्लॉक करें",
   "user_blocked": "उपयोगकर्ता ब्लॉक किया गया।",
@@ -280,6 +287,7 @@ export default {
   "popular_badge": "लोकप्रिय",
   "premium_packages": "प्रीमियम पैकेज",
   "privacy_policy": "गोपनीयता नीति",
+  "rate_app": "हमें रेट करें",
   "profanity_not_allowed": "अनुचित शब्दों वाले नाम की अनुमति नहीं है!",
   "progress": "प्रगति",
   "quit_game": "गेम छोड़ें",

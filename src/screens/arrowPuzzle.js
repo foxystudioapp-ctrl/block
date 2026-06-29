@@ -1329,15 +1329,24 @@ canvas.addEventListener('wheel', onWheel, { passive: false });
       document.body.appendChild(overlayContainer); activeBodyAppends.push(overlayContainer);
     };
     
-    modal.querySelector('#btn-watch-ad').onclick = async () => {
+    const watchAdBtn = modal.querySelector('#btn-watch-ad');
+    watchAdBtn.onclick = async () => {
+      if (watchAdBtn.disabled) return;
+      watchAdBtn.disabled = true;
       try {
-        await AdService.showRewardVideoAd();
-        hintUsages++;
-        renderHintBadge();
-        showHint();
-        closeModal();
+        // Ödülü yalnızca reklam gerçekten izlendiyse ver (success kontrolü).
+        const ok = await AdService.showRewardVideoAd();
+        if (ok) {
+          hintUsages++;
+          renderHintBadge();
+          showHint();
+          closeModal();
+        } else {
+          watchAdBtn.disabled = false;
+        }
       } catch(e) {
         console.warn('Ad error', e);
+        watchAdBtn.disabled = false;
       }
     };
   }

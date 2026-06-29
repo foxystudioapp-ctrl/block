@@ -1,4 +1,11 @@
 export default {
+  // --- Hesap silme ---
+  "delete_account_btn": "アカウントとデータを削除",
+  "delete_account_title": "本当によろしいですか？",
+  "delete_account_desc": "確認すると、アカウントとすべてのデータ（ダイヤ、レベル、スコア、フレンドなど）が完全に削除されます。この操作は元に戻せません。",
+  "delete_account_confirm": "はい、削除する",
+  "delete_account_done": "アカウントが削除されました。",
+  "deleting": "削除中...",
   // --- Arkadaş: engelleme/hata (eklenen) ---
   "block_user": "ブロック",
   "user_blocked": "ユーザーをブロックしました。",
@@ -284,6 +291,7 @@ export default {
   "popular_badge": "人気",
   "premium_packages": "プレミアムパック",
   "privacy_policy": "プライバシーポリシー",
+  "rate_app": "評価する",
   "profanity_not_allowed": "不適切な単語を含む名前は使用できません！",
   "progress": "進行状況",
   "quit_game": "ゲームを終了",

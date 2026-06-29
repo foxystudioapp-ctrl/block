@@ -2,6 +2,7 @@ import { Purchases } from '@revenuecat/purchases-capacitor';
 import { Capacitor } from '@capacitor/core';
 import { PlayerState } from '../state/playerState.js';
 import { Toast } from '../components/toast.js';
+import { AdService } from './adService.js';
 
 class IAPService {
   constructor() {
@@ -18,12 +19,23 @@ class IAPService {
     try {
       // Replace these with your actual Public SDK keys from RevenueCat Dashboard
       const apiKey = Capacitor.getPlatform() === 'ios'
-        ? 'appl_YOUR_IOS_API_KEY_HERE'
+        ? 'appl_aZmBVFufyZpOMDvlXNahixAVfei'
         : 'goog_udOqujJcAXCvFSPdDLIjcCnovXg';
 
       await Purchases.configure({ apiKey });
       this.isInitialized = true;
       console.log('RevenueCat initialized successfully!');
+
+      // Abonelik durumu uygulama AÇIKKEN değişirse (yenileme/satın alma/iptal/expire)
+      // anında yakala. Aksi halde VIP aylık maaşı ve VIP düşmesi yalnızca bir sonraki
+      // soğuk başlatmada işlenirdi (checkSubscriptions sadece initialize'da çağrılıyordu).
+      try {
+        await Purchases.addCustomerInfoUpdateListener((customerInfo) => {
+          this.checkSubscriptions(customerInfo);
+        });
+      } catch (e) {
+        console.warn('addCustomerInfoUpdateListener warn:', e);
+      }
 
       // Fetch the offerings
       await this.fetchOfferings();
@@ -41,9 +53,13 @@ class IAPService {
 
     try {
       const offerings = await Purchases.getOfferings();
-      if (offerings.current !== null && offerings.current.availablePackages.length !== 0) {
-        // offerings.current.availablePackages contains the products
-        this.packages = offerings.current.availablePackages;
+      // iOS için ayrı offering kullan, yoksa current'a düş
+      const platform = Capacitor.getPlatform();
+      const offering = platform === 'ios'
+        ? (offerings.all['ios'] || offerings.current)
+        : offerings.current;
+      if (offering !== null && offering.availablePackages.length !== 0) {
+        this.packages = offering.availablePackages;
         return this.packages;
       }
     } catch (e) {
@@ -59,8 +75,14 @@ class IAPService {
     const isVip = typeof customerInfo.entitlements.active['vip'] !== 'undefined';
     
     if (isVip) {
+      const wasVip = PlayerState.state.isVip;
       PlayerState.state.isVip = true;
       PlayerState.save();
+
+      // VIP yeni aktifleştiyse (örn. oyun ekranındayken satın alındı) aktif banner'ı gizle.
+      if (!wasVip) {
+        try { AdService.hideBanner(); } catch (e) { /* yoksay */ }
+      }
 
       const now = Date.now();
       const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
@@ -77,6 +99,14 @@ class IAPService {
       PlayerState.state.isVip = false;
       PlayerState.save();
     }
+  }
+
+  // Satın alma sonrası ekonomiyi (elmas/VIP) buluta anında yazdırır. Fire-and-forget;
+  // hata olsa bile satın alma akışını bloklamaz. Dinamik import → döngüsel bağımlılık yok.
+  _pushEconomyToCloud() {
+    import('./firebaseSetup.js')
+      .then(({ syncToCloud }) => syncToCloud())
+      .catch(e => console.warn('post-purchase sync warn:', e));
   }
 
   async purchasePackage(pkg) {
@@ -102,12 +132,16 @@ class IAPService {
       if (diamondsToAdd > 0) {
         PlayerState.addDiamonds(diamondsToAdd);
         Toast.show(`+${diamondsToAdd} Elmas başarıyla eklendi!`, 'success');
+        // Satın alınan elması ANINDA buluta yazdır (günlük sync'i bekleme) — aksi halde
+        // aynı gün yeniden kurulumda satın alınan elmas kaybolabilir.
+        this._pushEconomyToCloud();
         return true;
       }
 
       // If it's the VIP package, checkSubscriptions will handle the first 5000 diamond reward
       if (productId.includes('vip')) {
         await this.checkSubscriptions(customerInfo);
+        this._pushEconomyToCloud();
         return true;
       }
     } catch (e) {

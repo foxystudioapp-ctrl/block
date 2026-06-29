@@ -61,7 +61,6 @@ class PlayerStateManager {
       level: Storage.get('player_level', 1),
       theme: Storage.get('player_theme', 'white'),
       unlockedThemes: Storage.get('player_unlocked_themes', ['white']),
-      streak: Storage.get('player_streak', 1),
       lastLogin: Storage.get('player_last_login', null),
       bestScoreClassic: Storage.get('player_best_score_classic', 0),
       bestScoreHex: Storage.get('player_best_score_hex', 0),
@@ -159,6 +158,15 @@ class PlayerStateManager {
     }
   }
 
+  // Cihazdaki tüm yerel oyun verisini siler ve daha fazla yazımı kalıcı olarak durdurur.
+  // Hesap silme akışında, bulut verisi temizlendikten SONRA çağrılır; ardından sayfa
+  // yeniden yüklenerek (reload) oyun sıfırdan/temiz başlatılır.
+  wipeLocalData() {
+    this._wiped = true;
+    if (this._saveTimeout) clearTimeout(this._saveTimeout);
+    Storage.clear();
+  }
+
   subscribe(listener) {
     this.listeners.push(listener);
     return () => {
@@ -171,6 +179,7 @@ class PlayerStateManager {
   }
 
   save() {
+    if (this._wiped) return;
     this.notify();
     if (this._saveTimeout) clearTimeout(this._saveTimeout);
     this._saveTimeout = setTimeout(() => {
@@ -179,6 +188,9 @@ class PlayerStateManager {
   }
 
   saveNow() {
+    // Hesap silindikten sonra beforeunload/pagehide tetiklenip bellekteki eski
+    // durumu localStorage'a GERİ YAZMASIN — aksi halde silme reload sonrası geri gelir.
+    if (this._wiped) return;
     if (this._saveTimeout) clearTimeout(this._saveTimeout);
     // Dirty-tracking: her kayıtta ~45 senkron setItem yerine yalnız DEĞİŞEN anahtarları yaz.
     // Depolama formatı (anahtar başına `player_*`) aynı kalır — kayıtlı ilerleme bozulmaz.
@@ -204,7 +216,7 @@ class PlayerStateManager {
     let changed = false;
 
     const fieldsToImport = [
-      'isVip', 'lastVipRewardTime', 'diamonds', 'xp', 'level', 'theme', 'unlockedThemes', 'streak',
+      'isVip', 'lastVipRewardTime', 'diamonds', 'xp', 'level', 'theme', 'unlockedThemes',
       'bestScoreClassic', 'bestScoreHex', 'bestScoreSort', 'bestScore2048',
       'bestScoreX2', 'bestScoreMerge', 'bestScoreBubble', 'bestScoreArrow', 'bestScoreDuel', 'duelMatches', 'duelWins', 'duelLosses',
       'currentAdventureLevel', 'adventureStars', 'profileName', 'profileTitle', 'avatarSeed',
@@ -220,18 +232,36 @@ class PlayerStateManager {
       'diamonds', 'isVip', 'lastVipRewardTime', 'theme', 'profileTitle',
     ]);
 
+    // ELMAS için zaman-damgalı son-yazan-kazanır: yerelde senkronlanmamış elmas
+    // değişikliği (kazanç/harcama/satın alma) varsa eski bulut değeriyle EZME.
+    //   - Yeniden kurulum: yerel timestamp 0 → bulut daha yeni → bulut kazanır (bakiye geri gelir).
+    //   - Offline kazanç sonrası açılış: yerel daha yeni → yerel korunur (kazanç kaybolmaz).
+    //   - Harcama sonrası açılış: yerel daha yeni → yerel (düşük) korunur (dupe yok).
+    const cloudLastSync = Number(cloudData.lastSync) || 0;
+    const localEconChange = Number(Storage.get('econ_last_change', 0)) || 0;
+    const cloudWinsEconomy = cloudLastSync >= localEconChange;
+
     fieldsToImport.forEach(key => {
       if (progress[key] !== undefined) {
-        if (cloudAuthoritativeFields.has(key)) {
+        if (key === 'diamonds') {
+          // Yalnızca bulut daha yeniyse elması bulut değeriyle değiştir.
+          if (cloudWinsEconomy) {
+            this.state.diamonds = progress.diamonds;
+            changed = true;
+          }
+          // değilse: yereli koru (senkronlanmamış değişiklik var), bir sonraki sync düzeltir.
+        } else if (cloudAuthoritativeFields.has(key)) {
           this.state[key] = progress[key];
+          changed = true;
         } else if (typeof this.state[key] === 'number') {
           // Yalnız monoton artan alanlar (skor/seviye/yıldız) için max birleştirme.
           const cloudVal = Number(progress[key]);
           this.state[key] = Math.max(this.state[key] || 0, Number.isFinite(cloudVal) ? cloudVal : 0);
+          changed = true;
         } else {
           this.state[key] = progress[key];
+          changed = true;
         }
-        changed = true;
       }
     });
     
@@ -249,12 +279,19 @@ class PlayerStateManager {
     return this.useDiamonds(amount);
   }
 
+  // Elmas bakiyesinde yerel değişiklik zaman damgası. loadFromCloud bunu bulutun
+  // lastSync'i ile karşılaştırıp senkronlanmamış yerel kazanç/harcamayı korur.
+  _touchEconomy() {
+    try { Storage.set('econ_last_change', Date.now()); } catch (e) { /* yoksay */ }
+  }
+
   addDiamonds(amount) {
     const amt = Number(amount);
     // Geçersiz (NaN/undefined) miktar elmasları kalıcı olarak bozar; sessizce yok say.
     if (!Number.isFinite(amt) || amt === 0) return;
     const current = Number.isFinite(this.state.diamonds) ? this.state.diamonds : 0;
     this.state.diamonds = Math.max(0, current + amt);
+    this._touchEconomy();
     this.save();
   }
 
@@ -280,6 +317,7 @@ class PlayerStateManager {
     const current = Number.isFinite(this.state.diamonds) ? this.state.diamonds : 0;
     if (current >= amt) {
       this.state.diamonds = current - amt;
+      this._touchEconomy();
       this.save();
       return true;
     }
@@ -322,6 +360,7 @@ class PlayerStateManager {
       const reward = this.state.pendingSeasonRewards.diamonds || 0;
       this.state.diamonds += reward;
       this.state.pendingSeasonRewards = null;
+      this._touchEconomy();
       this.save();
       return reward;
     }
@@ -525,6 +564,7 @@ class PlayerStateManager {
     this.state.diamonds += amount;
     this.state.loginStreak += 1;
     this.state.lastLoginRewardTime = now;
+    this._touchEconomy();
     this.save();
     return amount;
   }
@@ -533,6 +573,7 @@ class PlayerStateManager {
     if (this.state.welcomeBonusClaimed) return 0;
     this.state.welcomeBonusClaimed = true;
     this.state.diamonds += 500;
+    this._touchEconomy();
     this.save();
     return 500;
   }

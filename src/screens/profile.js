@@ -15,6 +15,7 @@ import { MultiplayerService } from '../services/multiplayerService.js';
 import { Toast } from '../components/toast.js';
 import { AdService } from '../services/adService.js';
 import { IAP } from '../services/iapService.js';
+import { Capacitor } from '@capacitor/core';
 import { linkAccountWithGoogle, recoverAccountWithGoogle } from '../services/firebaseSetup.js';
 
 export function Profile(router) {
@@ -71,21 +72,25 @@ export function Profile(router) {
           Toast.show('Mağaza ile bağlantı kuruluyor...', 'info');
           await IAP.purchasePackage(vipPackage);
           if (PlayerState.state.isVip) renderVipCard();
-        } else {
-          // Web Modu Test
+        } else if (!Capacitor.isNativePlatform()) {
+          // YALNIZCA web/geliştirme ortamı. Gerçek cihazda mağaza hazır değilse (init/ağ
+          // hatası) bedava VIP verilmemeli — aksi halde kullanıcı satın almadan VIP olur.
           PlayerState.state.isVip = true;
           PlayerState.addDiamonds(5000);
           PlayerState.state.lastVipRewardTime = Date.now();
           PlayerState.save();
           Toast.show('👑 VIP Aktifleşti! (TEST) +5000 Elmas', 'success');
           renderVipCard();
-          
+
           // Header update
           const header = document.querySelector('header');
           if (header) {
             const diamondSpan = header.querySelector('.text-cyan-400.font-black');
             if (diamondSpan) diamondSpan.textContent = PlayerState.state.diamonds.toLocaleString();
           }
+        } else {
+          // Native cihazda mağaza hazır değil — kullanıcıya bildir, bedava VIP YOK.
+          Toast.show('Mağazaya şu an ulaşılamıyor. Lütfen tekrar deneyin.', 'error');
         }
       });
     }
@@ -685,9 +690,18 @@ export function Profile(router) {
 
   // Listen for changes in requests AND friends (canlı state — main.js'teki
   // birleşik dinleyici PlayerState'i güncelledikçe ekran otomatik tazelenir).
+  // Yalnızca arkadaş/istek verisi GERÇEKTEN değiştiğinde yeniden çiz. Aksi halde
+  // her state değişimi (elmas, skor vb.) tüm listeyi + N presence dinleyicisini
+  // gereksiz yere yeniden kurardı.
+  let lastFriendsSig = null;
+  let lastReqSig = null;
   const unsubscribeRequests = PlayerState.subscribe(() => {
-    renderRequests();
-    drawFriends(PlayerState.state.friends || []);
+    const friends = PlayerState.state.friends || [];
+    const reqs = PlayerState.state.friendRequests || [];
+    const friendsSig = friends.map(f => `${f.uid}:${f.level}`).join('|');
+    const reqSig = reqs.map(r => r.pairId || r.senderUid).join('|');
+    if (reqSig !== lastReqSig) { lastReqSig = reqSig; renderRequests(); }
+    if (friendsSig !== lastFriendsSig) { lastFriendsSig = friendsSig; drawFriends(friends); }
   });
   const ogCleanup2 = container.cleanup;
   container.cleanup = () => {

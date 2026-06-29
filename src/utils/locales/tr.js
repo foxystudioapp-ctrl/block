@@ -1,4 +1,11 @@
 export default {
+  // --- Hesap silme ---
+  "delete_account_btn": "Hesabımı ve Verilerimi Sil",
+  "delete_account_title": "Emin misiniz?",
+  "delete_account_desc": "Evet derseniz hesabınız ve tüm verileriniz (elmaslar, seviyeler, skorlar, arkadaşlar vb.) kalıcı olarak silinecektir. Bu işlem geri alınamaz.",
+  "delete_account_confirm": "Evet, Sil",
+  "delete_account_done": "Hesabınız silindi.",
+  "deleting": "Siliniyor...",
   // --- Arkadaş: engelleme/hata (eklenen) ---
   "block_user": "Engelle",
   "user_blocked": "Kullanıcı engellendi.",
@@ -286,6 +293,7 @@ export default {
   "popular_badge": "POPÜLER",
   "premium_packages": "Premium Paketler",
   "privacy_policy": "Gizlilik Politikası",
+  "rate_app": "Bizi Puanla",
   "profanity_not_allowed": "Uygunsuz kelimeler içeren isimler kullanılamaz!",
   "progress": "İlerleme",
   "quit_game": "Oyundan Çık",

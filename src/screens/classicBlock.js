@@ -33,7 +33,7 @@ export function ClassicBlock(router) {
   if (mode === 'adventure') {
     const urlLevel = parseInt(queryParams.get('level'), 10);
     if (urlLevel >= 1) {
-      Storage.remove('classic_save_state'); // önceki kayıt varsa temizle
+      engine.clearLocalStorageSave(); // önceki kaydı DOĞRU anahtarla temizle (lumina_puzzle_classic_save_<gridSize>)
       engine = new ClassicEngine(activeGridSize, null, mode);
       engine.initLevel(urlLevel, false);
     }

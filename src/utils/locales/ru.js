@@ -1,4 +1,11 @@
 export default {
+  // --- Hesap silme ---
+  "delete_account_btn": "Удалить аккаунт и данные",
+  "delete_account_title": "Вы уверены?",
+  "delete_account_desc": "Если вы подтвердите, ваш аккаунт и все ваши данные (алмазы, уровни, рекорды, друзья и т. д.) будут безвозвратно удалены. Это действие нельзя отменить.",
+  "delete_account_confirm": "Да, удалить",
+  "delete_account_done": "Ваш аккаунт удалён.",
+  "deleting": "Удаление...",
   // --- Arkadaş: engelleme/hata (eklenen) ---
   "block_user": "Заблокировать",
   "user_blocked": "Пользователь заблокирован.",
@@ -285,6 +292,7 @@ export default {
   "popular_badge": "ПОПУЛЯРНОЕ",
   "premium_packages": "Премиум-наборы",
   "privacy_policy": "Политика конфиденциальности",
+  "rate_app": "Оцените нас",
   "profanity_not_allowed": "Имена с неприемлемыми словами запрещены!",
   "progress": "Прогресс",
   "quit_game": "Выйти из игры",
