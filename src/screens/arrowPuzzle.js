@@ -1,7 +1,7 @@
 // Ok Bulmacası ekranı (canvas)
 // Akış: menü kartı → doğrudan bu ekran (mevcut seviye). Geri tuşu → harita.
 import { ArrowEngine } from '../game/arrowEngine.js';
-import { DIRS, getTotalArrowLevels, getShapeColor, getArrowLevelData, getShapeName } from '../game/arrowLevels.js';
+import { DIRS, getTotalArrowLevels, getShapeColor, getShapeName } from '../game/arrowLevels.js';
 import { createTopBar } from '../components/topBar.js';
 import { createModal } from '../components/modal.js';
 import { PlayerState } from '../state/playerState.js';
@@ -15,6 +15,7 @@ import { checkAndShowTutorial } from '../components/tutorial.js';
 import { showQuitConfirmation } from '../utils/quitConfirm.js';
 import { Toast } from '../components/toast.js';
 import { createScope } from '../utils/lifecycle.js';
+import { recordArrowOutcome } from '../utils/arrowTelemetry.js';
 
 const MAP_ROUTE = '#/adventure-map?game=arrow';
 
@@ -34,6 +35,7 @@ export function ArrowPuzzle(router) {
   
   let startLevel;
   if (mode === 'endless') {
+    // Endless = rastgele seviye (sıralı ilerleme yok). Her girişte/sonraki'de yeni rastgele tahta.
     startLevel = Math.floor(Math.random() * getTotalArrowLevels()) + 1;
   } else {
     startLevel = (!isNaN(urlLevel) && urlLevel > 0)
@@ -42,16 +44,23 @@ export function ArrowPuzzle(router) {
   }
 
   const engine = new ArrowEngine();
+  // Bayrakları İLK init'ten ÖNCE ayarla (init bunları sıfırlamaz → bir kez yeterli):
+  //  - starsEnabled: endless macera yıldız tablosunu kirletmesin.
+  //  - denseLevels: endless tahtaları cap içinde en yoğun ölçeğe çıksın (daha büyük/zor).
+  engine.starsEnabled = (mode !== 'endless');
+  engine.denseLevels = (mode === 'endless');
   engine.init(startLevel);
   if (mode !== 'endless' && engine.loadState && engine.loadState()) { /* sürdürüldü */ }
 
   // Endless ödülü küçük (stars*5 = 5-15) olduğundan ipucu maliyeti orada daha düşük; aksi halde
   // tek ipucu (50) ödülün katı olup elmas kanatıyordu. Macera ödülü büyük → standart maliyet.
-  const HINT_COSTS = mode === 'endless' ? [20, 40, 60] : [50, 150, 300];
-  const HEART_BOOST_COST = 80;   // mid-level +1 can booster'ı (AYARLANABİLİR)
+  // Ekonomi yeniden dengelendi: maliyetler düştü (ipucu/can artık seviye ödülüyle uyumlu).
+  const HINT_COSTS = mode === 'endless' ? [15, 30, 50] : [30, 80, 150];
+  const HEART_BOOST_COST = 50;   // mid-level +1 can booster'ı (AYARLANABİLİR)
   const MAX_BOOST_HEARTS = 9;    // can dolma tavanı (HUD taşmasını önler)
   let clearStreak = 0;           // ardışık başarılı temizleme (yanlış dokunuşta sıfırlanır)
   let hintUsages = 0;
+  let lastWrongAt = 0;           // son yanlış dokunuş zamanı (grace/tolerans penceresi için)
 
   // Dark mode'u bir kez değerlendir; her karo/karede window.matchMedia(...) parse etmek
   // yerine 'change' olayında güncelle (low-end'de kare başına onlarca parse'ı önler).
@@ -65,15 +74,17 @@ export function ArrowPuzzle(router) {
 
   const backTarget = mode === 'endless' ? '#/menu' : MAP_ROUTE;
   const goBack = () => {
-    if (engine && engine.saveState) engine.saveState();
+    // Endless'ta 'arrow_save' anahtarına yazma — macera yarım-seviye kaydını ezmesin.
+    if (mode !== 'endless' && engine && engine.saveState) engine.saveState();
     showQuitConfirmation(router, backTarget, {
       text: t('restart') || 'Yeniden Başla',
       primary: false,
       onClick: (closeFn) => {
         closeFn();
         engine.init(engine.level);
+        hintUsages = 0; clearStreak = 0; // B2: yeniden başlatınca ipucu/kombo da sıfırlansın
         captureShape();
-        reveals.clear(); 
+        reveals.clear();
         winGlowT0 = 0; viewScale = 1; viewX = 0; viewY = 0; renderHearts(); renderHintBadge(); resize(); startEntrance(); resetHintTimer(); ensureLoop();
       }
     });
@@ -173,6 +184,20 @@ export function ArrowPuzzle(router) {
   }
   container.appendChild(hud);
 
+  // ===== Hedef etiketi (gizli resmin adı — oynarken amaç görünür) =====
+  const goalLabel = document.createElement('div');
+  goalLabel.className = 'w-full flex items-center justify-center gap-1.5 pb-1 shrink-0';
+  container.appendChild(goalLabel);
+  function updateGoalLabel() {
+    const name = getShapeName(engine.shape);
+    goalLabel.innerHTML = `
+      <span class="material-symbols-outlined text-[14px] text-cyan-500/80 dark:text-cyan-400/80" style="font-variation-settings:'FILL' 1;">image</span>
+      <span class="text-[11px] md:text-xs font-bold text-gray-400 tracking-wide uppercase">${t('arrow_goal') || 'Hedef'}:</span>
+      <span class="text-[12px] md:text-sm font-black text-gray-600 dark:text-gray-200">${name}</span>
+    `;
+  }
+  updateGoalLabel();
+
   const heartsEl = hud.querySelector('#arrow-hearts');
   const levelEl = hud.querySelector('#arrow-level');
 
@@ -184,7 +209,6 @@ export function ArrowPuzzle(router) {
     }
     heartsEl.innerHTML = html;
   }
-  function renderBest() {}
   function renderHintBadge() {
     const btn = hud.querySelector('#arrow-top-hint');
     const badge = hud.querySelector('#arrow-hint-badge');
@@ -192,7 +216,7 @@ export function ArrowPuzzle(router) {
     
     if (hintUsages >= HINT_COSTS.length) {
       btn.className = 'bg-gradient-to-br from-gray-400 to-gray-500 w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center shadow-inner border border-white/20';
-      badge.innerHTML = '<span class="text-[8px] md:text-[9px] font-black text-gray-400 leading-none px-0.5 py-0.5">BİTTİ</span>';
+      badge.innerHTML = `<span class="text-[8px] md:text-[9px] font-black text-gray-400 leading-none px-0.5 py-0.5">${t('hint_exhausted') || 'BİTTİ'}</span>`;
       badge.className = 'absolute -top-1.5 -right-5 flex items-center gap-0.5 bg-white/90 dark:bg-slate-800/90 px-1.5 py-0.5 rounded-full border border-gray-400/30 shadow-sm z-10 whitespace-nowrap backdrop-blur-sm';
     } else {
       btn.className = 'bg-gradient-to-br from-amber-300 to-yellow-500 w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center shadow-inner border border-white/20 active:scale-90 transition-transform';
@@ -226,12 +250,17 @@ export function ArrowPuzzle(router) {
   // ===== Gizli resim (silüet) + zoom/pan durumu =====
   let shapeSet = new Set();      // tam şekil hücreleri "r,c" (resume-güvenli)
   let revealColor = '#22D3EE';
+  // Bağlantı önbelleği state'i — captureShape() kurulumda invalidateConn() çağırdığı için
+  // `let` tanımı buradan ÖNCE olmalı (aksi halde TDZ: 'connCache before initialization').
+  let connCache = null;
   function captureShape() {
-    shapeSet = new Set();
-    const data = getArrowLevelData(engine.level);
-    for (const c of data.cells) shapeSet.add(c.r + ',' + c.c);
-    revealColor = getShapeColor(data.shape);
+    // Üreteci baştan çalıştırmak yerine motorun init'te hesapladığı tam hücre kümesini
+    // kullan (resume-güvenli; saveState/loadState içinde de taşınır).
+    shapeSet = new Set(engine.shapeCells || []);
+    revealColor = getShapeColor(engine.shape);
     if (levelEl) levelEl.textContent = engine.level;
+    if (typeof updateGoalLabel === 'function') updateGoalLabel();
+    invalidateConn(); // yeni tahta → bağlantı önbelleğini sıfırla
   }
   captureShape();
 
@@ -256,7 +285,9 @@ export function ArrowPuzzle(router) {
     const activeMinR = engine.activeMinR !== undefined ? engine.activeMinR : 0;
 
     cell = Math.floor(Math.min((cssW - pad * 2) / activeCols, (cssH - pad * 2) / activeRows));
-    cell = Math.min(80, Math.max(12, cell));
+    // Adillik: minimum hücre 12→18px. Üreteçteki tahta tavanı (18) ile birlikte
+    // oklar artık parmakla isabet edilebilir boyutta; gerekirse pinch/pan devrede.
+    cell = Math.min(80, Math.max(18, cell));
     
     const activeW = activeCols * cell;
     const activeH = activeRows * cell;
@@ -292,27 +323,42 @@ export function ArrowPuzzle(router) {
     viewY = Math.max(minY, Math.min(maxY, viewY));
   }
 
-  // ===== Yön bazlı renk paleti (Play Store Arrow Puzzle tarzı) =====
-  const DIR_COLORS = [
-    { from: '#FF6B6B', to: '#EE3B3B', stripe: '#FF8A8A' },  // 0=N  Kırmızı
-    { from: '#FF9F43', to: '#E67E22', stripe: '#FFB76B' },  // 1=NE Turuncu
-    { from: '#54A0FF', to: '#2E86DE', stripe: '#7BB8FF' },  // 2=E  Mavi
-    { from: '#5F27CD', to: '#341F97', stripe: '#8854D0' },  // 3=SE Mor
-    { from: '#00D2D3', to: '#01A3A4', stripe: '#48DBDB' },  // 4=S  Cyan
-    { from: '#10AC84', to: '#0A8967', stripe: '#2ED8A3' },  // 5=SW Yeşil
-    { from: '#F368E0', to: '#C44CC0', stripe: '#F78DE6' },  // 6=W  Pembe
-    { from: '#FECA57', to: '#F6B93B', stripe: '#FED97A' },  // 7=NW Sarı
-  ];
-  const DANGER_COLOR = { from: '#FF4757', to: '#C0392B', stripe: '#FF6B81' };
 
-  // ===== Parçacık sistemi (geliştirilmiş) =====
-
-  const PARTICLE_LIFE = 520;
-
-  function spawnParticles() {}
-
-  // Fırlama izi (trail) parçacıkları
-  function spawnTrail() {}
+  // ===== Bağlantı (incoming/ön-blok) ÖNBELLEĞİ =====
+  // Her okun aynı-yılan komşu bağlantıları yalnız ok silinince (tapArrow) veya seviye
+  // değişince değişir. Eskiden drawArrowTile bunu HER KARE, HER OK için 8 yön tarayarak
+  // hesaplıyordu (22×22+368 okta kare başına binlerce grid erişimi). Artık bir kez kurulur,
+  // tapArrow/captureShape'te invalidate edilir → render maliyeti büyük ölçüde düşer.
+  // (connCache 'let' tanımı yukarıda, captureShape çağrısından önce — TDZ'den kaçınmak için.)
+  function invalidateConn() { connCache = null; }
+  function buildConnCache() {
+    connCache = new Map();
+    if (!engine || !engine.grid || !engine.snakeIds) return;
+    for (let r = 0; r < engine.rows; r++) {
+      for (let c = 0; c < engine.cols; c++) {
+        const d = engine.grid[r][c];
+        if (d === null) continue;
+        const mySnakeId = engine.snakeIds[r][c];
+        const incoming = [];
+        for (let i = 0; i < 8; i++) {
+          const nr = r - DIRS[i][0], nc = c - DIRS[i][1];
+          if (nr >= 0 && nr < engine.rows && nc >= 0 && nc < engine.cols &&
+              engine.grid[nr][nc] === i && engine.snakeIds[nr][nc] === mySnakeId) {
+            incoming.push(i);
+          }
+        }
+        const [dr0, dc0] = DIRS[d];
+        const fr = r + dr0, fc = c + dc0;
+        const front = (fr >= 0 && fr < engine.rows && fc >= 0 && fc < engine.cols &&
+          engine.grid[fr][fc] !== null && engine.snakeIds[fr][fc] === mySnakeId);
+        connCache.set(r + ',' + c, { incoming, front });
+      }
+    }
+  }
+  function getConn(r, c) {
+    if (!connCache) buildConnCache();
+    return connCache.get(r + ',' + c);
+  }
 
   // ===== Çizim =====
   function drawArrowTile(x, y, size, dir, opts = {}) {
@@ -339,40 +385,12 @@ export function ArrowPuzzle(router) {
     ctx.lineCap = 'square'; // Uçlar küt ve kare (keskin birleşim için)
     ctx.lineJoin = 'miter'; // Keskin 90 derece köşeler
 
-    // Gelen (incoming) bağlantıları bul ve önü dolu mu kontrol et
-    const incoming = [];
+    // Gelen (incoming) bağlantı + ön-blok: artık önbellekten (kare başına tarama yok).
+    let incoming = [];
     let has_front_block = false;
-    
-    // Kendi Yılan ID'mizi al (uçan yılanlar için opt.snakeId de gönderilebilir)
-    let mySnakeId = opts.snakeId;
-    if (mySnakeId === undefined && opts.r !== undefined && opts.c !== undefined && engine && engine.snakeIds) {
-      mySnakeId = engine.snakeIds[opts.r][opts.c];
-    }
-    
-    if (opts.r !== undefined && opts.c !== undefined && engine && engine.grid) {
-      for (let i = 0; i < 8; i++) {
-        const nr = opts.r - DIRS[i][0];
-        const nc = opts.c - DIRS[i][1];
-        if (nr >= 0 && nr < engine.rows && nc >= 0 && nc < engine.cols) {
-          if (engine.grid[nr][nc] === i) {
-            // SADECE AYNI YILANIN PARÇASIYSA BİRLEŞTİR
-            if (engine.snakeIds && engine.snakeIds[nr][nc] === mySnakeId) {
-              incoming.push(i);
-            }
-          }
-        }
-      }
-      
-      const fr = opts.r + dr;
-      const fc = opts.c + dc;
-      if (fr >= 0 && fr < engine.rows && fc >= 0 && fc < engine.cols) {
-        if (engine.grid[fr][fc] !== null) {
-          // SADECE AYNI YILANIN PARÇASIYSA ÖNÜ DOLU SAY (Yoksa boşluk bırak)
-          if (engine.snakeIds && engine.snakeIds[fr][fc] === mySnakeId) {
-            has_front_block = true;
-          }
-        }
-      }
+    if (opts.r !== undefined && opts.c !== undefined) {
+      const conn = getConn(opts.r, opts.c);
+      if (conn) { incoming = conn.incoming; has_front_block = conn.front; }
     }
 
     // Uç noktasının (P_out) uzaklığı. Önü doluysa tam sınıra (r_cell), değilse biraz boşluk bırakarak uca.
@@ -561,6 +579,92 @@ export function ArrowPuzzle(router) {
   function easeOutCubic(p) { return 1 - Math.pow(1 - p, 3); }
   function easeOutQuint(p) { return 1 - Math.pow(1 - p, 5); }
 
+  // Uçan yılan zincirini (sürekli tek hat + ok başı) verilen ilerleme değerleriyle çizer.
+  // Hem gerçek oyun (flying[]) hem öğretici animasyonu bu tek fonksiyonu kullanır
+  // (eskiden ~80 satır kopya-yapıştırdı). headPull/tailPull/alpha/windup çağıran tarafça
+  // hesaplanır; çizim mantığı burada tek yerde.
+  function drawFlyingSnakeShape(snake, path, pathDists, headPull, tailPull, alpha, windupElapsed) {
+    if (alpha < 0.01) return;
+    const totalPathLen = pathDists[pathDists.length - 1];
+    const headDir = snake[snake.length - 1].dir;
+    const [flyDr, flyDc] = DIRS[headDir];
+    const r_cell = cell / 2;
+    const newTailDist = tailPull - r_cell;
+    const newHeadDist = totalPathLen + headPull + r_cell;
+
+    function getPosAtDist(dist) {
+      if (dist <= 0) {
+        const [tdr, tdc] = DIRS[(snake[0].dir + 4) % 8];
+        return { x: path[0].x + tdc * (-dist), y: path[0].y + tdr * (-dist) };
+      } else if (dist < totalPathLen) {
+        let segIdx = 0;
+        for (let k = 1; k < pathDists.length; k++) {
+          if (pathDists[k] >= dist) { segIdx = k - 1; break; }
+        }
+        const segStart = pathDists[segIdx];
+        const segEnd = pathDists[segIdx + 1];
+        const ratio = (segEnd > segStart) ? (dist - segStart) / (segEnd - segStart) : 0;
+        return {
+          x: path[segIdx].x + (path[segIdx + 1].x - path[segIdx].x) * ratio,
+          y: path[segIdx].y + (path[segIdx + 1].y - path[segIdx].y) * ratio
+        };
+      } else {
+        const overshoot = dist - totalPathLen;
+        const hp = path[path.length - 1];
+        return { x: hp.x + flyDc * overshoot, y: hp.y + flyDr * overshoot };
+      }
+    }
+
+    const lineColor = isDarkMode ? '#F8FAFC' : '#0F172A';
+    const lw = Math.max(1.5, cell * 0.06);
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = lineColor;
+    ctx.lineWidth = lw;
+    ctx.lineCap = 'square';
+    ctx.lineJoin = 'miter';
+
+    const headPos = getPosAtDist(newHeadDist);
+    const tailPos = getPosAtDist(newTailDist);
+
+    if (windupElapsed != null) {
+      const wp = windupElapsed / WINDUP_MS;
+      const sc = 1.0 + wp * 0.12;
+      ctx.translate(headPos.x, headPos.y);
+      ctx.scale(sc, sc);
+      ctx.translate(-headPos.x, -headPos.y);
+    }
+
+    ctx.beginPath();
+    ctx.moveTo(tailPos.x, tailPos.y);
+    for (let k = 0; k < pathDists.length; k++) {
+      if (pathDists[k] > newTailDist && pathDists[k] < newHeadDist) {
+        ctx.lineTo(path[k].x, path[k].y);
+      }
+    }
+    ctx.lineTo(headPos.x, headPos.y);
+    ctx.stroke();
+
+    const dirAng = Math.atan2(flyDr, flyDc);
+    const headLen = cell * 0.20;
+    const headW = cell * 0.16;
+
+    ctx.translate(headPos.x + flyDc * (lw / 2), headPos.y + flyDr * (lw / 2));
+    ctx.rotate(dirAng);
+
+    ctx.fillStyle = lineColor;
+    ctx.beginPath();
+    ctx.moveTo(cell * 0.04, 0);
+    ctx.lineTo(-headLen, -headW);
+    ctx.lineTo(-headLen + cell * 0.04, 0);
+    ctx.lineTo(-headLen, headW);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.restore();
+  }
+
   function startEntrance() {
     entranceT0 = performance.now();
     const cr = (engine.rows - 1) / 2, cc = (engine.cols - 1) / 2;
@@ -578,26 +682,6 @@ export function ArrowPuzzle(router) {
     if (p <= 0) return 0;
     if (p >= 1) return 1;
     return easeOutBack(p);
-  }
-
-  function drawReveal(x, y, size, popScale, glow) {
-    // Açılan resim: oku temizlenmiş ŞEKİL hücresi dolu renkle gösterilir → okları
-    // temizledikçe gizli resim ortaya çıkar. (Eskiden burası boştu; resim hiç görünmüyordu.)
-    const s = size * 0.9 * (popScale || 1);
-    const r = s / 2;
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.globalAlpha = 0.92;
-    ctx.fillStyle = revealColor;
-    roundRect(-r, -r, s, s, s * 0.2);
-    ctx.fill();
-    if (glow > 0) {
-      ctx.globalAlpha = Math.min(1, glow);
-      ctx.shadowColor = revealColor;
-      ctx.shadowBlur = size * 0.45;
-      ctx.fill();
-    }
-    ctx.restore();
   }
 
   // Arka plan — uygulama varsayılan koyu teması (canvas transparan, konteyner rengi görünsün)
@@ -632,53 +716,36 @@ export function ArrowPuzzle(router) {
     ctx.translate(viewX, viewY);
     ctx.scale(viewScale, viewScale);
 
-    // === NOKTA KAFESİ + HEDEF SİLÜET (oyun sırasında resmi görünür kılar) ===
-    // Eskiden ızgara/silüet hiç çizilmiyordu → oyuncu yalnızca ok kalabalığı görüyor, hedef
-    // şekli temizlemeden GÖREMİYORDU. Emsaller gibi: (a) her hücrede ince nokta (ızgara hissi),
-    // (b) şekil hücrelerinin ALTINA soluk renk tint → oyuncu hedef resmi okları kaldırmadan görür.
-    {
-      const dotColor = isDarkMode ? 'rgba(148,163,184,0.22)' : 'rgba(100,116,139,0.20)';
-      const dotR = Math.max(1, cell * 0.06);
-      const tintS = cell * 0.9, tintR = tintS / 2;
-      for (let r = 0; r < engine.rows; r++) {
-        for (let c = 0; c < engine.cols; c++) {
-          const { x, y } = cellCenter(r, c);
-          // (a) nokta — her hücre konumunda
-          ctx.beginPath();
-          ctx.fillStyle = dotColor;
-          ctx.arc(x, y, dotR, 0, Math.PI * 2);
-          ctx.fill();
-          // (b) ok hâlâ duruyorsa şekil hücresine soluk silüet tint
-          if (engine.grid[r][c] !== null && !engine.wall[r][c] && shapeSet.has(r + ',' + c)) {
-            ctx.save();
-            ctx.translate(x, y);
-            ctx.globalAlpha = 0.18;
-            ctx.fillStyle = revealColor;
-            roundRect(-tintR, -tintR, tintS, tintS, tintS * 0.2);
-            ctx.fill();
-            ctx.restore();
-          }
-        }
-      }
-    }
-
     const hintGlow = hintCell ? (0.5 + 0.5 * Math.sin(now / 260)) : 0;
     const winPulse = winGlowT0 ? Math.max(0, 1 - (now - winGlowT0) / 900) : 0;
 
-    // 1) Gizli resim (renkli silüet) — yeni açılanlar pop, kazanınca parıltı
-    for (const key of shapeSet) {
-      const [r, c] = key.split(',').map(Number);
-      if (engine.grid[r][c] === null) {
+    // === GİZLİ RESİM = NOKTALAR (kullanıcı isteği) ===
+    // Okların ardındaki renkli BLOKLAR (soluk tint + dolu silüet) kaldırıldı. Boş hücrelerde
+    // ızgara noktası YOK. Bir ok fırlatılıp hücre boşalınca o ŞEKİL hücresinde küçük bir
+    // NOKTA belirir (pop) → resim noktalarla ortaya çıkar. Ok hâlâ duruyorsa nokta çizilmez.
+    {
+      const baseR = Math.max(1.5, cell * 0.13);
+      for (const key of shapeSet) {
+        const [r, c] = key.split(',').map(Number);
+        if (engine.grid[r][c] !== null) continue; // ok varsa nokta yok (ok zaten görünür)
         const { x, y } = cellCenter(r, c);
         let pop = 1;
         const rt = reveals.get(key);
         if (rt !== undefined) {
           const p = (now - rt) / REVEAL_MS;
           if (p >= 1) reveals.delete(key);
-          else pop = 0.5 + 0.5 * easeOutBack(Math.min(1, p));
+          else pop = 0.3 + 0.7 * easeOutBack(Math.min(1, p));
         }
-        drawReveal(x, y, cell, pop, winPulse * 0.8);
+        // P2: nokta-başına shadowBlur (pahalı) kaldırıldı. Kazanma parıltısı bunun yerine
+        // noktayı hafif büyütüp parlatarak (alpha + yarıçap) ucuz biçimde verilir.
+        const wr = 1 + 0.35 * winPulse;
+        ctx.globalAlpha = 0.85 + 0.15 * winPulse;
+        ctx.fillStyle = revealColor;
+        ctx.beginPath();
+        ctx.arc(x, y, baseR * pop * wr, 0, Math.PI * 2);
+        ctx.fill();
       }
+      ctx.globalAlpha = 1;
     }
 
     // Hangi yılanın shake/hint durumunda olduğunu bulalım
@@ -761,18 +828,16 @@ export function ArrowPuzzle(router) {
       if (elapsed > totalDur + 100) { flying.splice(i, 1); continue; }
       
       const snake = f.snake;
-      const path = f.path;           
-      const pathDists = f.pathDists; 
+      const path = f.path;
+      const pathDists = f.pathDists;
       const totalPathLen = pathDists[pathDists.length - 1];
-      const headDir = snake[snake.length - 1].dir;
-      const [flyDr, flyDc] = DIRS[headDir];
       const exitDist = (engine.rows + engine.cols) * cell * 1.5;
-      
+
       let headPull = 0;
       let tailPull = 0;
       let windupPhase = false;
       let alpha = 1;
-      
+
       if (elapsed < WINDUP_MS) {
         windupPhase = true;
         const wp = elapsed / WINDUP_MS;
@@ -782,11 +847,11 @@ export function ArrowPuzzle(router) {
       } else {
         const launchElapsed = elapsed - WINDUP_MS;
         const lp = Math.min(1, launchElapsed / FLY_MS);
-        
+
         // Baş (head) aniden fırlayıp dışarı çıkar (easeOutQuart)
         const easedHead = 1 - Math.pow(1 - lp, 4);
         headPull = easedHead * (totalPathLen + exitDist);
-        
+
         // Kuyruk (tail) tıklamadan tam 100ms (0.1 saniye) sonra serbest kalır
         const TAIL_RELEASE_MS = 100;
         if (elapsed < TAIL_RELEASE_MS) {
@@ -796,92 +861,12 @@ export function ArrowPuzzle(router) {
           const easedTail = tailLp * tailLp; // İvmelenerek (easeInQuad) başın arkasından fırlar
           tailPull = easedTail * (totalPathLen + exitDist);
         }
-        
+
         // Yılanın boyu devasa uzayacağı için, tamamen ekrandan çıkana kadar silinmesin (%90'dan sonra solar)
         alpha = lp < 0.9 ? 1 : Math.max(0, 1 - (lp - 0.9) / 0.1);
       }
-      
-      if (alpha < 0.01) continue;
 
-      const r_cell = cell / 2;
-      const newTailDist = tailPull - r_cell;
-      const newHeadDist = totalPathLen + headPull + r_cell;
-
-      function getPosAtDist(dist) {
-        if (dist <= 0) {
-          const tailDir = snake[0].dir;
-          const tailOppDir = (tailDir + 4) % 8;
-          const [tdr, tdc] = DIRS[tailOppDir];
-          return { x: path[0].x + tdc * (-dist), y: path[0].y + tdr * (-dist) };
-        } else if (dist < totalPathLen) {
-          let segIdx = 0;
-          for (let k = 1; k < pathDists.length; k++) {
-            if (pathDists[k] >= dist) { segIdx = k - 1; break; }
-          }
-          const segStart = pathDists[segIdx];
-          const segEnd = pathDists[segIdx + 1];
-          const ratio = (segEnd > segStart) ? (dist - segStart) / (segEnd - segStart) : 0;
-          return {
-            x: path[segIdx].x + (path[segIdx + 1].x - path[segIdx].x) * ratio,
-            y: path[segIdx].y + (path[segIdx + 1].y - path[segIdx].y) * ratio
-          };
-        } else {
-          const overshoot = dist - totalPathLen;
-          const hp = path[path.length - 1];
-          return { x: hp.x + flyDc * overshoot, y: hp.y + flyDr * overshoot };
-        }
-      }
-
-      const lineColor = isDarkMode ? '#F8FAFC' : '#0F172A';
-      const lw = Math.max(1.5, cell * 0.06);
-
-      ctx.save();
-      ctx.globalAlpha = alpha;
-      ctx.strokeStyle = lineColor;
-      ctx.lineWidth = lw;
-      ctx.lineCap = 'square';
-      ctx.lineJoin = 'miter';
-
-      const headPos = getPosAtDist(newHeadDist);
-      const tailPos = getPosAtDist(newTailDist);
-
-      if (windupPhase) {
-        const wp = elapsed / WINDUP_MS;
-        const sc = 1.0 + wp * 0.12;
-        ctx.translate(headPos.x, headPos.y);
-        ctx.scale(sc, sc);
-        ctx.translate(-headPos.x, -headPos.y);
-      }
-
-      // Ana gövde hattını çiz
-      ctx.beginPath();
-      ctx.moveTo(tailPos.x, tailPos.y);
-      for (let k = 0; k < pathDists.length; k++) {
-        if (pathDists[k] > newTailDist && pathDists[k] < newHeadDist) {
-          ctx.lineTo(path[k].x, path[k].y);
-        }
-      }
-      ctx.lineTo(headPos.x, headPos.y);
-      ctx.stroke();
-
-      // Ok başı
-      const dirAng = Math.atan2(flyDr, flyDc);
-      const headLen = cell * 0.20; 
-      const headW = cell * 0.16;   
-      
-      ctx.translate(headPos.x + flyDc * (lw/2), headPos.y + flyDr * (lw/2));
-      ctx.rotate(dirAng);
-      
-      ctx.fillStyle = lineColor;
-      ctx.beginPath();
-      ctx.moveTo(cell * 0.04, 0); 
-      ctx.lineTo(-headLen, -headW); 
-      ctx.lineTo(-headLen + cell*0.04, 0); 
-      ctx.lineTo(-headLen, headW); 
-      ctx.closePath();
-      ctx.fill();
-
-      ctx.restore();
+      drawFlyingSnakeShape(snake, path, pathDists, headPull, tailPull, alpha, windupPhase ? elapsed : null);
     }
 
     // 5) Öğretici animasyonlar (tutorialAnim)
@@ -905,8 +890,6 @@ export function ArrowPuzzle(router) {
                 const pathDists = f.pathDists; 
                 if (snake && path && pathDists) {
                    const totalPathLen = pathDists[pathDists.length - 1];
-                   const headDir = snake[snake.length - 1].dir;
-                   const [flyDr, flyDc] = DIRS[headDir];
                    const exitDist = (engine.rows + engine.cols) * cell * 1.5;
                    
                    let headPull = 0, tailPull = 0, windupPhase = false, alpha = 1;
@@ -925,62 +908,9 @@ export function ArrowPuzzle(router) {
                      }
                      alpha = Math.max(0, 1 - Math.pow(lp, 3));
                    }
-                   
-                   const r_cell = cell / 2;
-                   const newTailDist = tailPull - r_cell;
-                   const newHeadDist = totalPathLen + headPull + r_cell;
 
-                   function getPosAtDist(dist) {
-                     if (dist <= 0) {
-                       const [tdr, tdc] = DIRS[(snake[0].dir + 4) % 8];
-                       return { x: path[0].x + tdc * (-dist), y: path[0].y + tdr * (-dist) };
-                     } else if (dist < totalPathLen) {
-                       let segIdx = 0;
-                       for (let k = 1; k < pathDists.length; k++) { if (pathDists[k] >= dist) { segIdx = k - 1; break; } }
-                       const ratio = (pathDists[segIdx + 1] > pathDists[segIdx]) ? (dist - pathDists[segIdx]) / (pathDists[segIdx + 1] - pathDists[segIdx]) : 0;
-                       return { x: path[segIdx].x + (path[segIdx + 1].x - path[segIdx].x) * ratio, y: path[segIdx].y + (path[segIdx + 1].y - path[segIdx].y) * ratio };
-                     } else {
-                       const overshoot = dist - totalPathLen;
-                       const hp = path[path.length - 1];
-                       return { x: hp.x + flyDc * overshoot, y: hp.y + flyDr * overshoot };
-                     }
-                   }
-
-                   const lineColor = isDarkMode ? '#F8FAFC' : '#0F172A';
-                   const lw = Math.max(1.5, cell * 0.06);
-
-                   ctx.save();
-                   ctx.globalAlpha = alpha;
-                   ctx.strokeStyle = lineColor;
-                   ctx.lineWidth = lw;
-                   ctx.lineCap = 'square';
-                   ctx.lineJoin = 'miter';
-
-                   const headPos = getPosAtDist(newHeadDist);
-                   const tailPos = getPosAtDist(newTailDist);
-
-                   if (windupPhase) {
-                     const wp = flyElapsedMs / WINDUP_MS;
-                     const sc = 1.0 + wp * 0.12;
-                     ctx.translate(headPos.x, headPos.y); ctx.scale(sc, sc); ctx.translate(-headPos.x, -headPos.y);
-                   }
-
-                   ctx.beginPath();
-                   ctx.moveTo(tailPos.x, tailPos.y);
-                   for (let k = 0; k < pathDists.length; k++) {
-                     if (pathDists[k] > newTailDist && pathDists[k] < newHeadDist) ctx.lineTo(path[k].x, path[k].y);
-                   }
-                   ctx.lineTo(headPos.x, headPos.y);
-                   ctx.stroke();
-
-                   const dirAng = Math.atan2(flyDr, flyDc);
-                   const headLen = cell * 0.20, headW = cell * 0.16;
-                   ctx.translate(headPos.x + flyDc * (lw/2), headPos.y + flyDr * (lw/2));
-                   ctx.rotate(dirAng);
-                   ctx.fillStyle = lineColor;
-                   ctx.beginPath();
-                   ctx.moveTo(cell * 0.04, 0); ctx.lineTo(-headLen, -headW); ctx.lineTo(-headLen + cell*0.04, 0); ctx.lineTo(-headLen, headW); ctx.closePath(); ctx.fill();
-                   ctx.restore();
+                   // Aynı uçan-yılan çizimi (ortak fonksiyon); alpha/pull yukarıda hesaplandı.
+                   drawFlyingSnakeShape(snake, path, pathDists, headPull, tailPull, alpha, windupPhase ? flyElapsedMs : null);
                 }
              } else if (p2000 <= 0.35) {
                 if (tutorialAnim.snake) {
@@ -1128,6 +1058,7 @@ export function ArrowPuzzle(router) {
     if (engine.grid[hit.r][hit.c] === null || engine.wall[hit.r][hit.c]) return;
     const res = engine.tapArrow(hit.r, hit.c);
     if (res.removed) {
+      invalidateConn(); // yılan silindi → bağlantı önbelleği geçersiz
       clearStreak++;
       if (clearStreak >= 5 && clearStreak % 5 === 0) showStreakCombo(clearStreak);
       // Zincir yolunu (path) ve kümülatif mesafeleri önceden hesapla
@@ -1147,11 +1078,21 @@ export function ArrowPuzzle(router) {
       if (res.win) { winGlowT0 = performance.now(); setTimeout(onWin, 420); }
     } else if (res.blocked) {
       clearStreak = 0;
+      // ADİLLİK: parmak kayması/çift dokunuş bir kerede birden çok can yakmasın.
+      // Son yanlış dokunuştan 600ms içindeki yeni yanlış dokunuş can yakmaz (yine sallanır).
+      const nowMs = performance.now();
+      const graced = nowMs - lastWrongAt < 600;
+      lastWrongAt = nowMs;
+      if (graced) {
+        engine.hearts = Math.min(engine.maxHearts, engine.hearts + 1); // motorun düştüğü canı iade et
+        engine.wrongTaps = Math.max(0, engine.wrongTaps - 1);
+        if (engine.hearts > 0) engine.fail = false;
+      }
       shake = { r: hit.r, c: hit.c, t0: performance.now() };
       Sounds.playSfx?.('invalid');
       Haptics.vibrate?.('invalid');
       renderHearts();
-      if (res.fail) setTimeout(onFail, 400);
+      if (!graced && engine.fail) setTimeout(onFail, 400);
     }
     resetHintTimer();
     ensureLoop();
@@ -1268,21 +1209,21 @@ canvas.addEventListener('wheel', onWheel, { passive: false });
         </div>
         
         <h2 class="text-xl font-black text-gray-800 dark:text-white mb-2 relative z-10">${t('not_enough_diamonds') || 'Yetersiz Elmas'}</h2>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mb-6 font-medium relative z-10">Elmas veya reklam izleyerek ipucunu kullanabilirsin.</p>
-        
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-6 font-medium relative z-10">${t('hint_get_via') || 'Elmas veya reklam izleyerek ipucunu kullanabilirsin.'}</p>
+
         <div class="space-y-3 relative z-10">
           <button id="btn-buy-diamonds" class="w-full py-3.5 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white rounded-2xl font-bold shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2 transition-all active:scale-95">
             <span class="material-symbols-outlined text-xl">shopping_cart</span>
-            Elmas Satın Al
+            ${t('buy_diamonds') || 'Elmas Satın Al'}
           </button>
-          
+
           <button id="btn-watch-ad" class="w-full py-3.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-2xl font-bold shadow-lg shadow-emerald-500/30 flex items-center justify-center gap-2 transition-all active:scale-95">
             <span class="material-symbols-outlined text-xl">play_circle</span>
-            Reklam İzle
+            ${t('watch_ad') || 'Reklam İzle'}
           </button>
-          
+
           <button id="btn-close-modal" class="w-full py-3 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 text-gray-700 dark:text-gray-300 rounded-2xl font-bold transition-colors active:scale-95 mt-2">
-            İptal
+            ${t('cancel') || 'İptal'}
           </button>
         </div>
       </div>
@@ -1351,7 +1292,7 @@ canvas.addEventListener('wheel', onWheel, { passive: false });
     };
   }
 
-  hud.addEventListener('click', (ev) => {
+  scope.on(hud, 'click', (ev) => {
     const btn = ev.target.closest('#arrow-top-hint');
     if (!btn) return;
     
@@ -1411,7 +1352,10 @@ canvas.addEventListener('wheel', onWheel, { passive: false });
   // ===== Kazanma =====
   function onWin() {
     modalOpen = true;
-    engine.clearSave();
+    if (mode !== 'endless') {
+      engine.clearSave();                                  // macera resume kaydını temizle
+      recordArrowOutcome(engine.level, true, engine.wrongTaps);
+    }
     Sounds.playSfx?.('level-up');
     Haptics.vibrate?.('new-record');
     const stars = engine.lastStars || 1;
@@ -1419,13 +1363,15 @@ canvas.addEventListener('wheel', onWheel, { passive: false });
     
     let reward = 0;
     if (mode === 'endless') {
+      // Endless = rastgele tahta; ödül sade (yıldız×5), ilerleme/skor kaydı yok.
       reward = stars * 5;
       PlayerState.addDiamonds(reward);
       PlayerState.save();
     } else {
       if (engine.level >= (PlayerState.state.arrowAdventureLevel || 1)) {
         PlayerState.state.arrowAdventureLevel = Math.min(engine.level + 1, getTotalArrowLevels());
-        reward = Math.min(80, 15 + engine.level + stars * 5);
+        // Daha cömert: temel ödül 15→25, yıldız çarpanı 5→8, tavan 80→120.
+        reward = Math.min(120, 25 + engine.level + stars * 8);
         PlayerState.addDiamonds(reward);
         PlayerState.save();
       }
@@ -1461,6 +1407,7 @@ canvas.addEventListener('wheel', onWheel, { passive: false });
           onClick: (close) => { 
             close(); modalOpen = false; 
             if (mode === 'endless') {
+              // Endless = her seferinde yeni rastgele tahta.
               let nextLvl = Math.floor(Math.random() * getTotalArrowLevels()) + 1;
               history.replaceState(null, '', `#/arrow?mode=endless&level=${nextLvl}`);
               engine.init(nextLvl);
@@ -1471,10 +1418,10 @@ canvas.addEventListener('wheel', onWheel, { passive: false });
               history.replaceState(null, '', `#/arrow?level=${nextLvl}`);
               engine.init(nextLvl);
             }
-            hintUsages = 0;
+            hintUsages = 0; clearStreak = 0; // B3: yeni tahtada kombo sayacı sıfırlansın
             captureShape();
-            reveals.clear(); 
-            winGlowT0 = 0; viewScale = 1; viewX = 0; viewY = 0; renderHearts(); renderHintBadge(); resize(); startEntrance(); resetHintTimer(); ensureLoop(); 
+            reveals.clear();
+            winGlowT0 = 0; viewScale = 1; viewX = 0; viewY = 0; renderHearts(); renderHintBadge(); resize(); startEntrance(); resetHintTimer(); ensureLoop();
           }
         }]),
         { text: (mode === 'endless') ? (t('back_to_menu') || 'Ana Menü') : (t('back_to_map') || 'Haritaya Dön'), onClick: (close) => { close(); router.navigate(mode === 'endless' ? '#/menu' : MAP_ROUTE); } },
@@ -1487,9 +1434,10 @@ canvas.addEventListener('wheel', onWheel, { passive: false });
   function onFail() {
     if (modalOpen) return;
     modalOpen = true;
+    if (mode !== 'endless') recordArrowOutcome(engine.level, false, engine.wrongTaps);
     Sounds.playSfx?.('game-over');
     Haptics.vibrate?.('game-over');
-    const REVIVE_COST = 300;
+    const REVIVE_COST = 150;
 
     const resumeBoard = (close) => {
       engine.addHearts(3);
@@ -1565,7 +1513,7 @@ canvas.addEventListener('wheel', onWheel, { passive: false });
     modal.querySelector('#arrow-revive-retry').addEventListener('click', () => {
       modal.remove();
       modalOpen = false;
-      hintUsages = 0;
+      hintUsages = 0; clearStreak = 0;
       engine.init(engine.level); captureShape(); reveals.clear(); winGlowT0 = 0;
       viewScale = 1; viewX = 0; viewY = 0;
       renderHearts(); renderHintBadge(); resize(); startEntrance(); resetHintTimer(); ensureLoop();
@@ -1592,7 +1540,6 @@ canvas.addEventListener('wheel', onWheel, { passive: false });
   container.cleanup = () => {
     scope.destroy(); // izlenen setTimeout/RAF iptali (mevcut manuel teardown + saveState korunur)
     activeBodyAppends.forEach(el => el && el.parentNode && el.remove());
-    if (typeof hintTimer !== 'undefined') clearTimeout(hintTimer);
     if (rafId !== null) cancelAnimationFrame(rafId);
     rafId = null;
     window.removeEventListener('resize', onResize);
@@ -1603,7 +1550,7 @@ canvas.addEventListener('wheel', onWheel, { passive: false });
     canvas.removeEventListener('wheel', onWheel);
     if (topBar.cleanup) topBar.cleanup();
     AdService.hideBanner?.();
-    if (!engine.win && !engine.fail) engine.saveState();
+    if (mode !== 'endless' && !engine.win && !engine.fail) engine.saveState();
     // Tutorial API global'i closure ile engine/canvas'ı tuttuğundan ekran kapanınca bırakılır.
     delete window.arrowTutorialApi;
   };

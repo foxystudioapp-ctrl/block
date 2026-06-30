@@ -104,27 +104,27 @@ class AdServiceManager {
    *   'periodic'  — sonsuz modda oyun içi doğal duraklama anında
    *
    * Zamanlama:
-   *   1. Reklam (adsWatchedCount=0):
-   *      • 'gameover' → hemen göster
-   *      • 'periodic' → oturum başlangıcından 10 dk geçmişse göster
-   *   2. Reklam (adsWatchedCount=1):
-   *      • herhangi kaynak → son reklamdan 10 dk sonra göster
-   *   3+ Reklam (adsWatchedCount>=2):
+   *   1. Reklam (henüz hiç reklam gösterilmemiş):
+   *      • herhangi kaynak (gameover / levelup / periodic) → oturum başından 10 dk sonra
+   *      • periodic DAHİL → Jewel/Patlatmaca gibi "neredeyse hiç bitmeyen" endless modlarda
+   *        (gameover/levelup olmasa bile) reklam yine de çıkar.
+   *   2. ve sonraki reklamlar:
    *      • herhangi kaynak → son reklamdan 15 dk sonra göster
+   *
+   * NOT: 2. şans (revive) ve oyun-içi özellikler için izlenen ÖDÜLLÜ/tam-ekran reklamlar da
+   * sayılır (showInterstitial + showRewardVideoAd, adsWatchedCount++ ve lastAdWatchTime'ı
+   * günceller) → bir sonraki zorunlu reklamın 15 dk'lık sayacını ileri atar.
    */
   async showForcedInterstitial(source = 'gameover') {
     const now = Date.now();
     let canShow = false;
 
     if (this.adsWatchedCount === 0) {
-      if (source === 'gameover') {
-        canShow = true;
-      } else if (source === 'periodic' && now - this.sessionStartTime >= 10 * 60 * 1000) {
-        canShow = true;
-      }
-    } else if (this.adsWatchedCount === 1) {
-      if (now - this.lastAdWatchTime >= 10 * 60 * 1000) canShow = true;
+      // 1. reklam: oturum başından 10 dk geçtiyse HERHANGİ tetikleyici gösterir (periodic
+      // dahil) → hiç bitmeyen endless modlarda (Jewel) da reklam çıkar.
+      if (now - this.sessionStartTime >= 10 * 60 * 1000) canShow = true;
     } else {
+      // 2. ve sonrası: herhangi kaynak, son reklamdan 15 dk sonra.
       if (now - this.lastAdWatchTime >= 15 * 60 * 1000) canShow = true;
     }
 
@@ -182,6 +182,9 @@ class AdServiceManager {
         if (settled) return;
         settled = true;
         this._rewardInFlight = false;
+        // Sayaç artışı TEK noktada: ödül gerçekten alındıysa. `settled` guard'ı çift-sayımı
+        // imkânsız kılar (eskiden hem dismissListener hem safetyTimer artırıyordu).
+        if (result === true) { this.adsWatchedCount++; this.lastAdWatchTime = Date.now(); }
         if (safetyTimer) clearTimeout(safetyTimer);
         rewardListener.remove();
         dismissListener.remove();
@@ -190,11 +193,7 @@ class AdServiceManager {
       };
 
       const dismissListener = AdMob.addListener(RewardAdPluginEvents.Dismissed, () => {
-        if (rewarded) {
-          this.adsWatchedCount++;
-          this.lastAdWatchTime = Date.now();
-        }
-        finish(rewarded);
+        finish(rewarded); // sayaç artışı finish() içinde (tek nokta)
       });
 
       const failListener = AdMob.addListener(RewardAdPluginEvents.FailedToShow, () => {
@@ -213,8 +212,7 @@ class AdServiceManager {
         // Promise sonsuza kadar asılı kalmasın. 120s her ödüllü reklamdan uzun olduğundan
         // meşru izlemeyi kesmez; ödül geldiyse yine de verilir.
         safetyTimer = setTimeout(() => {
-          if (rewarded) { this.adsWatchedCount++; this.lastAdWatchTime = Date.now(); }
-          finish(rewarded);
+          finish(rewarded); // sayaç artışı finish() içinde (tek nokta)
         }, 120000);
       } catch (e) {
         console.warn('Rewarded show error:', e);

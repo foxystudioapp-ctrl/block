@@ -239,7 +239,11 @@ class PlayerStateManager {
     //   - Harcama sonrası açılış: yerel daha yeni → yerel (düşük) korunur (dupe yok).
     const cloudLastSync = Number(cloudData.lastSync) || 0;
     const localEconChange = Number(Storage.get('econ_last_change', 0)) || 0;
-    const cloudWinsEconomy = cloudLastSync >= localEconChange;
+    // İLK bulut yüklemesinde (bu cihazda daha önce hiç senkron olmamış) econ-timestamp'i
+    // YOK SAY ve bulutu yetkili kabul et. Aksi halde: yeni cihazda, auth gelmeden alınan
+    // küçük bir ödül (econ_last_change=now) gerçek bulut bakiyesini ezip elmasları siler.
+    const firstCloudLoad = !Storage.get('cloud_synced_once', false);
+    const cloudWinsEconomy = firstCloudLoad || cloudLastSync >= localEconChange;
 
     fieldsToImport.forEach(key => {
       if (progress[key] !== undefined) {
@@ -268,6 +272,9 @@ class PlayerStateManager {
     if (changed) {
       this.save();
     }
+    // Bu cihazda artık en az bir kez bulut yüklendi → sonraki yüklemeler econ-timestamp'e uyar
+    // (offline-kazanç/dupe koruması yine çalışır). wipeLocalData → Storage.clear bunu sıfırlar.
+    try { Storage.set('cloud_synced_once', true); } catch (e) { /* yoksay */ }
   }
 
   // Add/Use methods for legacy compatibility where needed, re-routing to diamonds
@@ -485,7 +492,8 @@ class PlayerStateManager {
     return false;
   }
 
-  unlockTheme(themeName, cost, currency = 'coins') {
+  unlockTheme(themeName, cost) {
+    // Oyun tek para birimi (elmas) kullanır; eski `currency` parametresi kaldırıldı (yutuluyordu).
     if (this.state.unlockedThemes.includes(themeName)) return true;
 
     const success = this.useDiamonds(cost);

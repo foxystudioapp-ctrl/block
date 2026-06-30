@@ -276,8 +276,10 @@ export function DuelMode(router) {
         disconnectModal = modalEl;
         
         modalEl.querySelector('#dc-leave-btn').addEventListener('click', () => {
+          clearInterval(disconnectTimerInterval); // koşan sayaç 2. kez removeChild yapmasın
+          disconnectModal = null;
+          if (modalEl.parentNode) modalEl.remove();
           Multiplayer.leaveRoom();
-          document.body.removeChild(modalEl);
           router.navigate('#/menu');
         });
         
@@ -288,11 +290,11 @@ export function DuelMode(router) {
           
           if (disconnectTimeLeft <= 0) {
             clearInterval(disconnectTimerInterval);
-            document.body.removeChild(modalEl);
+            if (modalEl.parentNode) modalEl.remove();
             disconnectModal = null;
-            
+
             engine.gameOver = true;
-            engine.winner = myPlayerNumber; 
+            engine.winner = myPlayerNumber;
             showGameOver();
           }
         }, 1000);
@@ -302,7 +304,7 @@ export function DuelMode(router) {
     const handleOpponentReconnect = () => {
       if (disconnectModal) {
         clearInterval(disconnectTimerInterval);
-        document.body.removeChild(disconnectModal);
+        if (disconnectModal.parentNode) disconnectModal.remove();
         disconnectModal = null;
         Toast.show(t('duel_opponent_reconnected') || 'Rakip geri döndü!', 'success');
         startTurnTimer();

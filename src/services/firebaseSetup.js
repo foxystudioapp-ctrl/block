@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth as fbGetAuth, signInAnonymously, onAuthStateChanged, GoogleAuthProvider, linkWithPopup, signInWithPopup, signInWithCredential, linkWithCredential, deleteUser } from 'firebase/auth';
+import { getAuth as fbGetAuth, signInAnonymously, onAuthStateChanged, GoogleAuthProvider, linkWithPopup, signInWithPopup, signInWithCredential, linkWithCredential, deleteUser, signOut } from 'firebase/auth';
 import { getFirestore as fbGetFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, setDoc, getDoc, updateDoc, deleteDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { getDatabase as fbGetDatabase, ref, onDisconnect, set, onValue, remove } from 'firebase/database';
 import { PlayerState } from '../state/playerState.js';
@@ -181,13 +181,17 @@ export const initFirebaseUser = () => {
   });
 };
 
+let _presenceUnsub = null;
 function setupPresence(uid) {
   const rtdbInstance = getRtdb();
   if (!rtdbInstance) return;
+  // Önceki '.info/connected' dinleyicisini kapat. Hesap kurtarma/link (signInWithCredential)
+  // farklı uid ile yeniden setupPresence çağırır; aksi halde eski dinleyici asılı kalır (sızıntı).
+  if (_presenceUnsub) { try { _presenceUnsub(); } catch (e) { /* yoksay */ } _presenceUnsub = null; }
   const statusRef = ref(rtdbInstance, 'status/' + uid);
   const connectedRef = ref(rtdbInstance, '.info/connected');
-  
-  onValue(connectedRef, (snap) => {
+
+  _presenceUnsub = onValue(connectedRef, (snap) => {
     if (snap.val() === true) {
       try {
         const con = onDisconnect(statusRef);
@@ -236,7 +240,13 @@ export const linkAccountWithGoogle = async () => {
     try {
       await linkWithCredential(authInstance.currentUser, credential);
     } catch (err) {
-      if (err.code === 'auth/credential-already-in-use' || err.code === 'auth/email-already-in-use') {
+      if (
+        err.code === 'auth/credential-already-in-use' ||
+        err.code === 'auth/email-already-in-use' ||
+        // Mevcut oturumda zaten google.com bağlıysa (ör. hesap silindikten sonra
+        // kalan hayalet oturum) link yerine doğrudan o kimlikle giriş yap.
+        err.code === 'auth/provider-already-linked'
+      ) {
         // Eğer bu hesap zaten varsa, o hesaba giriş yapalım
         await signInWithCredential(authInstance, credential);
       } else {
@@ -437,5 +447,15 @@ export const deleteAccountAndData = async () => {
   } catch (error) {
     console.error('Delete account error', error);
     return { success: false, msg: error?.message };
+  } finally {
+    // KRİTİK: deleteUser 'auth/requires-recent-login' ile başarısız olursa Auth oturumu açık
+    // kalır (google.com bağlı). Reload sonrası bu "hayalet" oturum geri gelir ve yeni Google
+    // linki 'auth/provider-already-linked' verir. signOut'u FINALLY'ye aldık → silme sırasında
+    // hangi yolla (başarı/hata) çıkılırsa çıkılsın oturum garanti kapanır, hayalet kalmaz.
+    try {
+      await signOut(authInstance);
+    } catch (e) {
+      console.warn('signOut after delete warn:', e?.message);
+    }
   }
 };

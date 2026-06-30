@@ -1,5 +1,6 @@
 import { Storage } from './storage.js';
 import { PlayerState } from '../state/playerState.js';
+import { App } from '@capacitor/app';
 
 class SoundManager {
   constructor() {
@@ -29,20 +30,27 @@ class SoundManager {
     if (this._visibilityHandlerSetup) return;
     this._visibilityHandlerSetup = true;
 
-    // Handle backgrounding on mobile/web
+    const onBackground = () => {
+      // AudioContext'i askıya al → tüm sesler/müzik anında durur.
+      if (this.ctx && this.ctx.state === 'running') this.ctx.suspend();
+    };
+    const onForeground = () => {
+      if (this.ctx && this.ctx.state === 'suspended' && this.musicEnabled) this.ctx.resume();
+    };
+
+    // Web/tarayıcı sinyali.
     document.addEventListener('visibilitychange', () => {
-      if (document.hidden) {
-        // Suspend the audio context to immediately pause all sounds
-        if (this.ctx && this.ctx.state === 'running') {
-          this.ctx.suspend();
-        }
-      } else {
-        // Resume the audio context when returning to foreground
-        if (this.ctx && this.ctx.state === 'suspended' && this.musicEnabled) {
-          this.ctx.resume();
-        }
-      }
+      if (document.hidden) onBackground(); else onForeground();
     });
+
+    // NATIVE (Capacitor): Android/iOS'ta uygulama arka plana alındığında WebView "görünür"
+    // sayıldığı için `visibilitychange` GENELDE tetiklenmez → müzik çalmaya devam ederdi
+    // (örn. açılış/splash ekranında). Asıl güvenilir sinyal `appStateChange`.
+    try {
+      App.addListener('appStateChange', ({ isActive }) => {
+        if (!isActive) onBackground(); else onForeground();
+      });
+    } catch (e) { /* App yoksa (saf web) yoksay */ }
   }
 
   setSoundEnabled(enabled) {
@@ -810,14 +818,25 @@ class SoundManager {
     const dryGain = this.ctx.createGain();
     const wetGain = this.ctx.createGain();
     dryGain.gain.value = 0.5;
-    wetGain.gain.value = 0.6; // Heavy reverb
+    wetGain.gain.value = 0.32; // 0.6→0.32: ağır/gürültülü reverb tail cızırtıya yol açıyordu
+
+    // CIZIRTI DÜZELTME: master limiter. Çakışan notalar + reverb toplamı 1.0'ı aşınca
+    // çıkış sert kırpılıp (clipping) cızırdıyordu. Limiter tepe seviyeyi sınırlayıp temiz tutar.
+    const limiter = this.ctx.createDynamicsCompressor();
+    limiter.threshold.value = -8;
+    limiter.knee.value = 6;
+    limiter.ratio.value = 20;
+    limiter.attack.value = 0.003;
+    limiter.release.value = 0.25;
 
     masterGain.connect(dryGain);
     masterGain.connect(reverb);
     reverb.connect(wetGain);
-    
-    dryGain.connect(this.ctx.destination);
-    wetGain.connect(this.ctx.destination);
+
+    dryGain.connect(limiter);
+    wetGain.connect(limiter);
+    limiter.connect(this.ctx.destination);
+    this._musicLimiter = limiter; // stopMusic teardown'da bağlantı kesimi için
 
     // Scales (Pentatonic for beautiful generative melodies that never clash)
     let scale = [];
@@ -950,6 +969,14 @@ class SoundManager {
         } catch (e) {}
       });
       this.musicNodes = [];
+    }
+
+    // Fade bittikten sonra eski müzik zincirinin son düğümünü (limiter) bağlantıdan çıkar →
+    // her startMusic'te yeni reverb/gain/limiter zinciri birikmesin (audio-graph sızıntısı).
+    if (this._musicLimiter) {
+      const lim = this._musicLimiter;
+      this._musicLimiter = null;
+      setTimeout(() => { try { lim.disconnect(); } catch (e) {} }, 1200);
     }
   }
 

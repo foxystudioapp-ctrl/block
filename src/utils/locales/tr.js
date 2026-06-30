@@ -46,6 +46,8 @@ export default {
   "watch_ad_plus_2": "Reklam İzle & +2 Atış",
   "buy_hint": "İpucu Satın Al",
   "hint_exhausted": "BİTTİ",
+  "hint_get_via": "Elmas veya reklam izleyerek ipucunu kullanabilirsin.",
+  "arrow_goal": "Hedef",
   "buy_diamonds": "Elmas Satın Al",
   "cancel": "İptal",
   "watch_ad": "Reklam İzle",

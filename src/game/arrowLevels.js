@@ -26,12 +26,14 @@ const SHAPE_COLORS = {
 };
 
 export function getShapeColor(shapeName) {
-  const colors = Object.values(SHAPE_COLORS);
+  // 'default' (son eleman) yedek renktir; dağıtımdan çıkarılır. Eskiden `% (length-1)`
+  // kullanılıyordu → son renk asla seçilmiyor, üstelik default da hiç gelmiyordu (off-by-one).
+  const palette = Object.values(SHAPE_COLORS).slice(0, -1);
   let hash = 0;
   for (let i = 0; i < shapeName.length; i++) {
     hash = shapeName.charCodeAt(i) + ((hash << 5) - hash);
   }
-  return colors[Math.abs(hash) % (colors.length - 1)]; 
+  return palette[Math.abs(hash) % palette.length];
 }
 
 export function getShapeName(shapeName, lang) {
@@ -41,8 +43,8 @@ export function getShapeName(shapeName, lang) {
   return SHAPE_EN[shapeName] || shapeName;
 }
 
-export function getArrowLevelData(levelNum) {
-  return generateEndlessLevel(levelNum);
+export function getArrowLevelData(levelNum, dense = false) {
+  return generateEndlessLevel(levelNum, dense);
 }
 
 export function getTotalArrowLevels() {

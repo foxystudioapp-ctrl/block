@@ -46,6 +46,8 @@ export default {
   "watch_ad_plus_2": "Watch Ad & +2 Shots",
   "buy_hint": "Buy Hint",
   "hint_exhausted": "OUT",
+  "hint_get_via": "Use diamonds or watch an ad to get a hint.",
+  "arrow_goal": "Goal",
   "buy_diamonds": "Buy Diamonds",
   "cancel": "Cancel",
   "watch_ad": "Watch Ad",

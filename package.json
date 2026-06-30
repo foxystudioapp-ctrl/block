@@ -1,6 +1,6 @@
 {
   "name": "bloxy",
-  "version": "1.1.18",
+  "version": "1.1.19",
   "description": "Block puzzle game",
   "private": true,
   "type": "module",

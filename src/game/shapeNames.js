@@ -5,6 +5,9 @@
 // aynı yapıya { [ad]: { es, fr, ... } } olarak parti hâlinde eklenebilir.
 
 export const SHAPE_EN = {
+  // Yeni ikonik nesneler (3. küratör partisi)
+  "Kalem": "Pencil", "Bayrak": "Flag", "Çapa": "Anchor", "Taç": "Crown",
+  "Hediye": "Gift", "Top": "Ball", "Şişe": "Bottle", "Çan": "Bell", "Yüzük": "Ring",
   // Geometrik
   "Kare": "Square", "Daire": "Circle", "Üçgen": "Triangle", "Elmas": "Diamond",
   "Artı": "Plus", "Çarpı": "Cross", "Altıgen": "Hexagon", "Yıldız": "Star",

@@ -21,6 +21,11 @@ export class ArrowEngine {
     this.fail = false;
     this.lastStars = 0;
     this.shape = '';
+    // Yıldız kaydı yalnız macera ilerlemesi için anlamlıdır. Endless (rastgele seviye)
+    // bunu false yapar → 'arrow_stars' macera skor tablosunu kirletmez/şişirmez.
+    this.starsEnabled = true;
+    // Endless modunda true → tahta cap içinde en yoğun ölçeğe çıkar (daha büyük/zor).
+    this.denseLevels = false;
   }
 
   _newGrid(fill) {
@@ -31,19 +36,23 @@ export class ArrowEngine {
 
   init(level = null) {
     if (level !== null) this.level = level;
-    const data = getArrowLevelData(this.level);
+    const data = getArrowLevelData(this.level, this.denseLevels);
     this.rows = data.rows;
     this.cols = data.cols;
     this.shape = data.shape;
     this.grid = this._newGrid(null);
     this.wall = this._newGrid(false);
     this.snakeIds = this._newGrid(null); // Yılan kimlikleri
-    
+
     for (const w of data.walls) this.wall[w.r][w.c] = true;
     let count = 0;
+    // Gizli resmin TAM hücre kümesi (oklar temizlendikçe siluet ortaya çıkar).
+    // Ekran katmanı bunu kullanır → artık her seviyede üreteci baştan çalıştırmaya gerek yok.
+    this.shapeCells = [];
     for (const cell of data.cells) {
       this.grid[cell.r][cell.c] = cell.dir;
       if (cell.snakeId) this.snakeIds[cell.r][cell.c] = cell.snakeId;
+      this.shapeCells.push(cell.r + ',' + cell.c);
       count++;
     }
     this.arrowsLeft = count;
@@ -227,12 +236,14 @@ export class ArrowEngine {
   }
 
   _computeStars() {
-    if (this.wrongTaps === 0) return 3;
-    if (this.wrongTaps <= 2) return 2;
+    // Daha affedici: 1 hataya kadar 3 yıldız, 4 hataya kadar 2 yıldız.
+    if (this.wrongTaps <= 1) return 3;
+    if (this.wrongTaps <= 4) return 2;
     return 1;
   }
 
   _recordStars(level, stars) {
+    if (!this.starsEnabled) return; // endless: macera yıldız tablosuna yazma
     try {
       const map = Storage.get('arrow_stars', {}) || {};
       if (!map[level] || stars > map[level]) {
@@ -263,6 +274,7 @@ export class ArrowEngine {
         rows: this.rows, cols: this.cols,
         grid: this.grid, wall: this.wall,
         snakeIds: this.snakeIds,
+        shapeCells: this.shapeCells,
         hearts: this.hearts, maxHearts: this.maxHearts,
         wrongTaps: this.wrongTaps, arrowsLeft: this.arrowsLeft,
         shape: this.shape,
@@ -277,6 +289,16 @@ export class ArrowEngine {
       this.rows = s.rows; this.cols = s.cols;
       this.grid = s.grid; this.wall = s.wall;
       this.snakeIds = s.snakeIds || this._newGrid(null);
+      // Eski kayıtlarda shapeCells yoksa mevcut grid'den (devam anındaki kalan) türet —
+      // ideal değil ama yalnız eski kayıtlar için geçerli, yeni kayıtlar tam kümeyi tutar.
+      if (s.shapeCells) {
+        this.shapeCells = s.shapeCells;
+      } else {
+        this.shapeCells = [];
+        for (let r = 0; r < s.rows; r++)
+          for (let c = 0; c < s.cols; c++)
+            if (s.grid[r][c] !== null) this.shapeCells.push(r + ',' + c);
+      }
       this.hearts = s.hearts; this.maxHearts = s.maxHearts;
       this.wrongTaps = s.wrongTaps; this.arrowsLeft = s.arrowsLeft;
       this.shape = s.shape;
