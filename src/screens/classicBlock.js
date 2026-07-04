@@ -211,7 +211,7 @@ export function ClassicBlock(router) {
         <div class="relative w-12 h-12 md:w-16 md:h-16 lg:w-20 lg:h-20 flex items-center justify-center mb-1 drop-shadow-md opacity-60">
           <div class="text-3xl lg:text-4xl">♾️</div>
         </div>
-        <span class="text-[9px] md:text-[10px] lg:text-[12px] font-black text-gray-400 tracking-wider">KLASİK</span>
+        <span class="text-[9px] md:text-[10px] lg:text-[12px] font-black text-gray-400 tracking-wider uppercase">${t('mode_classic')}</span>
       `}
     </div>
 
@@ -1134,16 +1134,16 @@ export function ClassicBlock(router) {
           content: `
             <div class="flex flex-col items-center p-4">
               <span class="text-5xl mb-3 drop-shadow-md">💎</span>
-              <p class="text-sm font-bold text-gray-400 mb-6 text-center">Çekiç kullanmak için ${currentCost} elmasa ihtiyacınız var!</p>
-              
+              <p class="text-sm font-bold text-gray-400 mb-6 text-center">${t('hammer_need_diamonds', { cost: currentCost })}</p>
+
               <div class="w-full flex flex-col gap-3">
                 <button id="modal-watch-ad" class="w-full py-4 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-2xl font-black shadow-[0_4px_15px_rgba(6,182,212,0.4)] active:scale-95 transition-all flex items-center justify-center gap-2">
                   <span class="material-symbols-outlined">play_circle</span>
-                  <span>Reklam İzle & Çekiç Kullan</span>
+                  <span>${t('watch_ad_use_hammer')}</span>
                 </button>
                 <button id="modal-buy-diamonds" class="w-full py-4 bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 text-primary dark:text-white rounded-2xl font-bold active:scale-95 transition-all hover:bg-black/10 dark:hover:bg-white/10 flex items-center justify-center gap-2">
                   <span class="material-symbols-outlined">shopping_cart</span>
-                  <span>Elmas Satın Al</span>
+                  <span>${t('buy_diamonds')}</span>
                 </button>
               </div>
             </div>

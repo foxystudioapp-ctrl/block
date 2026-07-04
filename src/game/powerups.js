@@ -2,13 +2,14 @@ import { PlayerState } from '../state/playerState.js';
 import { Toast } from '../components/toast.js';
 import { Sounds } from '../utils/sounds.js';
 import { Haptics } from '../utils/haptics.js';
+import { t } from '../utils/i18n.js';
 
 export const Powerups = {
   // Clears a 3x3 area, returns true if success, modifies board in-place
   useBomb(board, r, c, gridSize) {
     const cost = 100;
     if (!PlayerState.useCoins(cost)) {
-      Toast.show('Bomba satın almak için 100 coine ihtiyacınız var!', 'error');
+      Toast.show(t('powerup_bomb_need_coins', { cost }), 'error');
       return false;
     }
 
@@ -29,7 +30,7 @@ export const Powerups = {
 
     Sounds.playSfx('power-up');
     Haptics.vibrate('line-clear');
-    Toast.show('Bomba patladı! 3x3 alan temizlendi.', 'success');
+    Toast.show(t('powerup_bomb_cleared'), 'success');
     return true;
   },
 
@@ -37,7 +38,7 @@ export const Powerups = {
   useColorBomb(board, color, gridSize) {
     const cost = 200;
     if (!PlayerState.useCoins(cost)) {
-      Toast.show('Renk bombası için 200 coine ihtiyacınız var!', 'error');
+      Toast.show(t('powerup_colorbomb_need_coins', { cost }), 'error');
       return false;
     }
 
@@ -53,7 +54,7 @@ export const Powerups = {
 
     Sounds.playSfx('power-up');
     Haptics.vibrate('line-clear');
-    Toast.show(`Renk bombası patladı! Tüm ${color.toUpperCase()} blokları temizlendi.`, 'success');
+    Toast.show(t('powerup_colorbomb_cleared', { color: color.toUpperCase() }), 'success');
     return true;
   }
 };

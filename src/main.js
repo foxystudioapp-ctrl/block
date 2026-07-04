@@ -104,10 +104,10 @@ App.addListener('backButton', () => {
   if (hash === '#/' || hash === '#/menu') {
     createModal({
       title: t('exit') || 'Çıkış',
-      content: '<p class="text-center font-bold">Çıkmak mı istiyorsunuz?</p>',
+      content: `<p class="text-center font-bold">${t('confirm_exit_app_msg')}</p>`,
       actions: [
-        { text: 'Hayır :)', onClick: (close) => close() },
-        { text: 'Evet :(', primary: true, onClick: () => App.exitApp() }
+        { text: t('no'), onClick: (close) => close() },
+        { text: t('yes'), primary: true, onClick: () => App.exitApp() }
       ]
     });
   } else if (routePath === '#/arrow') {
@@ -116,10 +116,10 @@ App.addListener('backButton', () => {
   } else if (gameModes.includes(hash)) {
     createModal({
       title: t('quit_game') || 'Oyundan Çıkış',
-      content: '<p class="text-center font-bold">Ana menüye dönmek mi istiyorsunuz?</p>',
+      content: `<p class="text-center font-bold">${t('confirm_quit_to_menu_msg')}</p>`,
       actions: [
-        { text: 'Hayır', onClick: (close) => close() },
-        { text: 'Evet', primary: true, onClick: (close) => { close(); Router.navigate('#/menu'); } }
+        { text: t('no'), onClick: (close) => close() },
+        { text: t('yes'), primary: true, onClick: (close) => { close(); Router.navigate('#/menu'); } }
       ]
     });
   } else if (subMenus.includes(hash)) {
@@ -228,7 +228,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 MultiplayerService.respondToChallenge(false);
                 PlayerState.state.ignoreDuelRequests = true; // Ignore future requests
                 PlayerState.save();
-                Toast.show('İstek reddedildi. Ana menüye dönene kadar bildirim almayacaksınız.', 'info');
+                Toast.show(t('duel_request_declined_notice'), 'info');
                 closeBanner();
               };
 

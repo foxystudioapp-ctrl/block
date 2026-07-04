@@ -222,7 +222,7 @@ export function DuelMode(router) {
 
       if (state.opponentRematchReady !== undefined) {
          if (state.opponentRematchReady && !opponentRematchReady) {
-            Toast.show('Rakip tekrar oynamak istiyor!', 'success');
+            Toast.show(t('duel_opponent_rematch'), 'success');
          }
          opponentRematchReady = state.opponentRematchReady;
          

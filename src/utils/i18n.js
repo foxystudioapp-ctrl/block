@@ -18,7 +18,13 @@ const loadedTranslations = {};
 
 let currentLang = 'en';
 
-const RTL_LANGS = ['ar'];
+// RTL (sağdan-sola) düzen KAPALI. Arapça seçilince arayüz tümüyle ters dönüyordu
+// (butonlar, hizalamalar sağa kayıyordu) çünkü <html dir="rtl"> tüm yerleşimi çeviriyor.
+// Oyun arayüzü LTR'e göre tasarlandığından, Arapça'da da NORMAL sürümle aynı düzen
+// kalsın istiyoruz — yalnızca metin çevrilir. Arapça kelimeler kendi içinde zaten
+// doğru (sağdan-sola) render olur; genel yerleşimi çevirmeye gerek yok.
+// (İleride gerçek RTL istenirse buraya 'ar' eklenip CSS ile ele alınabilir.)
+const RTL_LANGS = [];
 
 const isValidLang = (lang) => availableLanguages.some(l => l.code === lang);
 

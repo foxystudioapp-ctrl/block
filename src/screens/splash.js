@@ -1,4 +1,5 @@
 import { Sounds } from '../utils/sounds.js';
+import { t } from '../utils/i18n.js';
 
 export function Splash(router) {
   const container = document.createElement('div');
@@ -51,9 +52,9 @@ export function Splash(router) {
           <div id="splash-progress" class="bg-gradient-to-r from-cyan-500 via-purple-500 to-orange-500 h-full w-0 transition-all duration-[2000ms] ease-out rounded-full"></div>
         </div>
         
-        <p id="splash-hint" class="text-[11px] text-white/30 font-medium tracking-wider animate-pulse">Yükleniyor...</p>
-        
-        <p class="text-[10px] text-white/20">Sesleri etkinleştirmek için ekrana dokunun</p>
+        <p id="splash-hint" class="text-[11px] text-white/30 font-medium tracking-wider animate-pulse">${t('loading')}</p>
+
+        <p class="text-[10px] text-white/20">${t('splash_tap_sound_hint')}</p>
       </div>
     </div>
   `;

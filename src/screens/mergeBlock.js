@@ -494,8 +494,8 @@ export function MergeBlock(router) {
             <span class="text-4xl">⭐</span>
           </div>
           <div>
-            <h3 class="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-rose-500 tracking-tight">Tebrikler!</h3>
-            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1 font-medium">${engine.level}. Seviyeyi tamamladın.</p>
+            <h3 class="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-rose-500 tracking-tight">${t('congratulations')}</h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1 font-medium">${t('level_completed', { level: engine.level })}</p>
           </div>
           
           <div class="w-full bg-black/5 dark:bg-white/5 rounded-2xl p-4 flex justify-between items-center mt-2 border border-black/10 dark:border-white/10">

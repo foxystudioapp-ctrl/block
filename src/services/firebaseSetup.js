@@ -1,8 +1,9 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth as fbGetAuth, signInAnonymously, onAuthStateChanged, GoogleAuthProvider, linkWithPopup, signInWithPopup, signInWithCredential, linkWithCredential, deleteUser, signOut } from 'firebase/auth';
+import { getAuth as fbGetAuth, signInAnonymously, onAuthStateChanged, GoogleAuthProvider, OAuthProvider, linkWithPopup, signInWithPopup, signInWithCredential, linkWithCredential, deleteUser, signOut } from 'firebase/auth';
 import { getFirestore as fbGetFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, setDoc, getDoc, updateDoc, deleteDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { getDatabase as fbGetDatabase, ref, onDisconnect, set, onValue, remove } from 'firebase/database';
 import { PlayerState } from '../state/playerState.js';
+import { t } from '../utils/i18n.js';
 
 // Firebase configuration from environment variables
 // Note: User needs to provide actual credentials in .env for real functionality
@@ -211,6 +212,7 @@ function setupPresence(uid) {
 
 import { Capacitor } from '@capacitor/core';
 import { GoogleSignIn } from '@capawesome/capacitor-google-sign-in';
+import { SignInWithApple } from '@capacitor-community/apple-sign-in';
 
 // Bir promise verilen sürede çözülmezse anlamlı bir hatayla reddeder.
 // Android Credential Manager akışı bazı hatalı yapılandırmalarda HİÇ dönmez;
@@ -219,13 +221,13 @@ const withTimeout = (promise, ms, label) =>
   Promise.race([
     promise,
     new Promise((_, reject) =>
-      setTimeout(() => reject(new Error(`${label} zaman aşımına uğradı (${ms / 1000}s). Google girişi yanıt vermedi.`)), ms)
+      setTimeout(() => reject(new Error(t('auth_timeout', { sec: ms / 1000 }))), ms)
     )
   ]);
 
 export const linkAccountWithGoogle = async () => {
   const authInstance = getAuth();
-  if (!authInstance || !authInstance.currentUser) return { success: false, msg: 'Aktif bir kullanıcı bulunamadı.' };
+  if (!authInstance || !authInstance.currentUser) return { success: false, msg: t('auth_no_active_user') };
   try {
     await withTimeout(GoogleSignIn.initialize({
       clientId: '244495803529-6iro7uhsrf9hkt641ch0cr1v03vrke06.apps.googleusercontent.com',
@@ -233,7 +235,7 @@ export const linkAccountWithGoogle = async () => {
     const result = await withTimeout(GoogleSignIn.signIn(), 60000, 'Google girişi');
     const idToken = result.idToken;
 
-    if (!idToken) throw new Error("Google Token alınamadı");
+    if (!idToken) throw new Error(t('auth_google_token_failed'));
 
     const credential = GoogleAuthProvider.credential(idToken);
     
@@ -260,7 +262,7 @@ export const linkAccountWithGoogle = async () => {
   } catch (error) {
     console.error("Link Error", error);
     const detail = error?.code ? `${error.code}: ${error.message}` : (error?.message || 'bilinmeyen hata');
-    return { success: false, msg: 'Bağlantı hatası: ' + detail };
+    return { success: false, msg: t('auth_link_error') + detail };
   }
 };
 
@@ -273,7 +275,7 @@ export const recoverAccountWithGoogle = async () => {
     const result = await withTimeout(GoogleSignIn.signIn(), 60000, 'Google girişi');
     const idToken = result.idToken;
 
-    if (!idToken) throw new Error("Google Token alınamadı");
+    if (!idToken) throw new Error(t('auth_google_token_failed'));
 
     const credential = GoogleAuthProvider.credential(idToken);
     const userCredential = await signInWithCredential(authInstance, credential);
@@ -284,7 +286,87 @@ export const recoverAccountWithGoogle = async () => {
   } catch (error) {
     console.error("Recovery Error", error);
     const detail = error?.code ? `${error.code}: ${error.message}` : (error?.message || 'bilinmeyen hata');
-    return { success: false, msg: 'Giriş hatası: ' + detail };
+    return { success: false, msg: t('auth_signin_error') + detail };
+  }
+};
+
+// --- Sign in with Apple (Apple Guideline 4.8) ---
+// Apple, nonce'ın SHA256 özetini bekler; Firebase ise ham (raw) nonce'ı ister.
+// Bu yüzden rastgele bir raw nonce üretip Apple'a hash'ini, Firebase'e ham halini veririz.
+const generateRawNonce = () => {
+  const arr = new Uint8Array(32);
+  crypto.getRandomValues(arr);
+  // URL-güvenli, okunaklı bir dizeye çevir.
+  return Array.from(arr, (b) => ('0' + b.toString(16)).slice(-2)).join('');
+};
+
+const sha256Hex = async (str) => {
+  const data = new TextEncoder().encode(str);
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(digest), (b) => ('0' + b.toString(16)).slice(-2)).join('');
+};
+
+// Apple ile giriş yapıp Firebase kimlik bilgisi (credential) üretir.
+const appleFirebaseCredential = async () => {
+  const rawNonce = generateRawNonce();
+  const hashedNonce = await sha256Hex(rawNonce);
+
+  const result = await withTimeout(SignInWithApple.authorize({
+    // clientId/redirectURI yalnızca web akışında kullanılır; iOS native'de bundle id + entitlement kullanılır.
+    clientId: 'com.askar.blockblast',
+    redirectURI: 'https://bloxyapp.blogspot.com/',
+    scopes: 'email name',
+    nonce: hashedNonce,
+  }), 60000, 'Apple girişi');
+
+  const idToken = result?.response?.identityToken;
+  if (!idToken) throw new Error(t('auth_apple_token_failed'));
+
+  const provider = new OAuthProvider('apple.com');
+  return provider.credential({ idToken, rawNonce });
+};
+
+export const linkAccountWithApple = async () => {
+  const authInstance = getAuth();
+  if (!authInstance || !authInstance.currentUser) return { success: false, msg: t('auth_no_active_user') };
+  try {
+    const credential = await appleFirebaseCredential();
+    try {
+      await linkWithCredential(authInstance.currentUser, credential);
+    } catch (err) {
+      if (
+        err.code === 'auth/credential-already-in-use' ||
+        err.code === 'auth/email-already-in-use' ||
+        err.code === 'auth/provider-already-linked'
+      ) {
+        // Bu Apple kimliği zaten bir hesaba bağlıysa, o hesaba giriş yap.
+        await signInWithCredential(authInstance, credential);
+      } else {
+        throw err;
+      }
+    }
+    PlayerState.state.linkedProvider = 'apple.com';
+    PlayerState.save();
+    return { success: true, user: authInstance.currentUser };
+  } catch (error) {
+    console.error('Apple Link Error', error);
+    const detail = error?.code ? `${error.code}: ${error.message}` : (error?.message || 'bilinmeyen hata');
+    return { success: false, msg: t('auth_link_error') + detail };
+  }
+};
+
+export const recoverAccountWithApple = async () => {
+  const authInstance = getAuth();
+  try {
+    const credential = await appleFirebaseCredential();
+    const userCredential = await signInWithCredential(authInstance, credential);
+    PlayerState.state.linkedProvider = 'apple.com';
+    PlayerState.save();
+    return { success: true, user: userCredential.user };
+  } catch (error) {
+    console.error('Apple Recovery Error', error);
+    const detail = error?.code ? `${error.code}: ${error.message}` : (error?.message || 'bilinmeyen hata');
+    return { success: false, msg: t('auth_signin_error') + detail };
   }
 };
 

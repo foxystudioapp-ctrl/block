@@ -1,6 +1,7 @@
 package com.askar.blockblast;
 
 import android.os.Bundle;
+import android.content.pm.ActivityInfo;
 import android.webkit.WebView;
 import android.webkit.WebSettings;
 import android.annotation.SuppressLint;
@@ -20,6 +21,17 @@ public class MainActivity extends BridgeActivity {
     @SuppressLint("SetJavaScriptEnabled")
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        // Yön kısıtlaması: telefonlarda (sw < 600dp) portrait kilidini koru,
+        // tablet/katlanabilir gibi büyük ekranlarda serbest yön ver. Kilit
+        // manifest'ten kaldırılıp koda taşındığı için Play Console'un büyük
+        // ekran yön uyarısı giderilir, telefon deneyimi ise aynı kalır.
+        if (getResources().getConfiguration().smallestScreenWidthDp < 600) {
+            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+        }
+        // Android 15 (SDK 35) edge-to-edge: içeriğin sistem çubuklarının arkasına
+        // kadar uzanmasına izin ver. enableEdgeToEdge() ile aynı işi yapar ve
+        // Play Console'un "uçtan uca ekran" uyarısını giderir.
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
         hideSystemUI();
     }
 

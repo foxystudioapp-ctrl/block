@@ -238,7 +238,7 @@ function startGame(container, router, mode, levelNum) {
         <div class="relative w-12 h-12 md:w-16 md:h-16 lg:w-20 lg:h-20 flex items-center justify-center mb-1 drop-shadow-md opacity-60">
           <div class="text-3xl lg:text-4xl">♾️</div>
         </div>
-        <span class="text-[9px] md:text-[10px] lg:text-[12px] font-black text-gray-400 tracking-wider">KLASİK</span>
+        <span class="text-[9px] md:text-[10px] lg:text-[12px] font-black text-gray-400 tracking-wider uppercase">${t('mode_classic')}</span>
       `}
     </div>
 
@@ -1594,21 +1594,21 @@ function startGame(container, router, mode, levelNum) {
     AdService.showForcedInterstitial('levelup');
 
     createModal({
-      title: 'TEBRİKLER!',
+      title: t('congrats_upper'),
       content: `
         <div class="flex flex-col items-center justify-center space-y-4">
           <div class="text-6xl animate-bounce">👑</div>
           <div class="text-xl font-bold text-gray-700 dark:text-gray-200 text-center">
-            Seviye ${engine.level} Tamamlandı!
+            ${t('level_n_completed', { level: engine.level })}
           </div>
           <div class="text-sm text-gray-500 text-center px-4">
-            Harika gidiyorsun! Yeni seviyede hedef puan artıyor!
+            ${t('level_up_encourage')}
           </div>
         </div>
       `,
       actions: [
         {
-          text: 'SONRAKİ SEVİYE',
+          text: t('next_level'),
           primary: true,
           onClick: (closeFn) => {
             closeFn();

@@ -134,7 +134,7 @@ export function showSettingsModal() {
       </div>
       <span class="material-symbols-outlined text-gray-400 text-sm">open_in_new</span>
     </a>
-    <a href="/terms.html" target="_blank" class="w-full glass-panel p-4 rounded-2xl flex items-center justify-between active:scale-[0.98] transition-transform">
+    <a href="https://bloxyapp.blogspot.com/2026/07/terms-of-use-eula.html" target="_blank" rel="noopener noreferrer" class="w-full glass-panel p-4 rounded-2xl flex items-center justify-between active:scale-[0.98] transition-transform">
       <div class="flex items-center gap-3">
         <span class="material-symbols-outlined text-orange-500">gavel</span>
         <span class="font-bold text-sm text-primary dark:text-white">${t('terms_of_use') || 'Kullanım Şartları'}</span>

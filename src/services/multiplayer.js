@@ -2,6 +2,7 @@ import { getRtdb } from './firebaseSetup.js';
 
 import { ref, set, onValue, off, update, remove, get, onDisconnect, runTransaction } from 'firebase/database';
 import { PlayerState } from '../state/playerState.js';
+import { t } from '../utils/i18n.js';
 
 // Generate a random 5-character room code (Letters & Numbers)
 const generateRoomCode = () => {
@@ -31,7 +32,7 @@ class MultiplayerService {
 
   // Create a new room and wait for someone
   async createRoom(initialPieces) {
-    if (!this.isReady()) throw new Error('Firebase ayarları eksik!');
+    if (!this.isReady()) throw new Error(t('mp_firebase_missing'));
     
     const db = getRtdb();
 
@@ -69,7 +70,7 @@ class MultiplayerService {
 
   // Join an existing room
   async joinRoom(roomId) {
-    if (!this.isReady()) throw new Error('Firebase ayarları eksik!');
+    if (!this.isReady()) throw new Error(t('mp_firebase_missing'));
     roomId = roomId.toUpperCase();
     
     const db = getRtdb();
@@ -78,7 +79,7 @@ class MultiplayerService {
     // Önce önbelleği ısıt (transaction'ın ilk çalışmasında gerçek veriyi görmesi için)
     const snapshot = await get(roomRef);
     if (!snapshot.exists()) {
-      throw new Error('Oda bulunamadı!');
+      throw new Error(t('mp_room_not_found'));
     }
 
     // Atomik katılım: oku-değiştir-yaz tek adımda. Aynı anda katılan ikinci
@@ -99,7 +100,7 @@ class MultiplayerService {
     });
 
     if (!result.committed) {
-      throw new Error('Bu oda dolu veya oyun başlamış.');
+      throw new Error(t('mp_room_full'));
     }
 
     const roomData = result.snapshot.val();

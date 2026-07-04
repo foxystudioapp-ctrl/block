@@ -89,8 +89,11 @@ export function BuyDiamonds(router, onBack = null) {
       
       ${!isVipActive ? `
       <button class="w-full bg-white text-orange-600 font-black py-3 px-6 rounded-xl shadow-lg hover:bg-gray-50 transition-colors z-10 mt-1">
-        ${vipPackage ? vipPackage.product.priceString : (t('btn_buy') || 'Satın Al')}
+        ${vipPackage ? `${vipPackage.product.priceString} / ${t('vip_period_month') || 'ay'}` : (t('btn_buy') || 'Satın Al')}
       </button>
+      <p class="text-[10px] leading-snug text-white/80 text-center mt-2 z-10 px-1">
+        ${t('vip_sub_disclosure') || 'VIP Pass, aylık otomatik yenilenen bir aboneliktir. Abonelik, dönem bitiminden en az 24 saat önce iptal edilmezse otomatik yenilenir. Yönetim ve iptal, cihazınızın App Store ayarlarından yapılır.'}
+      </p>
       ` : `
       <div class="w-full bg-white/20 text-white font-black py-3 px-6 rounded-xl shadow-inner text-center z-10 mt-1 backdrop-blur-sm">
         ${t('vip_enjoy') || 'VIP Ayrıcalıklarının Tadını Çıkarın!'}
@@ -102,7 +105,7 @@ export function BuyDiamonds(router, onBack = null) {
       vipCard.addEventListener('click', async () => {
         Sounds.playSfx('button-tap');
         if (vipPackage && IAP.isInitialized) {
-          Toast.show('Mağaza ile bağlantı kuruluyor...', 'info');
+          Toast.show(t('toast_store_connecting'), 'info');
           await IAP.purchasePackage(vipPackage);
           // Re-render to update UI if successful
           if (PlayerState.state.isVip) renderPackages();
@@ -115,7 +118,7 @@ export function BuyDiamonds(router, onBack = null) {
           Toast.show('👑 VIP Aktifleşti! (TEST) +5000 Elmas', 'success');
           renderPackages();
         } else {
-          Toast.show('Mağazaya şu an ulaşılamıyor. Lütfen tekrar deneyin.', 'error');
+          Toast.show(t('toast_store_unavailable'), 'error');
         }
       });
     }
@@ -156,7 +159,7 @@ export function BuyDiamonds(router, onBack = null) {
         Sounds.playSfx('button-tap');
         if (rcPackage && IAP.isInitialized) {
           // Satın almayı başlat
-          Toast.show('Mağaza ile bağlantı kuruluyor...', 'info');
+          Toast.show(t('toast_store_connecting'), 'info');
           const success = await IAP.purchasePackage(rcPackage);
           // success ise iapService içinden elmas eklendi ve toast gösterildi zaten
         } else if (!Capacitor.isNativePlatform()) {
@@ -164,7 +167,7 @@ export function BuyDiamonds(router, onBack = null) {
           PlayerState.addDiamonds(item.value);
           Toast.show(`+${item.fallback} Elmas başarıyla eklendi! (TEST)`, 'success');
         } else {
-          Toast.show('Mağazaya şu an ulaşılamıyor. Lütfen tekrar deneyin.', 'error');
+          Toast.show(t('toast_store_unavailable'), 'error');
         }
       });
 
@@ -175,6 +178,43 @@ export function BuyDiamonds(router, onBack = null) {
   renderPackages();
 
   content.appendChild(packagesGrid);
+
+  // --- Satın Alımları Geri Yükle (Apple Guideline 3.1.1 — ayrı, belirgin düğme) ---
+  const restoreWrap = document.createElement('div');
+  restoreWrap.className = 'w-full max-w-md mt-6';
+  const restoreBtn = document.createElement('button');
+  restoreBtn.className = 'w-full py-3 rounded-xl bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-white font-bold text-sm active:scale-[0.98] transition-all flex items-center justify-center gap-2';
+  restoreBtn.innerHTML = `
+    <span class="material-symbols-outlined text-lg">restore</span>
+    ${t('restore_purchases') || 'Satın Alımları Geri Yükle'}
+  `;
+  restoreBtn.addEventListener('click', async () => {
+    Sounds.playSfx('button-tap');
+    if (!Capacitor.isNativePlatform()) {
+      Toast.show(t('restore_device_only'), 'error');
+      return;
+    }
+    restoreBtn.disabled = true;
+    restoreBtn.classList.add('opacity-60');
+    Toast.show(t('restoring') || 'Geri yükleniyor...', 'info');
+    await IAP.restorePurchases();
+    if (PlayerState.state.isVip) renderPackages();
+    restoreBtn.disabled = false;
+    restoreBtn.classList.remove('opacity-60');
+  });
+  restoreWrap.appendChild(restoreBtn);
+  content.appendChild(restoreWrap);
+
+  // --- Abonelik yasal bağlantıları (Apple Guideline 3.1.2 — işlevsel Gizlilik + Kullanım Şartları) ---
+  const legalWrap = document.createElement('div');
+  legalWrap.className = 'w-full max-w-md mt-4 flex items-center justify-center gap-4 text-[11px] text-gray-400';
+  legalWrap.innerHTML = `
+    <a href="https://bloxyapp.blogspot.com/2026/06/privacy-policy.html" target="_blank" rel="noopener noreferrer" class="underline hover:text-gray-600 dark:hover:text-gray-200">${t('privacy_policy') || 'Gizlilik Politikası'}</a>
+    <span class="opacity-40">•</span>
+    <a href="https://bloxyapp.blogspot.com/2026/07/terms-of-use-eula.html" target="_blank" rel="noopener noreferrer" class="underline hover:text-gray-600 dark:hover:text-gray-200">${t('terms_of_use') || 'Kullanım Şartları'}</a>
+  `;
+  content.appendChild(legalWrap);
+
   container.appendChild(content);
 
   // topBar'ın PlayerState aboneliği her ziyarette sızmasın diye sökülür.

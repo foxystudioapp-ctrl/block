@@ -34,7 +34,7 @@ export function MainMenu(router) {
           <div class="flex flex-col items-center p-6 space-y-4 text-center">
             <span class="text-6xl animate-bounce">🏆</span>
             <h3 class="text-xl font-black text-primary dark:text-white">${t('new_month_started') || 'Yeni Ay Başladı!'}</h3>
-            <p class="text-sm font-bold text-gray-500">Geçtiğimiz sezonu <span class="text-secondary uppercase font-black tracking-wider">${rewards.league}</span> seviyesinde tamamladın.</p>
+            <p class="text-sm font-bold text-gray-500">${t('season_completed_msg', { league: `<span class="text-secondary uppercase font-black tracking-wider">${rewards.league}</span>` })}</p>
             <div class="bg-cyan-500/10 border border-cyan-500/30 rounded-2xl p-4 flex flex-col items-center gap-2 mt-4 w-full">
               <span class="text-xs font-bold text-cyan-600 dark:text-cyan-400 uppercase tracking-widest">${t('your_reward') || 'ÖDÜLÜN'}</span>
               <div class="flex items-center justify-center gap-2">
@@ -178,7 +178,7 @@ export function MainMenu(router) {
     Sounds.playSfx('button-tap');
     
     const showMultiplayerOptions = () => {
-      const mainModal = createModal({ title: 'Düello Modu', content: `
+      const mainModal = createModal({ title: t('duel_mode_title'), content: `
         <div class="flex flex-col space-y-3 w-full">
           <button id="opt-ai" class="w-full p-4 rounded-2xl bg-blue-500/10 border-2 border-blue-500/30 text-blue-600 dark:text-blue-400 font-black text-lg active:scale-95 transition-transform flex items-center justify-between">
             <span>🤖 ${t('menu_ai_bot') || 'Yapay Zekaya Karşı'}</span>

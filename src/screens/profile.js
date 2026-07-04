@@ -16,7 +16,7 @@ import { Toast } from '../components/toast.js';
 import { AdService } from '../services/adService.js';
 import { IAP } from '../services/iapService.js';
 import { Capacitor } from '@capacitor/core';
-import { linkAccountWithGoogle, recoverAccountWithGoogle } from '../services/firebaseSetup.js';
+import { linkAccountWithGoogle, recoverAccountWithGoogle, linkAccountWithApple } from '../services/firebaseSetup.js';
 
 export function Profile(router) {
   const container = document.createElement('div');
@@ -69,7 +69,7 @@ export function Profile(router) {
       card.addEventListener('click', async () => {
         Sounds.playSfx('button-tap');
         if (vipPackage && IAP.isInitialized) {
-          Toast.show('Mağaza ile bağlantı kuruluyor...', 'info');
+          Toast.show(t('toast_store_connecting'), 'info');
           await IAP.purchasePackage(vipPackage);
           if (PlayerState.state.isVip) renderVipCard();
         } else if (!Capacitor.isNativePlatform()) {
@@ -90,7 +90,7 @@ export function Profile(router) {
           }
         } else {
           // Native cihazda mağaza hazır değil — kullanıcıya bildir, bedava VIP YOK.
-          Toast.show('Mağazaya şu an ulaşılamıyor. Lütfen tekrar deneyin.', 'error');
+          Toast.show(t('toast_store_unavailable'), 'error');
         }
       });
     }
@@ -217,7 +217,7 @@ export function Profile(router) {
     </div>
     
     <h2 class="text-2xl font-black tracking-tight mb-1 cursor-pointer hover:opacity-80 transition-opacity flex items-center gap-1" id="profile-name-edit">
-      ${PlayerState.state.isVip ? '<span class="text-2xl" title="VIP Üye">👑</span>' : ''}
+      ${PlayerState.state.isVip ? `<span class="text-2xl" title="${t('vip_member')}">👑</span>` : ''}
       <span id="profile-name-display">${PlayerState.state.profileName}</span>
       <span class="material-symbols-outlined text-sm text-gray-400">edit</span>
     </h2>
@@ -475,8 +475,12 @@ export function Profile(router) {
   accountSection.appendChild(accountCard);
 
   const renderAccountCard = () => {
-    const isLinked = PlayerState.state.linkedProvider === 'google.com';
-    
+    const provider = PlayerState.state.linkedProvider;
+    const isLinked = provider === 'google.com' || provider === 'apple.com';
+    // Apple, üçüncü taraf giriş sunulan yerlerde "Apple ile Giriş" ister (Guideline 4.8).
+    // Apple ile giriş yalnızca Apple platformlarında (iOS/iPadOS) anlamlıdır.
+    const showApple = Capacitor.getPlatform() === 'ios';
+
     if (isLinked) {
       accountCard.innerHTML = `
         <div class="absolute -right-4 -top-4 w-24 h-24 bg-green-500/10 rounded-full blur-xl"></div>
@@ -487,7 +491,7 @@ export function Profile(router) {
             </div>
             <div class="flex flex-col">
               <span class="text-[10px] font-bold text-gray-500 uppercase tracking-widest">${t('account_status') || 'Hesap Durumu'}</span>
-              <span class="text-sm font-black text-green-500">${t('linked_to_google') || "Google'a Bağlı ✅"}</span>
+              <span class="text-sm font-black text-green-500">${provider === 'apple.com' ? (t('linked_to_apple') || "Apple'a Bağlı ✅") : (t('linked_to_google') || "Google'a Bağlı ✅")}</span>
             </div>
           </div>
         </div>
@@ -510,6 +514,12 @@ export function Profile(router) {
             <svg class="w-5 h-5" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/><path fill="none" d="M1 1h22v22H1z"/></svg>
             ${t('secure_with_google') || 'Google ile Güvenceye Al'}
           </button>
+          ${showApple ? `
+          <button id="btn-link-apple" class="w-full mt-2 py-3 rounded-xl bg-black text-white font-black shadow-md border border-black hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/></svg>
+            ${t('secure_with_apple') || 'Apple ile Güvenceye Al'}
+          </button>
+          ` : ''}
         </div>
       `;
 
@@ -524,6 +534,21 @@ export function Profile(router) {
           }
         });
       };
+
+      const appleBtn = accountCard.querySelector('#btn-link-apple');
+      if (appleBtn) {
+        appleBtn.onclick = () => {
+          Toast.show(t('connecting') || 'Bağlanıyor...', 'info');
+          linkAccountWithApple().then(res => {
+            if (res.success) {
+              Toast.show(t('apple_linked_success') || 'Hesap başarıyla Apple\'a bağlandı!', 'success');
+              renderAccountCard();
+            } else {
+              Toast.show(res.msg, 'error');
+            }
+          });
+        };
+      }
     }
   };
 

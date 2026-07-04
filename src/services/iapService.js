@@ -3,6 +3,7 @@ import { Capacitor } from '@capacitor/core';
 import { PlayerState } from '../state/playerState.js';
 import { Toast } from '../components/toast.js';
 import { AdService } from './adService.js';
+import { t } from '../utils/i18n.js';
 
 class IAPService {
   constructor() {
@@ -92,7 +93,7 @@ class IAPService {
         PlayerState.addDiamonds(5000);
         PlayerState.state.lastVipRewardTime = now;
         PlayerState.save();
-        Toast.show('👑 VIP Aylık Maaşın Yattı: +5000 Elmas!', 'success');
+        Toast.show(t('vip_monthly_salary'), 'success');
       }
     } else if (PlayerState.state.isVip) {
       // Subscription expired or cancelled
@@ -109,9 +110,56 @@ class IAPService {
       .catch(e => console.warn('post-purchase sync warn:', e));
   }
 
+  // Kullanıcının daha önce satın aldığı (ödüllü olmayan) ürünleri geri yükler.
+  // Apple Guideline 3.1.1 gereği ayrı bir "Satın Alımları Geri Yükle" düğmesi zorunludur.
+  // Tüketilebilir elmaslar geri yüklenemez; asıl işlevi VIP aboneliğinin (entitlement)
+  // yeni cihaz/yeniden kurulumda geri kazanılmasıdır.
+  async restorePurchases() {
+    if (!Capacitor.isNativePlatform()) {
+      Toast.show(t('restore_device_only'), 'error');
+      return false;
+    }
+    if (!this.isInitialized) {
+      // Init deferred olduğundan kullanıcı erken basmış olabilir — bir kez daha dene.
+      await this.initialize();
+      if (!this.isInitialized) {
+        Toast.show(t('toast_store_unavailable'), 'error');
+        return false;
+      }
+    }
+
+    try {
+      const { customerInfo } = await Purchases.restorePurchases();
+      await this.checkSubscriptions(customerInfo);
+      if (PlayerState.state.isVip) {
+        Toast.show(t('restore_success_vip'), 'success');
+        this._pushEconomyToCloud();
+      } else {
+        Toast.show(t('restore_none_found'), 'info');
+      }
+      return true;
+    } catch (e) {
+      console.error('Restore error:', e);
+      Toast.show(t('restore_failed'), 'error');
+      return false;
+    }
+  }
+
   async purchasePackage(pkg) {
     if (!this.isInitialized) {
-      Toast.show('Uygulama içi satın alma şu an kullanılamıyor.', 'error');
+      // Init tembel (idle) yapıldığından kullanıcı ilk saniyelerde basmış olabilir.
+      // Hemen "kullanılamıyor" demek yerine bir kez daha initialize dene.
+      await this.initialize();
+      if (!this.isInitialized) {
+        Toast.show(t('iap_unavailable'), 'error');
+        return false;
+      }
+    }
+
+    // Paket gelmemişse (offerings iOS'ta geç yüklenebilir) satın almadan önce tazele.
+    if (!pkg) {
+      await this.fetchOfferings();
+      Toast.show(t('toast_store_loading'), 'error');
       return false;
     }
 
@@ -131,7 +179,7 @@ class IAPService {
 
       if (diamondsToAdd > 0) {
         PlayerState.addDiamonds(diamondsToAdd);
-        Toast.show(`+${diamondsToAdd} Elmas başarıyla eklendi!`, 'success');
+        Toast.show(t('diamonds_added', { count: diamondsToAdd }), 'success');
         // Satın alınan elması ANINDA buluta yazdır (günlük sync'i bekleme) — aksi halde
         // aynı gün yeniden kurulumda satın alınan elmas kaybolabilir.
         this._pushEconomyToCloud();
@@ -145,9 +193,12 @@ class IAPService {
         return true;
       }
     } catch (e) {
+      // Kullanıcı iptali sessizce geçilir; diğer hatalarda RevenueCat'in verdiği
+      // okunaklı mesajı göster (yalnızca genel "başarısız oldu" demek yerine).
       if (!e.userCancelled) {
         console.error('Purchase error:', e);
-        Toast.show('Satın alma işlemi başarısız oldu.', 'error');
+        const reason = e?.underlyingErrorMessage || e?.message || '';
+        Toast.show(reason ? t('purchase_failed_reason', { reason }) : t('purchase_failed'), 'error');
       }
     }
     return false;

@@ -3,6 +3,7 @@ import { Capacitor } from '@capacitor/core';
 import { Sounds } from '../utils/sounds.js';
 import { Toast } from '../components/toast.js';
 import { PlayerState } from '../state/playerState.js';
+import { t } from '../utils/i18n.js';
 class AdServiceManager {
   constructor() {
     this.initialized = false;
@@ -35,12 +36,27 @@ class AdServiceManager {
     
     this.initPromise = (async () => {
       try {
+        // App Tracking Transparency (iOS 14+): İZİN İSTEĞİNİ AÇIKÇA ve reklam/izleme
+        // verisi TOPLANMADAN ÖNCE göster (Apple Guideline 2.1). Daha önce yalnızca
+        // AdMob.initialize({requestTrackingAuthorization:true})'a bırakılmıştı; bu bazı
+        // iPadOS sürümlerinde diyaloğun güvenilir çıkmamasına yol açıyordu. Artık ATT'yi
+        // biz tetikliyor ve yanıtı bekliyoruz, ardından AdMob'u başlatıyoruz.
+        try {
+          const { status } = await AdMob.trackingAuthorizationStatus();
+          if (status === 'notDetermined') {
+            await AdMob.requestTrackingAuthorization();
+          }
+        } catch (attErr) {
+          // ATT yalnızca iOS'ta anlamlıdır; Android/web'de sessizce geçilir.
+          console.warn('ATT request warn:', attErr);
+        }
+
         await AdMob.initialize({
           requestTrackingAuthorization: true,
           // testingDevices: ['2077ef9a63d2b398840261c8221a0c9b'], // Production
           // initializeForTesting: true, // Production
         });
-        
+
         this.initialized = true;
 
         AdMob.addListener(InterstitialAdPluginEvents.Dismissed, () => {
@@ -76,7 +92,7 @@ class AdServiceManager {
 
   async showInterstitial() {
     if (!Capacitor.isNativePlatform()) {
-      Toast.show('Reklamlar bu platformda (Web) desteklenmiyor.', 'error');
+      Toast.show(t('ads_not_supported_web'), 'error');
       return false; // Fail on web, don't give free rewards
     }
     if (!this.initialized || !this.interstitialLoaded) return false;
@@ -153,7 +169,7 @@ class AdServiceManager {
    */
   async showRewardVideoAd() {
     if (!Capacitor.isNativePlatform()) {
-      Toast.show('Reklamlar bu platformda (Web) desteklenmiyor.', 'error');
+      Toast.show(t('ads_not_supported_web'), 'error');
       return false; // Fail on web, don't give free rewards
     }
     if (!this.initialized || !this.rewardedLoaded) return false;

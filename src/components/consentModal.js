@@ -1,5 +1,6 @@
 import { Storage } from '../utils/storage.js';
 import { Sounds } from '../utils/sounds.js';
+import { t } from '../utils/i18n.js';
 
 export function showConsentModal(onAccept) {
   if (Storage.get('legal_accepted')) {
@@ -22,19 +23,15 @@ export function showConsentModal(onAccept) {
   // Title
   const title = document.createElement('h2');
   title.className = 'text-xl font-black text-gray-800 dark:text-white mb-2';
-  title.textContent = 'Hoş Geldiniz!';
+  title.textContent = t('consent_welcome_title');
   modal.appendChild(title);
 
   // Description
   const desc = document.createElement('p');
   desc.className = 'text-sm text-gray-600 dark:text-gray-300 mb-6';
-  desc.innerHTML = `
-    Oyuna başlamadan önce lütfen 
-    <a href="/terms.html" target="_blank" class="text-blue-500 font-bold underline">Kullanım Şartları</a> 
-    ve 
-    <a href="/privacy.html" target="_blank" class="text-orange-500 font-bold underline">Gizlilik Politikası</a>'nı okuyun. 
-    Oyunu oynayarak bu şartları kabul etmiş sayılırsınız.
-  `;
+  const termsLink = `<a href="https://bloxyapp.blogspot.com/2026/07/terms-of-use-eula.html" target="_blank" rel="noopener noreferrer" class="text-blue-500 font-bold underline">${t('terms_of_use')}</a>`;
+  const privacyLink = `<a href="https://bloxyapp.blogspot.com/2026/06/privacy-policy.html" target="_blank" rel="noopener noreferrer" class="text-orange-500 font-bold underline">${t('privacy_policy')}</a>`;
+  desc.innerHTML = t('consent_welcome_desc', { terms: termsLink, privacy: privacyLink });
   modal.appendChild(desc);
 
   // Button
@@ -42,7 +39,7 @@ export function showConsentModal(onAccept) {
   btn.className = 'w-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-bold py-3 px-6 rounded-2xl shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2';
   btn.innerHTML = `
     <span class="material-symbols-outlined text-lg">check_circle</span>
-    Kabul Et ve Oyna
+    ${t('consent_accept_play')}
   `;
   
   // Kullanıcı modal açıkken gezinirse (hashchange) overlay body'de orphan kalmasın.

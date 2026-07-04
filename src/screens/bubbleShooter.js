@@ -346,15 +346,15 @@ export function BubbleShooter() {
             content: `
               <div class="flex flex-col items-center p-4">
                 <span class="text-5xl mb-3 drop-shadow-md">💎</span>
-                <p class="text-sm font-bold text-gray-400 mb-6 text-center">Çekiç kullanmak için ${currentCost} elmasa ihtiyacınız var!</p>
+                <p class="text-sm font-bold text-gray-400 mb-6 text-center">${t('hammer_need_diamonds', { cost: currentCost })}</p>
                 <div class="w-full flex flex-col gap-3">
                   <button id="modal-watch-ad" class="w-full py-4 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-2xl font-black shadow-[0_4px_15px_rgba(6,182,212,0.4)] active:scale-95 transition-all flex items-center justify-center gap-2">
                     <span class="material-symbols-outlined">play_circle</span>
-                    <span>Reklam İzle & Çekiç Kullan</span>
+                    <span>${t('watch_ad_use_hammer')}</span>
                   </button>
                   <button id="modal-buy-diamonds" class="w-full py-4 bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 text-primary dark:text-white rounded-2xl font-bold active:scale-95 transition-all hover:bg-black/10 dark:hover:bg-white/10 flex items-center justify-center gap-2">
                     <span class="material-symbols-outlined">shopping_cart</span>
-                    <span>Elmas Satın Al</span>
+                    <span>${t('buy_diamonds')}</span>
                   </button>
                 </div>
               </div>
@@ -1026,7 +1026,12 @@ export function BubbleShooter() {
   // Atış animasyonu
   function shoot() {
     if (flying || engine.gameOver) return;
-    const speed = 14;
+    // Fırlatma hızı EKRAN BOYUTUNA göre ölçeklenmeli. Sabit 14px/kare, tablette cellSize
+    // (dolayısıyla tahta) çok daha büyük olduğundan topun tahtayı geçmesi ~2 kat uzun sürer
+    // ve YAVAŞ görünürdü (telefon/PC'de küçük tahta → hızlı). Hızı cellSize ile orantılı
+    // yaparak tüm cihazlarda aynı "kare/kare" hızı korunur. Referans: telefon cellSize~37 → ~14px.
+    // 0.38 < 0.5 olduğundan top kare başına yarım hücreden az ilerler → çarpışma tünelleme riski yok.
+    const speed = cellSize * 0.38;
     flying = {
       x: shooter.x,
       y: shooter.y,
