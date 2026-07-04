@@ -595,4 +595,5 @@ export default {
   "mp_room_full": "Questa stanza è piena o la partita è già iniziata.",
   "duel_mode_title": "Modalità Duello",
   "vip_member": "Membro VIP",
+  "duel_challenges_you": "ti sfida!",
 };

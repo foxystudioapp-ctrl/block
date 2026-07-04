@@ -581,10 +581,12 @@ export function BubbleShooter() {
   function drawBubble(ctx, x, y, r, color, isBomb = false) {
     if (r <= 0) return;
 
-    // Hafif gölge (drop-shadow) - Derinlik katar
+    // Hafif gölge (drop-shadow) - Derinlik katar. shadowBlur, Android WebView'in EN pahalı
+    // canvas işlemlerinden; her balon için her frame set ediliyor. Düşük-segment cihazlarda
+    // kapat (görsel derinlik kaybı minimal, kare hızı kazancı büyük).
     ctx.shadowColor = 'rgba(0,0,0,0.2)';
-    ctx.shadowBlur = Math.max(2, r * 0.15);
-    ctx.shadowOffsetY = Math.max(1, r * 0.1);
+    ctx.shadowBlur = isLowEndDevice ? 0 : Math.max(2, r * 0.15);
+    ctx.shadowOffsetY = isLowEndDevice ? 0 : Math.max(1, r * 0.1);
 
     // --- TAŞ (engel) ---
     if (color === 'stone') {
@@ -733,24 +735,28 @@ export function BubbleShooter() {
     ctx.lineTo(canvasW, dangerY);
     ctx.stroke();
     
-    // Ambient Background Particles (Büyülü Arkaplan Tozları)
-    if (!window.bgParticles) {
-      window.bgParticles = Array.from({length: 20}).map(() => ({
-        x: Math.random() * canvasW,
-        y: Math.random() * canvasH,
-        vy: -0.2 - Math.random() * 0.5,
-        s: Math.random() * 2 + 1,
-        o: Math.random() * 0.5 + 0.1
-      }));
-    }
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-    for (let p of window.bgParticles) {
-      p.y += p.vy;
-      if (p.y < 0) { p.y = canvasH; p.x = Math.random() * canvasW; }
-      ctx.globalAlpha = p.o * (0.5 + 0.5 * Math.sin(Date.now()/500 + p.x));
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.s, 0, Math.PI * 2);
-      ctx.fill();
+    // Ambient Background Particles (Büyülü Arkaplan Tozları) — her draw'da 20 parçacık
+    // Math.sin(Date.now()) ile yeniden hesaplanan salt dekoratif efekt. Düşük-segment
+    // cihazlarda tamamen atla (nişan alırken her frame çalışıp gereksiz yük bindiriyordu).
+    if (!isLowEndDevice) {
+      if (!window.bgParticles) {
+        window.bgParticles = Array.from({length: 20}).map(() => ({
+          x: Math.random() * canvasW,
+          y: Math.random() * canvasH,
+          vy: -0.2 - Math.random() * 0.5,
+          s: Math.random() * 2 + 1,
+          o: Math.random() * 0.5 + 0.1
+        }));
+      }
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+      for (let p of window.bgParticles) {
+        p.y += p.vy;
+        if (p.y < 0) { p.y = canvasH; p.x = Math.random() * canvasW; }
+        ctx.globalAlpha = p.o * (0.5 + 0.5 * Math.sin(Date.now()/500 + p.x));
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.s, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
     ctx.globalAlpha = 1;
 
@@ -1405,6 +1411,16 @@ export function BubbleShooter() {
     return { x: clientX - rect.left, y: clientY - rect.top };
   }
 
+  // Nişan alırken her touchmove/mousemove tüm tahtayı yeniden çizmesin: bir frame içindeki
+  // çok sayıda hareketi tek draw'a birleştir (rAF-throttle). Aksi halde parmak sürüklenirken
+  // draw() 60+/sn'nin en pahalı yolunda (shadowBlur + gradient'li ~108 balon) çağrılıp ucuz
+  // cihazlarda takılmaya yol açıyordu.
+  let _aimRafId = null;
+  function scheduleAimDraw() {
+    if (_aimRafId) return;
+    _aimRafId = requestAnimationFrame(() => { _aimRafId = null; draw(); });
+  }
+
   function updateAim(clientX, clientY) {
     const { x, y } = getCanvasPos(clientX, clientY);
     const dx = x - shooter.x;
@@ -1417,7 +1433,7 @@ export function BubbleShooter() {
     if (angle < minA) angle = minA;
     shooter.angle = angle;
     shooter.aiming = true;
-    draw();
+    scheduleAimDraw();
   }
 
   canvas.addEventListener('mousedown', (e) => {

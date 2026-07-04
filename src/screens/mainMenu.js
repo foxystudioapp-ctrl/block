@@ -245,6 +245,9 @@ export function MainMenu(router) {
         Sounds.playSfx('button-tap');
         Storage.set('duel_multiplayer', true);
         Storage.set('duel_multiplayer_action', 'create');
+        // Manuel oda kurulumu: önceki bir düellodan kalan bayat oda kodunu temizle ki
+        // createRoom yeni bir kod üretsin (challenge-create'te ise bu kod dolu gelir).
+        Storage.set('duel_room_code', '');
         mainModal.close();
         router.navigate('#/duel');
       });

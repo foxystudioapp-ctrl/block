@@ -594,4 +594,5 @@ export default {
   "mp_room_full": "Bu oda dolu veya oyun başlamış.",
   "duel_mode_title": "Düello Modu",
   "vip_member": "VIP Üye",
+  "duel_challenges_you": "sana meydan okuyor!",
 };

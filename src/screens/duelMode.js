@@ -406,7 +406,9 @@ export function DuelMode(router) {
     };
 
     if (multiAction === 'create') {
-      Multiplayer.createRoom(engine.activePieces).catch(e => {
+      // roomCodeToJoin doluysa (challenge akışı) o paylaşılan kodla oda kur; boşsa
+      // (manuel oluştur) createRoom yeni kod üretir.
+      Multiplayer.createRoom(engine.activePieces, roomCodeToJoin || null).catch(e => {
         Toast.show(t('room_create_failed') + e.message, 'error');
         if (isMultiplayer) { Multiplayer.leaveRoom(); clearInterval(turnTimerInterval); clearInterval(disconnectTimerInterval); }
             router.navigate('#/menu');

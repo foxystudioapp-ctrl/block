@@ -595,4 +595,5 @@ export default {
   "mp_room_full": "यह कमरा भरा है या खेल पहले ही शुरू हो चुका है।",
   "duel_mode_title": "द्वंद्व मोड",
   "vip_member": "VIP सदस्य",
+  "duel_challenges_you": "आपको चुनौती देता है!",
 };

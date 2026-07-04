@@ -193,7 +193,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                   </div>
                   <div class="flex flex-col flex-1">
                     <span class="text-xs font-black text-cyan-400 uppercase tracking-widest">${t('duel_request') || 'DÜELLO İSTEĞİ!'}</span>
-                    <span class="text-sm font-medium leading-tight"><b class="font-black text-white">${challengeData.challengerName}</b> sana meydan okuyor!</span>
+                    <span class="text-sm font-medium leading-tight"><b class="font-black text-white">${challengeData.challengerName}</b> ${t('duel_challenges_you')}</span>
                   </div>
                 </div>
                 <div class="flex items-center gap-2 w-full mt-1">
@@ -213,8 +213,11 @@ document.addEventListener('DOMContentLoaded', async () => {
               const closeBanner = () => {
                 banner.classList.remove('animate-slide-down');
                 banner.classList.add('animate-slide-up');
+                // NOT: Eskiden burada `if (responded) return;` vardı; ama closeBanner
+                // ZATEN yanıt verildikten sonra (responded=true) çağrıldığından bu guard
+                // removeChild'ı hiç çalıştırmıyor ve banner ekranda kalıcı takılıyordu.
+                // Kapanış animasyonu bitince banner'ı her durumda kaldır.
                 setTimeout(() => {
-                  if (responded) return;
                   if (banner.parentNode) document.body.removeChild(banner);
                 }, 300);
               };
@@ -261,6 +264,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             // canlı güncellenir; profil ekranı ek okuma yapmaz.
             // Dönen unsubscribe'ı sakla; hesap silme/çıkış akışı kapatabilsin
             // (aksi halde dinleyici eski uid sorgusuyla reload'a kadar açık kalır).
+            // Token yenilemesi / ikinci init başarısı bu bloğu yeniden çalıştırabildiğinden,
+            // yeni onSnapshot'ı kurmadan önce varsa eski dinleyiciyi kapat — yoksa dinleyiciler
+            // üst üste birikip friend callback'i (ve notify/save) mükerrer tetiklenir.
+            if (window.__friendshipsUnsub) { try { window.__friendshipsUnsub(); } catch (e) { /* yoksay */ } }
             window.__friendshipsUnsub = FriendService.listenToFriendships((data) => {
               PlayerState.state.friends = data.friends;
               PlayerState.state.friendRequests = data.incoming;
@@ -276,17 +283,23 @@ document.addEventListener('DOMContentLoaded', async () => {
   }, 1000);
 
   // Daily Cloud Sync on Background/Close
+  // handleAppBackgrounded HEM visibilitychange HEM Capacitor appStateChange'e bağlı;
+  // Android'de arka plana atınca ikisi de tetiklenip 2 eşzamanlı syncToCloud başlatabilir.
+  // bgSyncInFlight guard'ı aynı anda yalnızca bir sync akışına izin verir.
+  let bgSyncInFlight = false;
   const handleAppBackgrounded = () => {
+    if (bgSyncInFlight) return;
     const today = new Date().toDateString();
     if (Storage.get('lastCloudSaveDay') !== today) {
+      bgSyncInFlight = true;
       import('./services/firebaseSetup.js').then(({ syncToCloud }) => {
         syncToCloud().then(res => {
           if (res.success) {
             Storage.set('lastCloudSaveDay', today);
             console.log('Daily cloud sync successful.');
           }
-        });
-      });
+        }).finally(() => { bgSyncInFlight = false; });
+      }).catch(() => { bgSyncInFlight = false; });
     }
   };
 

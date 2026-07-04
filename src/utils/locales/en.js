@@ -594,4 +594,5 @@ export default {
   "mp_room_full": "This room is full or the game has already started.",
   "duel_mode_title": "Duel Mode",
   "vip_member": "VIP Member",
+  "duel_challenges_you": "challenges you!",
 };

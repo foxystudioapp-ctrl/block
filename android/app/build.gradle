@@ -34,8 +34,13 @@ android {
     }
     buildTypes {
         release {
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            // R8 kod küçültme + kullanılmayan kaynak temizliği (AAB boyutunu düşürür).
+            // Keep kuralları proguard-rules.pro'da (Capacitor/WebView köprüsü + eklentiler).
+            // NOT: R8 sorunları yalnızca ÇALIŞMA ZAMANINDA görünür — yayından önce release
+            // AAB'yi bir cihazda mutlaka test et.
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             signingConfig signingConfigs.release
         }
     }

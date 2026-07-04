@@ -30,15 +30,30 @@ export class MultiplayerService {
     }
   }
 
+  // 5 karakterlik oda kodu (multiplayer.js'teki generateRoomCode ile aynı karakter seti;
+  // joinRoom büyük harfe çevirdiğinden karışan/küçük harf yok).
+  static _generateRoomCode() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = '';
+    for (let i = 0; i < 5; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
+    return code;
+  }
+
   // Send a multiplayer challenge
   static async sendChallenge(targetUid, mode) {
     const rtdb = getRtdb();
     if (!rtdb) return null;
     try {
       const challengeId = `${PlayerState.state.uid}_${Date.now()}`;
+      // İki tarafın da AYNI odaya bağlanması için paylaşılan oda kodunu burada üret ve
+      // hem payload'a koy (karşı taraf okur) hem de döndür (challenger bu kodla oda kurar).
+      // Eskiden roomId hiç üretilmiyordu → karşı taraf challengeData.roomId=undefined okuyup
+      // tanımsız odaya katılmaya çalışıyor ve eşleşme bozuluyordu.
+      const roomId = this._generateRoomCode();
       const challengeRef = ref(rtdb, `challenges/${targetUid}`);
       const challengeData = {
         id: challengeId,
+        roomId,
         challenger: PlayerState.state.uid,
         challengerName: PlayerState.state.profileName || 'Player',
         challengerAvatar: PlayerState.state.avatarSeed || 'cat',
@@ -47,7 +62,7 @@ export class MultiplayerService {
         timestamp: Date.now()
       };
       await set(challengeRef, challengeData);
-      return challengeId;
+      return roomId;
     } catch(e) {
       console.error("Failed to send challenge", e);
       return null;

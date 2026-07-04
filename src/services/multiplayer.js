@@ -30,20 +30,30 @@ class MultiplayerService {
     return getRtdb() !== undefined && getRtdb() !== null;
   }
 
-  // Create a new room and wait for someone
-  async createRoom(initialPieces) {
+  // Create a new room and wait for someone.
+  // presetRoomId verilirse (challenge akışı) o kodla oda kurulur; verilmezse (manuel
+  // "oda oluştur") çakışmasız yeni bir kod üretilir. Böylece meydan okuyan ve okunan
+  // taraf aynı odada buluşur.
+  async createRoom(initialPieces, presetRoomId = null) {
     if (!this.isReady()) throw new Error(t('mp_firebase_missing'));
-    
+
     const db = getRtdb();
 
-    // Oda kodu çakışmasını önle: var olan bir kodun üzerine yazma (sınırlı deneme)
-    let roomId = generateRoomCode();
-    let roomRef = ref(db, `rooms/${roomId}`);
-    for (let attempt = 0; attempt < 5; attempt++) {
-      const existing = await get(roomRef);
-      if (!existing.exists()) break;
+    let roomId;
+    let roomRef;
+    if (presetRoomId) {
+      roomId = presetRoomId.toUpperCase();
+      roomRef = ref(db, `rooms/${roomId}`);
+    } else {
+      // Oda kodu çakışmasını önle: var olan bir kodun üzerine yazma (sınırlı deneme)
       roomId = generateRoomCode();
       roomRef = ref(db, `rooms/${roomId}`);
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const existing = await get(roomRef);
+        if (!existing.exists()) break;
+        roomId = generateRoomCode();
+        roomRef = ref(db, `rooms/${roomId}`);
+      }
     }
 
     await set(roomRef, {
@@ -112,7 +122,8 @@ class MultiplayerService {
     this.isHost = false;
     this._listenToRoom(roomId);
 
-    return roomData.initialPieces || null;
+    // Oda commit ile okuma arasında silinmiş olabilir → roomData null olabilir; guard'la.
+    return roomData?.initialPieces || null;
   }
 
   // Send move data to the opponent
@@ -150,6 +161,9 @@ class MultiplayerService {
     
     const db = getRtdb();
     const roomRef = ref(db, `rooms/${this.currentRoom}`);
+    // Fire-and-forget okuma/yazma; reddedilirse sessizce yut (unhandled rejection olmasın).
+    // Aksi halde RTDB okuması hata verirse promise askıda kalıp konsolu kirletir ve
+    // host, maçın yeniden başladığını sanırken guest desenkron kalır (log'la fark edilir).
     get(roomRef).then((snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.val();
@@ -162,9 +176,9 @@ class MultiplayerService {
           updates[`players/${pid}/score`] = 0;
           updates[`players/${pid}/lastMove`] = null;
         });
-        update(roomRef, updates);
+        return update(roomRef, updates);
       }
-    });
+    }).catch(e => console.warn('restartMatch warn:', e?.message));
   }
 
   // Internal listener for room changes

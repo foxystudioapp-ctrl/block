@@ -595,4 +595,5 @@ export default {
   "mp_room_full": "Эта комната заполнена или игра уже началась.",
   "duel_mode_title": "Режим дуэли",
   "vip_member": "VIP-участник",
+  "duel_challenges_you": "бросает вам вызов!",
 };
