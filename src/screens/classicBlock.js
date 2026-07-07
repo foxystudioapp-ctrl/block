@@ -18,7 +18,7 @@ import { showQuitConfirmation } from '../utils/quitConfirm.js';
 export function ClassicBlock(router) {
   const screenAbortController = new AbortController();
   const container = document.createElement('div');
-  container.className = 'w-full max-w-full lg:max-w-4xl mx-auto h-[100dvh] relative overflow-hidden flex flex-col bg-bg-light dark:bg-primary text-primary dark:text-white select-none animate-pop-up pb-2 sm:pb-3 md:pb-6 lg:pb-10';
+  container.className = 'w-full max-w-full lg:max-w-4xl mx-auto h-[100dvh] relative overflow-hidden flex flex-col bg-bg-light dark:bg-primary text-primary dark:text-white select-none animate-pop-up pb-safe-bottom';
 
   // 1. Core State & Engine Setup
   const queryParams = new URLSearchParams(window.location.hash.split('?')[1] || '');

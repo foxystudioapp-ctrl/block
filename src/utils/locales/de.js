@@ -563,6 +563,7 @@ export default {
   "diamonds_added": "+{count} Diamanten erfolgreich hinzugefügt!",
   "purchase_failed_reason": "Kauf fehlgeschlagen: {reason}",
   "purchase_failed": "Der Kauf ist fehlgeschlagen.",
+  "purchase_pending_verification": "Dein Kauf wird überprüft. Falls abgebucht, wird er in Kürze gutgeschrieben.",
   "ads_not_supported_web": "Werbung wird auf dieser Plattform (Web) nicht unterstützt.",
   "duel_opponent_rematch": "Dein Gegner will ein Rückspiel!",
   "duel_request_declined_notice": "Anfrage abgelehnt. Du erhältst keine Benachrichtigungen, bis du zum Hauptmenü zurückkehrst.",

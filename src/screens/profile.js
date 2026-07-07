@@ -68,11 +68,20 @@ export function Profile(router) {
       const card = vipSection.querySelector('#vip-card-container');
       card.addEventListener('click', async () => {
         Sounds.playSfx('button-tap');
-        if (vipPackage && IAP.isInitialized) {
+        if (Capacitor.isNativePlatform()) {
+          // Paket render anında boş olabilir (init ertelenmiş). Tıklamada SDK'yı hazırlayıp
+          // offerings'i tazeleyerek en güncel paketi al; "store unavailable" yalnızca gerçekten
+          // ulaşılamıyorsa gösterilsin (hızlı tıklamada erken/yanlış hata verme).
           Toast.show(t('toast_store_connecting'), 'info');
-          await IAP.purchasePackage(vipPackage);
-          if (PlayerState.state.isVip) renderVipCard();
-        } else if (!Capacitor.isNativePlatform()) {
+          const pkg = await IAP.ensurePackage(p => p.product.identifier.includes('vip'));
+          if (pkg) {
+            await IAP.purchasePackage(pkg);
+            if (PlayerState.state.isVip) renderVipCard();
+          } else {
+            // Native cihazda mağaza gerçekten hazır değil — kullanıcıya bildir, bedava VIP YOK.
+            Toast.show(t('toast_store_unavailable'), 'error');
+          }
+        } else {
           // YALNIZCA web/geliştirme ortamı. Gerçek cihazda mağaza hazır değilse (init/ağ
           // hatası) bedava VIP verilmemeli — aksi halde kullanıcı satın almadan VIP olur.
           PlayerState.state.isVip = true;
@@ -88,9 +97,6 @@ export function Profile(router) {
             const diamondSpan = header.querySelector('.text-cyan-400.font-black');
             if (diamondSpan) diamondSpan.textContent = PlayerState.state.diamonds.toLocaleString();
           }
-        } else {
-          // Native cihazda mağaza hazır değil — kullanıcıya bildir, bedava VIP YOK.
-          Toast.show(t('toast_store_unavailable'), 'error');
         }
       });
     }
@@ -294,12 +300,12 @@ export function Profile(router) {
   const maxStreak = Storage.get('player_max_streak', 0);
 
   const createStatBox = (icon, value, label, colorClass) => `
-    <div class="glass-panel p-3 rounded-2xl flex flex-col justify-between h-20 relative overflow-hidden">
+    <div class="glass-panel p-3 rounded-2xl flex flex-col justify-between min-h-[5rem] relative overflow-hidden">
       <span class="material-symbols-outlined absolute -right-1 -bottom-1 text-4xl opacity-5 ${colorClass}">${icon}</span>
       <span class="material-symbols-outlined text-lg ${colorClass}">${icon}</span>
       <div class="flex flex-col mt-1">
         <span class="text-lg font-black leading-tight">${value}</span>
-        <span class="text-[8px] font-extrabold text-gray-400 uppercase tracking-wider">${label}</span>
+        <span class="text-[8px] font-extrabold text-gray-400 uppercase tracking-wider leading-tight">${label}</span>
       </div>
     </div>
   `;

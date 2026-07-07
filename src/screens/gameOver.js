@@ -306,12 +306,25 @@ export function showGameOverModal({ score, mode = 'classic', isWin, myScore, opp
   container.appendChild(modalBody);
   document.body.appendChild(container);
 
+  // Standart modal altyapısına kaydol: navigasyonda çağrılan closeAllModals() bu overlay'i de
+  // kapatabilsin, aksi halde beklenmedik hash değişiminde body'de orphan (asılı) kalabiliyordu.
+  container.close = () => close();
+  window.__activeModals = window.__activeModals || [];
+  window.__activeModals.push(container);
+
   // Olumlu sonuç: yeni rekor veya düello galibiyeti → "mutluluk anı" puanlama tetikleyicisi.
   const positiveOutcome = isNewRecord ||
     ((mode === 'duel' || mode === 'multiplayer_duel') && isWin === true);
 
-  // Close helper
+  // Close helper — tek seferlik. Çift-tık koruması: "Tekrar Oyna"/"Menü"ye hızlı iki tık
+  // callback'i (engine.initGame / router.navigate) iki kez çağırmasın; pozitif sonuçta
+  // RatingService.maybeRequestReview iki kez tetiklenmesin.
+  let closing = false;
   const close = (callback) => {
+    if (closing) return;
+    closing = true;
+    const mi = (window.__activeModals || []).indexOf(container);
+    if (mi !== -1) window.__activeModals.splice(mi, 1);
     container.classList.remove('opacity-100');
     modalBody.classList.remove('scale-100');
     modalBody.classList.add('scale-90');

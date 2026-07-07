@@ -16,12 +16,18 @@ import { AdService } from '../services/adService.js';
 
 export function DuelMode(router) {
   const container = document.createElement('div');
-  container.className = 'w-full max-w-full lg:max-w-4xl mx-auto h-[100dvh] flex flex-col bg-bg-light dark:bg-primary text-primary dark:text-white select-none animate-pop-up overflow-hidden pb-2 sm:pb-3 md:pb-6 lg:pb-10';
+  container.className = 'w-full max-w-full lg:max-w-4xl mx-auto h-[100dvh] flex flex-col bg-bg-light dark:bg-primary text-primary dark:text-white select-none animate-pop-up overflow-hidden pb-safe-bottom';
 
   let engine = new DuelEngine(8);
+  // Oyun-sonu modalinin ve istatistik/görev yazımının yalnız BİR kez çalışmasını sağlar.
+  let gameOverShown = false;
 
   const showGameOver = () => {
     if (engine.gameOver) {
+      // Çift-çağrı koruması: showGameOver disconnect/timeout/geç-event ile 7 ayrı yerden
+      // çağrılabiliyor. Bayrak olmadan multiplayer'da görev + istatistikler ÇİFT sayılabilirdi.
+      if (gameOverShown) return;
+      gameOverShown = true;
       import('./gameOver.js').then(m => {
         let isWin = false;
         if (engine.winner === myPlayerNumber) isWin = true;
@@ -35,6 +41,15 @@ export function DuelMode(router) {
 
         const myScore = myPlayerNumber === 1 ? engine.player1Score : engine.player2Score;
         const opponentScore = myPlayerNumber === 1 ? engine.player2Score : engine.player1Score;
+
+        // Kalıcı düello istatistikleri — eskiden HİÇ yazılmıyordu; profildeki düello rekoru/
+        // galibiyeti/maç sayısı, düello rozetleri (duel_master, total_wins) ve bulut hep 0'dı.
+        // 'tie' → yalnız maç sayısı artar (win/loss değil).
+        PlayerState.state.duelMatches = (PlayerState.state.duelMatches || 0) + 1;
+        if (isWin === true) PlayerState.state.duelWins = (PlayerState.state.duelWins || 0) + 1;
+        else if (isWin === false) PlayerState.state.duelLosses = (PlayerState.state.duelLosses || 0) + 1;
+        if (myScore > (PlayerState.state.bestScoreDuel || 0)) PlayerState.state.bestScoreDuel = myScore;
+        PlayerState.save();
 
         m.showGameOverModal({
           score: myScore,

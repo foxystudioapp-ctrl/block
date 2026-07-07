@@ -12,7 +12,7 @@ export function showConsentModal(onAccept) {
   overlay.className = 'fixed inset-0 bg-black/85 z-[100] flex items-center justify-center p-6 opacity-0 transition-opacity duration-200';
   
   const modal = document.createElement('div');
-  modal.className = 'bg-white dark:bg-gray-800 rounded-3xl p-6 w-full max-w-sm shadow-2xl flex flex-col items-center text-center transform scale-90 transition-transform duration-300 relative overflow-hidden';
+  modal.className = 'bg-white dark:bg-gray-800 rounded-3xl p-6 w-full max-w-sm max-h-[90dvh] overflow-y-auto shadow-2xl flex flex-col items-center text-center transform scale-90 transition-transform duration-300 relative';
   
   // Icon
   const iconBg = document.createElement('div');

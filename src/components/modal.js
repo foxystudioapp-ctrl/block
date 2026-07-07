@@ -10,7 +10,9 @@ export function createModal({ title, content, actions = [], onClose = null }) {
   modalContainer.className = 'fixed inset-0 z-[100000] flex items-center justify-center p-6 bg-black/40 dark:bg-black/60 backdrop-blur-md opacity-0 transition-opacity duration-300 pointer-events-auto';
 
   const modalBody = document.createElement('div');
-  modalBody.className = 'w-full max-w-sm p-6 rounded-3xl glass-card text-center flex flex-col items-center transform scale-90 transition-transform duration-300 shadow-2xl';
+  // max-h + overflow-y-auto: küçük ekran (iPhone SE) + büyük yazı tipi + uzun dilde uzun
+  // içerikte alttaki aksiyon butonları ekran dışına taşıp erişilemez olmasın.
+  modalBody.className = 'w-full max-w-sm max-h-[90dvh] overflow-y-auto p-6 rounded-3xl glass-card text-center flex flex-col items-center transform scale-90 transition-transform duration-300 shadow-2xl';
 
   const closeButtonHtml = onClose ? `
     <button id="modal-close" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-black/5 dark:bg-white/5 flex items-center justify-center text-gray-500 hover:text-primary dark:hover:text-white transition-colors">

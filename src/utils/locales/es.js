@@ -563,6 +563,7 @@ export default {
   "diamonds_added": "¡+{count} diamantes añadidos correctamente!",
   "purchase_failed_reason": "Compra fallida: {reason}",
   "purchase_failed": "La compra falló.",
+  "purchase_pending_verification": "Tu compra se está verificando. Si se te cobró, se entregará en breve.",
   "ads_not_supported_web": "Los anuncios no son compatibles con esta plataforma (Web).",
   "duel_opponent_rematch": "¡Tu rival quiere la revancha!",
   "duel_request_declined_notice": "Solicitud rechazada. No recibirás notificaciones hasta que vuelvas al menú principal.",

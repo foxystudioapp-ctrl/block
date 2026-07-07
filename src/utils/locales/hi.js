@@ -563,6 +563,7 @@ export default {
   "diamonds_added": "+{count} डायमंड सफलतापूर्वक जोड़े गए!",
   "purchase_failed_reason": "खरीदारी विफल: {reason}",
   "purchase_failed": "खरीदारी विफल हो गई।",
+  "purchase_pending_verification": "आपकी खरीदारी सत्यापित हो रही है। यदि शुल्क लिया गया है, तो यह जल्द ही मिल जाएगी।",
   "ads_not_supported_web": "इस प्लेटफ़ॉर्म (वेब) पर विज्ञापन समर्थित नहीं हैं।",
   "duel_opponent_rematch": "आपका प्रतिद्वंद्वी फिर से खेलना चाहता है!",
   "duel_request_declined_notice": "अनुरोध अस्वीकृत। जब तक आप मुख्य मेनू पर नहीं लौटते, आपको सूचनाएं नहीं मिलेंगी।",

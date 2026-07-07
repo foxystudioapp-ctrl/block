@@ -181,7 +181,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
               // Create Custom Toast/Banner
               const banner = document.createElement('div');
-              banner.className = 'fixed top-4 left-1/2 transform -translate-x-1/2 w-[90%] max-w-sm bg-gray-900/95 dark:bg-black/95 text-white p-4 rounded-3xl shadow-[0_10px_40px_rgba(34,211,238,0.3)] border border-cyan-500/30 z-[9999] flex flex-col gap-3 animate-slide-down backdrop-blur-md';
+              // top-4 yerine .top-safe: çentik/Dynamic Island + status bar altına insin
+              // (toast ile aynı düzeltme; Apple Guideline 4 çakışmasının banner kopyası).
+              banner.className = 'fixed top-safe left-1/2 transform -translate-x-1/2 w-[90%] max-w-sm bg-gray-900/95 dark:bg-black/95 text-white p-4 rounded-3xl shadow-[0_10px_40px_rgba(34,211,238,0.3)] border border-cyan-500/30 z-[9999] flex flex-col gap-3 animate-slide-down backdrop-blur-md';
               
               banner.innerHTML = `
                 <div class="flex items-center gap-3 w-full">

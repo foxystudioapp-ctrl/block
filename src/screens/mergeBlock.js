@@ -18,7 +18,7 @@ import { Toast } from '../components/toast.js';
 export function MergeBlock(router) {
   const isShortScreen = window.innerHeight < 700;
   const container = document.createElement('div');
-  container.className = 'w-full max-w-full lg:max-w-4xl mx-auto h-[100dvh] overflow-hidden flex flex-col bg-bg-light dark:bg-primary text-primary dark:text-white select-none animate-pop-up relative pb-2 sm:pb-3 md:pb-6 lg:pb-10';
+  container.className = 'w-full max-w-full lg:max-w-4xl mx-auto h-[100dvh] overflow-hidden flex flex-col bg-bg-light dark:bg-primary text-primary dark:text-white select-none animate-pop-up relative pb-safe-bottom';
 
   const hashObj = new URL('http://dummy.com' + window.location.hash.replace('#/merge', ''));
   const mode = hashObj.searchParams.get('mode') || 'endless';
@@ -470,12 +470,9 @@ export function MergeBlock(router) {
     
     TaskState.updateProgress('merge_score', engine.score);
     
-    if (typeof PlayerState.state.bestScoreMerge === 'undefined') {
-      PlayerState.state.bestScoreMerge = 0;
-    }
-    if (engine.score > PlayerState.state.bestScoreMerge) {
-      PlayerState.state.bestScoreMerge = engine.score;
-      PlayerState.save();
+    // updateBestScore best-score + globalTrophies (kupa) + rakip-geçme bildirimini işler.
+    // Eskiden doğrudan atama → bu modda kupa hiç kazanılmıyordu (multipliers.merge ölüydü).
+    if (PlayerState.updateBestScore('merge', engine.score)) {
       const bestStr = PlayerState.state.bestScoreMerge.toLocaleString();
       const elBest = container.querySelector('#merge-best');
       if (elBest) elBest.textContent = bestStr;

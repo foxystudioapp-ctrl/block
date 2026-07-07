@@ -8,7 +8,9 @@ class ToastManager {
   init() {
     if (this.container) return;
     this.container = document.createElement('div');
-    this.container.className = 'fixed top-4 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center space-y-2 pointer-events-none w-80';
+    // top-4 yerine .toast-container: konum CSS'te env(safe-area-inset-top) ile ayarlanır ki
+    // edge-to-edge modda toast, çentik/Dynamic Island + status bar üstüne binmesin (Guideline 4).
+    this.container.className = 'fixed toast-container left-1/2 -translate-x-1/2 z-50 flex flex-col items-center space-y-2 pointer-events-none w-80 max-w-[calc(100vw-2rem)]';
     document.body.appendChild(this.container);
   }
 

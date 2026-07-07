@@ -16,7 +16,7 @@ import { Toast } from '../components/toast.js';
 
 export function HexBlock(router) {
   const container = document.createElement('div');
-  container.className = 'w-full max-w-full lg:max-w-4xl mx-auto h-[100dvh] relative overflow-hidden flex flex-col justify-between bg-bg-light dark:bg-primary text-primary dark:text-white select-none animate-pop-up pb-4 sm:pb-6 md:pb-10 lg:pb-16';
+  container.className = 'w-full max-w-full lg:max-w-4xl mx-auto h-[100dvh] relative overflow-hidden flex flex-col justify-between bg-bg-light dark:bg-primary text-primary dark:text-white select-none animate-pop-up pb-safe-bottom';
 
   let engine = new HexEngine(4);
   engine.loadFromLocalStorage();

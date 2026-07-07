@@ -4,6 +4,7 @@ import { PlayerState } from '../state/playerState.js';
 import { Toast } from '../components/toast.js';
 import { AdService } from './adService.js';
 import { t } from '../utils/i18n.js';
+import { Storage } from '../utils/storage.js';
 
 class IAPService {
   constructor() {
@@ -33,6 +34,9 @@ class IAPService {
       try {
         await Purchases.addCustomerInfoUpdateListener((customerInfo) => {
           this.checkSubscriptions(customerInfo);
+          // Uygulama açıkken RevenueCat yeni bir tüketilebilir işlem doğrularsa
+          // (örn. kesinti sonrası geç gelen satın alma) burada anında kurtarılır.
+          this.reconcileConsumables(customerInfo);
         });
       } catch (e) {
         console.warn('addCustomerInfoUpdateListener warn:', e);
@@ -44,6 +48,10 @@ class IAPService {
       // Check active subscriptions (VIP)
       const { customerInfo } = await Purchases.getCustomerInfo();
       await this.checkSubscriptions(customerInfo);
+      // Açılış kurtarması: "para çekildi ama elmas verilmedi" durumundaki doğrulanmış
+      // satın almaları teslim et. İlk çalıştırmada geçmiş işlemleri "verildi" olarak
+      // tohumlar (güncelleme sonrası çift ödül önlenir).
+      this.reconcileConsumables(customerInfo);
     } catch (e) {
       console.error('Error initializing RevenueCat:', e);
     }
@@ -69,12 +77,35 @@ class IAPService {
     return [];
   }
 
+  // Satın alma butonuna BASILDIĞINDA çağrılır. Init ertelenmiş (idle callback + ağ) olduğundan
+  // ekran açılır açılmaz basan kullanıcıda `packages` henüz boş olabilir — bu, App Review'da
+  // "store unavailable" hatasının başlıca sebebiydi. Burada gerekiyorsa SDK başlatılır, paket
+  // bulunamazsa offerings bir kez tazelenir ve eşleşen paket döndürülür. Yalnızca gerçekten
+  // ulaşılamıyorsa null döner → "store unavailable" ancak o zaman, boşuna erken değil, gösterilir.
+  async ensurePackage(matchFn) {
+    if (!Capacitor.isNativePlatform()) return null;
+    if (!this.isInitialized) await this.initialize();
+    if (!this.isInitialized) return null;
+    let pkg = this.packages.find(matchFn);
+    if (!pkg) {
+      await this.fetchOfferings();
+      pkg = this.packages.find(matchFn);
+    }
+    return pkg || null;
+  }
+
   async checkSubscriptions(customerInfo) {
     if (!customerInfo) return;
 
-    // Check if user has the 'vip' entitlement active
-    const isVip = typeof customerInfo.entitlements.active['vip'] !== 'undefined';
-    
+    // 'vip' entitlement'ı aktif mi? Panelde entitlement adı 'vip' değilse bile
+    // (yanlış adlandırma çok yaygın bir VIP teslim hatasıdır) aktif bir aboneliğin
+    // ürün id'si 'vip' içeriyorsa VIP kabul et — entitlement-adı uyuşmazlığında da çalışır.
+    const active = (customerInfo.entitlements && customerInfo.entitlements.active) || {};
+    let isVip = typeof active['vip'] !== 'undefined';
+    if (!isVip) {
+      isVip = Object.values(active).some(e => String((e && e.productIdentifier) || '').includes('vip'));
+    }
+
     if (isVip) {
       const wasVip = PlayerState.state.isVip;
       PlayerState.state.isVip = true;
@@ -100,6 +131,78 @@ class IAPService {
       PlayerState.state.isVip = false;
       PlayerState.save();
     }
+  }
+
+  // ---- Tüketilebilir (elmas) idempotent teslim yardımcıları ----
+
+  // Elması VERİLMİŞ satın alma işlemlerinin id kümesi (localStorage'da kalıcı).
+  // Amaç: (1) aynı işlem iki kez elmas vermesin, (2) teslim edilmemiş işlem sonraki
+  // açılışta kurtarılabilsin. Reinstall'da RC anonim id'si + localStorage birlikte
+  // sıfırlandığı için tutarlı kalır (tüketilmiş ürün zaten geri gelmez).
+  _getGrantedTxIds() {
+    try {
+      const arr = Storage.get('granted_iap_tx', []);
+      return new Set(Array.isArray(arr) ? arr : []);
+    } catch (e) {
+      return new Set();
+    }
+  }
+
+  _saveGrantedTxIds(set) {
+    try { Storage.set('granted_iap_tx', [...set]); } catch (e) { /* yoksay */ }
+  }
+
+  // Ürün id'sindeki sayı grubundan elmas miktarını bulur (tam tier eşleşmesi).
+  // Substring tuzağını önler ('500', '5000' içinde yakalanmaz): 'elmas.5000' -> 5000,
+  // bilinmeyen tier -> 0.
+  _diamondsForProduct(productId) {
+    const DIAMOND_TIERS = { '500': 500, '1000': 1000, '2000': 2000, '5000': 5000, '10000': 10000 };
+    for (const numStr of (String(productId).match(/\d+/g) || [])) {
+      if (DIAMOND_TIERS[numStr]) return DIAMOND_TIERS[numStr];
+    }
+    return 0;
+  }
+
+  // RevenueCat'in DOĞRULADIĞI tüketilebilir işlemleri tarar; henüz verilmemiş olanların
+  // elmasını bir kez ekler. Verilen toplam elması döndürür.
+  //  - İlk çalıştırma (seed): mevcut tüm işlemleri sadece "verildi" işaretler; bu sürümden
+  //    önce eski mantıkla zaten teslim edilmiş satın almalar güncellemede TEKRAR ödül vermesin.
+  //  - Sonraki çağrılar: yalnız yeni/teslim edilmemiş işlemler ödüllendirilir (idempotent).
+  reconcileConsumables(customerInfo, { silent = false } = {}) {
+    const txns = customerInfo && Array.isArray(customerInfo.nonSubscriptionTransactions)
+      ? customerInfo.nonSubscriptionTransactions
+      : [];
+
+    const granted = this._getGrantedTxIds();
+
+    if (!Storage.get('iap_reconcile_seeded', false)) {
+      txns.forEach(tx => { if (tx && tx.transactionIdentifier) granted.add(tx.transactionIdentifier); });
+      this._saveGrantedTxIds(granted);
+      try { Storage.set('iap_reconcile_seeded', true); } catch (e) { /* yoksay */ }
+      return 0;
+    }
+
+    let totalAdded = 0;
+    let changed = false;
+    txns.forEach(tx => {
+      const id = tx && tx.transactionIdentifier;
+      if (!id || granted.has(id)) return;
+      const diamonds = this._diamondsForProduct(tx.productIdentifier);
+      if (diamonds > 0) {
+        PlayerState.addDiamonds(diamonds);
+        totalAdded += diamonds;
+      }
+      granted.add(id); // ödülsüz/bilinmeyen ürün de işaretlensin → boşuna tekrar taranmasın
+      changed = true;
+    });
+
+    if (changed) this._saveGrantedTxIds(granted);
+
+    if (totalAdded > 0) {
+      if (!silent) Toast.show(t('diamonds_added', { count: totalAdded }), 'success');
+      this._pushEconomyToCloud();
+    }
+    return totalAdded;
   }
 
   // Satın alma sonrası ekonomiyi (elmas/VIP) buluta anında yazdırır. Fire-and-forget;
@@ -131,6 +234,8 @@ class IAPService {
     try {
       const { customerInfo } = await Purchases.restorePurchases();
       await this.checkSubscriptions(customerInfo);
+      // Tüketilmemiş/teslim edilmemiş tüketilebilir satın almaları da kurtar (idempotent).
+      this.reconcileConsumables(customerInfo);
       if (PlayerState.state.isVip) {
         Toast.show(t('restore_success_vip'), 'success');
         this._pushEconomyToCloud();
@@ -165,33 +270,34 @@ class IAPService {
 
     try {
       const { customerInfo } = await Purchases.purchasePackage({ aPackage: pkg });
-      
-      // Determine how many diamonds to give based on the product identifier.
-      // Substring eşleştirme ('500' içinde '5000' yakalanır) yanlış miktar verebildiğinden
-      // ID içindeki sayı GRUPLARI çıkarılıp tam tier eşleşmesi aranır (örn. 'diamonds_5000' -> 5000,
-      // 'diamonds_50000' -> bilinen tier değil -> 0).
-      const productId = pkg.product.identifier;
-      const DIAMOND_TIERS = { '500': 500, '1000': 1000, '2000': 2000, '5000': 5000, '10000': 10000 };
-      let diamondsToAdd = 0;
-      for (const numStr of (productId.match(/\d+/g) || [])) {
-        if (DIAMOND_TIERS[numStr]) { diamondsToAdd = DIAMOND_TIERS[numStr]; break; }
-      }
+      const productId = String(pkg.product.identifier);
 
-      if (diamondsToAdd > 0) {
-        PlayerState.addDiamonds(diamondsToAdd);
-        Toast.show(t('diamonds_added', { count: diamondsToAdd }), 'success');
-        // Satın alınan elması ANINDA buluta yazdır (günlük sync'i bekleme) — aksi halde
-        // aynı gün yeniden kurulumda satın alınan elmas kaybolabilir.
-        this._pushEconomyToCloud();
-        return true;
-      }
-
-      // If it's the VIP package, checkSubscriptions will handle the first 5000 diamond reward
+      // VIP aboneliği: entitlement'a göre işlenir (ilk 5000 elmas + reklamsız).
       if (productId.includes('vip')) {
         await this.checkSubscriptions(customerInfo);
         this._pushEconomyToCloud();
         return true;
       }
+
+      // Tüketilebilir (elmas): işlem-id bazlı IDEMPOTENT teslim. Satın almadan dönen
+      // customerInfo'daki YENİ (doğrulanmış) işlemi bulup elması bir kez verir ve işlem
+      // id'sini "verildi" olarak kaydeder → çift ödül yok.
+      let added = this.reconcileConsumables(customerInfo);
+      if (added === 0) {
+        // İşlem customerInfo'ya henüz yansımadıysa bir kez taze çekip tekrar dene.
+        try {
+          const fresh = await Purchases.getCustomerInfo();
+          added = this.reconcileConsumables(fresh.customerInfo);
+        } catch (e) { /* yoksay — açılıştaki reconcile yine kurtarır */ }
+      }
+      if (added > 0) return true;
+
+      // Buraya düşerse işlem RevenueCat tarafından DOĞRULANAMADI (çoğu zaman RC↔Store
+      // bağlantısı eksik — "Could not check"). Elması yerel olarak UYDURMA; para gerçekten
+      // tahsil edildiyse ve bağlantı düzelince işlem doğrulanınca sonraki açılışta reconcile
+      // otomatik teslim eder. Kullanıcıya işlemin beklemede olduğunu bildir.
+      Toast.show(t('purchase_pending_verification') || t('purchase_failed'), 'error');
+      return false;
     } catch (e) {
       // Kullanıcı iptali sessizce geçilir; diğer hatalarda RevenueCat'in verdiği
       // okunaklı mesajı göster (yalnızca genel "başarısız oldu" demek yerine).

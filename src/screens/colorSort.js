@@ -23,7 +23,7 @@ export function ColorSort(router) {
   }
 
   const container = document.createElement('div');
-  container.className = 'w-full max-w-full lg:max-w-4xl mx-auto h-[100dvh] flex flex-col justify-between bg-bg-light dark:bg-primary text-primary dark:text-white select-none animate-pop-up pb-2 sm:pb-3 md:pb-6 lg:pb-10 relative overflow-hidden';
+  container.className = 'w-full max-w-full lg:max-w-4xl mx-auto h-[100dvh] flex flex-col justify-between bg-bg-light dark:bg-primary text-primary dark:text-white select-none animate-pop-up pb-safe-bottom relative overflow-hidden';
 
   let engine = new SortEngine(mode);
   let selectedTubeIdx = null;

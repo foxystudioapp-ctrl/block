@@ -563,6 +563,7 @@ export default {
   "diamonds_added": "تمت إضافة +{count} ألماسة بنجاح!",
   "purchase_failed_reason": "فشل الشراء: {reason}",
   "purchase_failed": "فشلت عملية الشراء.",
+  "purchase_pending_verification": "يتم التحقق من عملية الشراء. إذا تم خصم المبلغ، فسيتم تسليمها قريبًا.",
   "ads_not_supported_web": "الإعلانات غير مدعومة على هذه المنصة (الويب).",
   "duel_opponent_rematch": "خصمك يريد مباراة إعادة!",
   "duel_request_declined_notice": "تم رفض الطلب. لن تتلقى إشعارات حتى تعود إلى القائمة الرئيسية.",

@@ -48,7 +48,7 @@ export function BuyDiamonds(router, onBack = null) {
     { key: 'com.foxystudio.block.elmas.500', fallback: '500', icon: '💎', color: 'from-blue-500 to-indigo-600', popular: false, value: 500 },
     { key: 'com.foxystudio.block.elmas.1000', fallback: '1,000', icon: '💎💎', color: 'from-indigo-500 to-violet-600', popular: true, value: 1000 },
     { key: 'com.foxystudio.block.elmas.2000', fallback: '2,000', icon: '💰', color: 'from-violet-500 to-purple-600', popular: false, value: 2000 },
-    { key: 'com.foxystudio.block.elmas.5000', fallback: '5,000', icon: '🏆', color: 'from-purple-500 to-fuchsia-600', popular: true, value: 5000 },
+    { key: 'com.foxystudio.block.elmas5000', fallback: '5,000', icon: '🏆', color: 'from-purple-500 to-fuchsia-600', popular: true, value: 5000 },
     { key: 'com.foxystudio.block.elmas.10000', fallback: '10,000', icon: '👑', color: 'from-fuchsia-500 to-pink-600', popular: false, value: 10000, isLast: true }
   ];
 
@@ -104,12 +104,19 @@ export function BuyDiamonds(router, onBack = null) {
     if (!isVipActive) {
       vipCard.addEventListener('click', async () => {
         Sounds.playSfx('button-tap');
-        if (vipPackage && IAP.isInitialized) {
+        if (Capacitor.isNativePlatform()) {
+          // Paket render anında boş olabilir (init ertelenmiş). Tıklamada SDK'yı hazırlayıp
+          // en güncel paketi al; "store unavailable" yalnızca gerçekten ulaşılamıyorsa çıksın.
           Toast.show(t('toast_store_connecting'), 'info');
-          await IAP.purchasePackage(vipPackage);
-          // Re-render to update UI if successful
-          if (PlayerState.state.isVip) renderPackages();
-        } else if (!Capacitor.isNativePlatform()) {
+          const pkg = await IAP.ensurePackage(p => p.product.identifier.includes('vip'));
+          if (pkg) {
+            await IAP.purchasePackage(pkg);
+            // Re-render to update UI if successful
+            if (PlayerState.state.isVip) renderPackages();
+          } else {
+            Toast.show(t('toast_store_unavailable'), 'error');
+          }
+        } else {
           // YALNIZCA web/geliştirme ortamı — gerçek cihazda bedava VIP verilmez.
           PlayerState.state.isVip = true;
           PlayerState.addDiamonds(5000);
@@ -117,8 +124,6 @@ export function BuyDiamonds(router, onBack = null) {
           PlayerState.save();
           Toast.show('👑 VIP Aktifleşti! (TEST) +5000 Elmas', 'success');
           renderPackages();
-        } else {
-          Toast.show(t('toast_store_unavailable'), 'error');
         }
       });
     }
@@ -126,7 +131,11 @@ export function BuyDiamonds(router, onBack = null) {
     packagesGrid.appendChild(vipCard);
 
     packages.forEach(item => {
-      const rcPackage = IAP.packages.find(p => p.product.identifier === item.key);
+      // iOS ve Android'de aynı tier'ın ürün ID'si farklı olabilir (iOS: 'elmas5000' noktasız,
+      // Android: 'elmas.5000' noktalı). Tam string yerine ID'deki tier sayısına göre eşleştir ki
+      // her iki mağazada da doğru paket bulunsun. VIP'te rakam yok → yanlışlıkla eşleşmez.
+      const matchesTier = (p) => (String(p.product.identifier).match(/\d+/g) || []).includes(String(item.value));
+      const rcPackage = IAP.packages.find(matchesTier);
       const displayPrice = rcPackage ? rcPackage.product.priceString : (t('btn_buy') || 'Satın Al');
 
       const pkg = document.createElement('div');
@@ -157,17 +166,21 @@ export function BuyDiamonds(router, onBack = null) {
 
       pkg.addEventListener('click', async () => {
         Sounds.playSfx('button-tap');
-        if (rcPackage && IAP.isInitialized) {
-          // Satın almayı başlat
+        if (Capacitor.isNativePlatform()) {
+          // Paket render anında boş olabilir (init ertelenmiş). Tıklamada SDK'yı hazırlayıp
+          // bu ürüne ait en güncel paketi al; "store unavailable" yalnızca gerçekten yoksa çıksın.
           Toast.show(t('toast_store_connecting'), 'info');
-          const success = await IAP.purchasePackage(rcPackage);
-          // success ise iapService içinden elmas eklendi ve toast gösterildi zaten
-        } else if (!Capacitor.isNativePlatform()) {
+          const rcPkg = await IAP.ensurePackage(matchesTier);
+          if (rcPkg) {
+            // Satın almayı başlat — başarılıysa iapService içinden elmas eklenir ve toast gösterilir.
+            await IAP.purchasePackage(rcPkg);
+          } else {
+            Toast.show(t('toast_store_unavailable'), 'error');
+          }
+        } else {
           // YALNIZCA web/geliştirme ortamı — gerçek cihazda bedava elmas verilmez.
           PlayerState.addDiamonds(item.value);
           Toast.show(`+${item.fallback} Elmas başarıyla eklendi! (TEST)`, 'success');
-        } else {
-          Toast.show(t('toast_store_unavailable'), 'error');
         }
       });
 

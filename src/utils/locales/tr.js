@@ -562,6 +562,7 @@ export default {
   "diamonds_added": "+{count} Elmas başarıyla eklendi!",
   "purchase_failed_reason": "Satın alma başarısız: {reason}",
   "purchase_failed": "Satın alma işlemi başarısız oldu.",
+  "purchase_pending_verification": "Satın alman doğrulanıyor. Ücret alındıysa kısa süre içinde hesabına geçecek.",
   "ads_not_supported_web": "Reklamlar bu platformda (Web) desteklenmiyor.",
   "duel_opponent_rematch": "Rakip tekrar oynamak istiyor!",
   "duel_request_declined_notice": "İstek reddedildi. Ana menüye dönene kadar bildirim almayacaksınız.",

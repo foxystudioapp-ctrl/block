@@ -60,7 +60,7 @@ const EASE_OUT = 'cubic-bezier(0.25, 1, 0.5, 1)';
 // ========== MAIN EXPORT ==========
 export function MatchMode(router) {
   const container = document.createElement('div');
-  container.className = 'w-full max-w-full lg:max-w-4xl mx-auto h-[100dvh] flex flex-col bg-bg-light dark:bg-primary text-primary dark:text-white select-none relative overflow-hidden pb-2 sm:pb-3 md:pb-6 lg:pb-10';
+  container.className = 'w-full max-w-full lg:max-w-4xl mx-auto h-[100dvh] flex flex-col bg-bg-light dark:bg-primary text-primary dark:text-white select-none relative overflow-hidden pb-safe-bottom';
   
   // Extract level from URL hash (e.g. #/match?level=5)
   const hashParts = window.location.hash.split('?');
@@ -114,7 +114,7 @@ function startGame(container, router, mode, levelNum) {
   engine.init();
 
   container.innerHTML = '';
-  container.className = 'w-full max-w-full lg:max-w-4xl mx-auto h-[100dvh] flex flex-col bg-bg-light dark:bg-primary text-primary dark:text-white select-none relative overflow-hidden pb-2 sm:pb-3 md:pb-6 lg:pb-10';
+  container.className = 'w-full max-w-full lg:max-w-4xl mx-auto h-[100dvh] flex flex-col bg-bg-light dark:bg-primary text-primary dark:text-white select-none relative overflow-hidden pb-safe-bottom';
 
   let isAnimating = false;
   let cellSize = 0;
@@ -1612,6 +1612,21 @@ function startGame(container, router, mode, levelNum) {
           primary: true,
           onClick: (closeFn) => {
             closeFn();
+            // Seviye tamamlama ödülü — SADECE yeni en yüksek seviyede (replay/farm engeli).
+            // Eskiden ödül yalnız ÇAĞRILMAYAN showVictory/showEndModal içindeydi → Match macera
+            // modu bubble/arrow'un aksine hiç elmas vermiyordu; match_level görevi de hiç
+            // ilerlemiyordu. İkisini de aktif yola taşıdık. (bestScoreJewel'e DOKUNMUYORUZ —
+            // engine.addScore zaten güncelliyor; showEndModal'daki += çift-sayımdı.)
+            const completedLevel = engine.level;
+            const isNewLevel = completedLevel >= (PlayerState.state.jewelCrushLevel || 1);
+            if (isNewLevel) {
+              const reward = Math.min(100, 20 + completedLevel * 5);
+              PlayerState.addDiamonds(reward);
+              Toast.show(t('diamonds_added', { count: reward }), 'success');
+            }
+            import('../state/taskState.js').then(({ TaskState }) => {
+              TaskState.updateProgress('match_level', 1);
+            });
             engine.level++;
             engine.levelScore = 0;
             engine.score = 0;

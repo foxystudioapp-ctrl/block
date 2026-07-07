@@ -562,6 +562,7 @@ export default {
   "diamonds_added": "+{count} Diamonds added successfully!",
   "purchase_failed_reason": "Purchase failed: {reason}",
   "purchase_failed": "The purchase failed.",
+  "purchase_pending_verification": "Your purchase is being verified. If you were charged, it will be delivered shortly.",
   "ads_not_supported_web": "Ads are not supported on this platform (Web).",
   "duel_opponent_rematch": "Your opponent wants a rematch!",
   "duel_request_declined_notice": "Request declined. You won't receive notifications until you return to the main menu.",

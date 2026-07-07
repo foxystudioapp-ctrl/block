@@ -37,22 +37,23 @@ export function createTopBar(titleText, showBackButton = true, onBackClick = nul
     </div>
   `;
 
-  // Hook event listeners
+  // Çift-tık koruması: hızlı iki tık onBackClick'i (çoğu ekranda çıkış-onayı modalı açar)
+  // iki kez tetikleyip iki modal / çift navigasyon oluşturmasın. 600ms sonra tekrar açılır
+  // (modal iptal edilirse kullanıcı yeniden basabilsin).
+  let navHandled = false;
+  const handleNav = () => {
+    if (navHandled) return;
+    navHandled = true;
+    if (onBackClick) onBackClick();
+    else Router.navigate('#/menu');
+    setTimeout(() => { navHandled = false; }, 600);
+  };
+
   const backBtn = header.querySelector('#topbar-back');
-  if (backBtn) {
-    backBtn.addEventListener('click', () => {
-      if (onBackClick) onBackClick();
-      else Router.navigate('#/menu');
-    });
-  }
+  if (backBtn) backBtn.addEventListener('click', handleNav);
 
   const menuBtn = header.querySelector('#topbar-menu');
-  if (menuBtn) {
-    menuBtn.addEventListener('click', () => {
-      if (onBackClick) onBackClick();
-      else Router.navigate('#/menu');
-    });
-  }
+  if (menuBtn) menuBtn.addEventListener('click', handleNav);
 
   if (showSettingsButton) {
     const settingsBtn = header.querySelector('#topbar-settings');

@@ -17,7 +17,7 @@ import { createScope } from '../utils/lifecycle.js';
 
 export function X2Block(router) {
   const container = document.createElement('div');
-  container.className = 'w-full max-w-full lg:max-w-4xl mx-auto h-[100dvh] flex flex-col bg-bg-light dark:bg-primary text-primary dark:text-white select-none animate-pop-up relative overflow-hidden pb-2 sm:pb-3 md:pb-6 lg:pb-10';
+  container.className = 'w-full max-w-full lg:max-w-4xl mx-auto h-[100dvh] flex flex-col bg-bg-light dark:bg-primary text-primary dark:text-white select-none animate-pop-up relative overflow-hidden pb-safe-bottom';
 
   // --- Yaşam döngüsü kapsamı --------------------------------------------------
   // Bu satırdan itibaren tüm setTimeout / requestAnimationFrame çağrıları
@@ -469,10 +469,10 @@ export function X2Block(router) {
     const scoreEl = container.querySelector('#x2-score');
     if (scoreEl) scoreEl.textContent = formatBlockValue(engine.score);
 
-    if (!PlayerState.state.bestScoreX2) PlayerState.state.bestScoreX2 = 0;
-    if (engine.score > PlayerState.state.bestScoreX2) {
-      PlayerState.state.bestScoreX2 = engine.score;
-      PlayerState.save();
+    // updateBestScore best-score'u kendi içinde günceller + globalTrophies (kupa/lig/sezon)
+    // ve rakip-geçme bildirimini işler. Eskiden doğrudan atama yapıldığı için bu modda kupa
+    // HİÇ kazanılmıyordu (multipliers.x2 ölü koddu).
+    if (PlayerState.updateBestScore('x2', engine.score)) {
       const bestEl = container.querySelector('#x2-best');
       if (bestEl) bestEl.textContent = formatBlockValue(PlayerState.state.bestScoreX2);
     }

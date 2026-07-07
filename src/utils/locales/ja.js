@@ -563,6 +563,7 @@ export default {
   "diamonds_added": "+{count} ダイヤを追加しました！",
   "purchase_failed_reason": "購入に失敗しました：{reason}",
   "purchase_failed": "購入に失敗しました。",
+  "purchase_pending_verification": "購入を確認しています。請求された場合は、まもなく反映されます。",
   "ads_not_supported_web": "このプラットフォーム（Web）では広告はサポートされていません。",
   "duel_opponent_rematch": "対戦相手が再戦を望んでいます！",
   "duel_request_declined_notice": "リクエストを拒否しました。メインメニューに戻るまで通知は届きません。",

@@ -13,8 +13,8 @@ android {
         applicationId "com.askar.blockblast"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 40
-        versionName "1.1.20"
+        versionCode 41
+        versionName "1.1.21"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -34,13 +34,11 @@ android {
     }
     buildTypes {
         release {
-            // R8 kod küçültme + kullanılmayan kaynak temizliği (AAB boyutunu düşürür).
-            // Keep kuralları proguard-rules.pro'da (Capacitor/WebView köprüsü + eklentiler).
-            // NOT: R8 sorunları yalnızca ÇALIŞMA ZAMANINDA görünür — yayından önce release
-            // AAB'yi bir cihazda mutlaka test et.
-            minifyEnabled true
-            shrinkResources true
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            // R8/minify KAPALI. Açıkken (v40) çentikli telefonlarda edge-to-edge/inset
+            // davranışı bozuluyordu ve boyut kazancı çok küçüktü (paket çoğunlukla web
+            // varlığı). Bilinen-iyi davranışa geri dönüldü.
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
             signingConfig signingConfigs.release
         }
     }

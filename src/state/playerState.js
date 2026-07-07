@@ -425,7 +425,8 @@ class PlayerStateManager {
     const multipliers = {
       classic: 1.0,
       hex: 1.0,
-      sort: 50.0, // Sort modunda skor level olduğu için katsayısı yüksek
+      sort: 10.0, // Sort skoru level-tabanlı (küçük sayı) olduğu için katsayı yüksek; ama endless'ta
+                  // level kolay tırmandığından 50× lig enflasyonu yaratıyordu → 10×'e dengelendi.
       jewel: 1.5,
       '2048': 1.0,
       merge: 1.0,

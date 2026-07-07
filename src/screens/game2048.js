@@ -16,7 +16,7 @@ import { Toast } from '../components/toast.js';
 
 export function Game2048(router) {
   const container = document.createElement('div');
-  container.className = 'w-full max-w-full lg:max-w-4xl mx-auto h-[100dvh] overflow-hidden flex flex-col bg-bg-light dark:bg-primary text-primary dark:text-white select-none animate-pop-up relative pb-2 sm:pb-3 md:pb-6 lg:pb-10';
+  container.className = 'w-full max-w-full lg:max-w-4xl mx-auto h-[100dvh] overflow-hidden flex flex-col bg-bg-light dark:bg-primary text-primary dark:text-white select-none animate-pop-up relative pb-safe-bottom';
 
   const hashObj = new URL('http://dummy.com' + window.location.hash.replace('#/2048', ''));
   const mode = hashObj.searchParams.get('mode') || 'endless';
@@ -218,10 +218,9 @@ export function Game2048(router) {
       }
     }
     
-    if (!PlayerState.state.bestScore2048) PlayerState.state.bestScore2048 = 0;
-    if (engine.score > PlayerState.state.bestScore2048) {
-      PlayerState.state.bestScore2048 = engine.score;
-      PlayerState.save();
+    // updateBestScore best-score + globalTrophies (kupa) + rakip-geçme bildirimini işler.
+    // Eskiden doğrudan atama → bu modda kupa hiç kazanılmıyordu (multipliers['2048'] ölüydü).
+    if (PlayerState.updateBestScore('2048', engine.score)) {
       const bestStr = PlayerState.state.bestScore2048.toLocaleString();
       if (elBestMobile) elBestMobile.textContent = bestStr;
     }

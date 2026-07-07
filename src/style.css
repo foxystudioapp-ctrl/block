@@ -323,6 +323,44 @@ html, body {
   text-size-adjust: none;
 }
 
+/* ============================================================================
+   ÇENTİK / SAFE-AREA YÖNETİMİ
+   Uygulama edge-to-edge çalışıyor (MainActivity: setDecorFitsSystemWindows=false
+   ve iOS'ta viewport-fit=cover). Bu yüzden sticky üst bar ve alt menü, cihazın
+   çentiği (üst) ve home göstergesi (alt) kadar boşluk bırakmalı ki içerik
+   çentiğin altında kalmasın. env() değeri çentiği olmayan cihazda 0'dır → normal
+   görünüm bozulmaz. Element+class seçici, Tailwind'in py-* utility'lerini geçer.
+   ============================================================================ */
+header.sticky.top-0 {
+  padding-top: calc(0.75rem + env(safe-area-inset-top));
+}
+
+nav.sticky.bottom-0 {
+  padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
+}
+
+/* Toast/bildirim konteyneri: edge-to-edge modda çentik/Dynamic Island + status bar'ın
+   altında kalsın. env() çentiksiz cihaz/webde 0 → normal görünüm bozulmaz. iPhone 17 Pro
+   Max'te toast'ın saat/SOS/pil ikonlarına binmesi (Guideline 4) buradan düzeltiliyor. */
+.toast-container {
+  top: calc(1rem + env(safe-area-inset-top));
+}
+
+/* Kodda kullanılan ama HİÇ TANIMLANMAMIŞ (no-op) safe-area yardımcıları. Bunlar tanımsız
+   olduğu için macera haritası başlığı çentiğe giriyor, buyDiamonds alt boşluğu ve düello
+   banner'ı home-indicator/çentik altına inmiyordu. env() çentiksiz cihaz/web'de 0 → normal
+   görünüm bozulmaz. */
+.mt-safe-top { margin-top: env(safe-area-inset-top); }
+.pb-safe-top { padding-bottom: env(safe-area-inset-top); }
+.safe-area-pb { padding-bottom: calc(6rem + env(safe-area-inset-bottom)); }
+/* Çentik altına inen sabit üst banner/bildirim (düello isteği vb.) için. */
+.top-safe { top: calc(1rem + env(safe-area-inset-top)); }
+
+/* Tam ekran oyun konteynerlerinin alt boşluğu: home-indicator/gesture çubuğu altına
+   girmesin (blok tepsisi/sürükleme alanı). 0.5rem taban (eski pb-2) + cihazın alt inset'i.
+   env() çentiksiz cihaz/web'de 0 → eski görünümle aynı. */
+.pb-safe-bottom { padding-bottom: calc(0.5rem + env(safe-area-inset-bottom)); }
+
 body {
   font-family: var(--font-sans);
   background-color: var(--color-bg-light);

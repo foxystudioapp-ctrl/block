@@ -19,7 +19,7 @@ export function showDailyRewardModal() {
 
     const modal = document.createElement('div');
     // Using native glass-card class from style.css
-    modal.className = 'glass-card rounded-[2rem] p-6 sm:p-8 max-w-[420px] w-full transform scale-90 transition-transform duration-500 cubic-bezier(0.34, 1.56, 0.64, 1) will-change-transform flex flex-col items-center relative overflow-hidden';
+    modal.className = 'glass-card rounded-[2rem] p-6 sm:p-8 max-w-[420px] w-full max-h-[90dvh] overflow-y-auto transform scale-90 transition-transform duration-500 cubic-bezier(0.34, 1.56, 0.64, 1) will-change-transform flex flex-col items-center relative';
 
     // Header
     const titleContainer = document.createElement('div');

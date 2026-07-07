@@ -563,6 +563,7 @@ export default {
   "diamonds_added": "+{count} алмазов успешно добавлено!",
   "purchase_failed_reason": "Ошибка покупки: {reason}",
   "purchase_failed": "Покупка не удалась.",
+  "purchase_pending_verification": "Покупка проверяется. Если средства списаны, она поступит в ближайшее время.",
   "ads_not_supported_web": "Реклама не поддерживается на этой платформе (Web).",
   "duel_opponent_rematch": "Соперник хочет реванш!",
   "duel_request_declined_notice": "Запрос отклонён. Вы не будете получать уведомления, пока не вернётесь в главное меню.",

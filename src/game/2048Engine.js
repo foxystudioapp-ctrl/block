@@ -314,12 +314,14 @@ export class Engine2048 {
     }
     
     cells.sort((a, b) => a.val - b.val);
-    
-    const toRemove = Math.min(4, cells.length);
+
+    // Dolu hücrelerin ~%40'ını (en küçük değerlileri) temizle — sabit 4 blok çok zayıftı
+    // (300 elmas/reklam karşılığı 1-2 hamlelik nefes). En az 4, en çok mevcut hücre kadar.
+    const toRemove = Math.min(cells.length, Math.max(4, Math.round(cells.length * 0.4)));
     for (let i = 0; i < toRemove; i++) {
       this.grid[cells[i].r][cells[i].c] = 0;
     }
-    
+
     this.gameOver = false;
     this.saveGameState();
     return true;
