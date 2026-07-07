@@ -67,6 +67,7 @@ export default {
   "tut_arrow_zoom_desc": "Use two fingers to pinch and zoom in on large puzzles. Swipe to pan around the board.",
   "lives": "Жизни",
   "max_hearts": "Жизни полны!",
+  "max_boost_reached": "Вы использовали максимум дополнительных жизней в этой игре!",
   "task_arrow_clear": "Головоломка со стрелками: пройдите 2 уровня",
   "stat_arrow_level": "Уровень головоломки со стрелками",
   "badge_arrow_master": "Мастер стрел",

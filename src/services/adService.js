@@ -9,6 +9,10 @@ class AdServiceManager {
     this.initialized = false;
     this.initPromise = null;
     this.bannerCreated = false;
+    // Banner'ın o an EKRANDA İSTENİP istenmediği. showBanner() true yapar, hideBanner()
+    // false. Banner oluşturma async (init + 500ms bekleme) olduğundan, bu bayrak sayesinde
+    // bekleme sırasında ekrandan çıkılırsa banner yanlış ekranda (ör. menüde) açılmaz.
+    this.bannerWanted = false;
     this.interstitialLoaded = false;
     this.rewardedLoaded = false;
 
@@ -16,6 +20,15 @@ class AdServiceManager {
     this.adsWatchedCount = 0;
     this.lastAdWatchTime = 0;
     this.sessionStartTime = Date.now(); // Oturum başlangıcı (periodic kontrol için)
+
+    // Zorunlu (tam ekran) reklam zamanlaması — TEK MERKEZ. A/B testi için buradan ayarla.
+    // Mantık tamamen ZAMANA bağlı (level sayısına DEĞİL) → tüm modlarda çalışır:
+    //  - Seviyeli modlar levelup molasında, ölümlü sonsuz modlar gameover'da, hiç bitmeyen
+    //    sonsuz modlar (Jewel/Color Sort) her oturmuş hamlede 'periodic' ile tetikler.
+    this.AD_CONFIG = {
+      firstDelaySec: 180,  // İlk reklam: oturum başından 3 dk sonraki ilk mola
+      intervalSec: 300,    // Sonraki reklamlar: son reklamdan 5 dk sonra
+    };
 
     // Real Ad Units
     this.adUnits = {
@@ -119,29 +132,29 @@ class AdServiceManager {
    *   'levelup'   — seviye atlandığında (adventure)
    *   'periodic'  — sonsuz modda oyun içi doğal duraklama anında
    *
-   * Zamanlama:
+   * Zamanlama (AD_CONFIG'den; TEK MERKEZ):
    *   1. Reklam (henüz hiç reklam gösterilmemiş):
-   *      • herhangi kaynak (gameover / levelup / periodic) → oturum başından 10 dk sonra
-   *      • periodic DAHİL → Jewel/Patlatmaca gibi "neredeyse hiç bitmeyen" endless modlarda
-   *        (gameover/levelup olmasa bile) reklam yine de çıkar.
+   *      • herhangi kaynak (gameover / levelup / periodic) → oturum başından firstDelaySec sonra.
+   *      • periodic DAHİL → Jewel/Color Sort gibi "neredeyse hiç bitmeyen" endless modlarda
+   *        (gameover/levelup olmasa bile) reklam yine de çıkar; her oturmuş hamlede tetiklenir.
    *   2. ve sonraki reklamlar:
-   *      • herhangi kaynak → son reklamdan 15 dk sonra göster
+   *      • herhangi kaynak → son reklamdan intervalSec sonra göster.
    *
    * NOT: 2. şans (revive) ve oyun-içi özellikler için izlenen ÖDÜLLÜ/tam-ekran reklamlar da
    * sayılır (showInterstitial + showRewardVideoAd, adsWatchedCount++ ve lastAdWatchTime'ı
-   * günceller) → bir sonraki zorunlu reklamın 15 dk'lık sayacını ileri atar.
+   * günceller) → bir sonraki zorunlu reklamın sayacını ileri atar (üst üste vurmayı önler).
    */
   async showForcedInterstitial(source = 'gameover') {
     const now = Date.now();
     let canShow = false;
 
     if (this.adsWatchedCount === 0) {
-      // 1. reklam: oturum başından 10 dk geçtiyse HERHANGİ tetikleyici gösterir (periodic
-      // dahil) → hiç bitmeyen endless modlarda (Jewel) da reklam çıkar.
-      if (now - this.sessionStartTime >= 10 * 60 * 1000) canShow = true;
+      // 1. reklam: oturum başından firstDelaySec geçtiyse HERHANGİ tetikleyici gösterir
+      // (periodic dahil) → hiç bitmeyen endless modlarda (Jewel/Color Sort) da reklam çıkar.
+      if (now - this.sessionStartTime >= this.AD_CONFIG.firstDelaySec * 1000) canShow = true;
     } else {
-      // 2. ve sonrası: herhangi kaynak, son reklamdan 15 dk sonra.
-      if (now - this.lastAdWatchTime >= 15 * 60 * 1000) canShow = true;
+      // 2. ve sonrası: herhangi kaynak, son reklamdan intervalSec sonra.
+      if (now - this.lastAdWatchTime >= this.AD_CONFIG.intervalSec * 1000) canShow = true;
     }
 
     if (canShow) {
@@ -239,17 +252,26 @@ class AdServiceManager {
 
   async showBanner() {
     if (!Capacitor.isNativePlatform()) return;
+    // Bu ekran banner istiyor. Aşağıdaki await'ler (init + 500ms) sürerken kullanıcı
+    // ekrandan çıkarsa hideBanner() bu bayrağı false yapar ve banner açılmaz.
+    this.bannerWanted = true;
     if (this.initPromise) await this.initPromise;
     if (!this.initialized) return;
     if (PlayerState.state.isVip) return; // VIPs don't see banners
+    if (!this.bannerWanted) return; // init beklenirken ekrandan çıkıldı → açma
 
     try {
       if (this.bannerCreated) {
         await AdMob.resumeBanner();
+        // resume sonrası hide istendiyse geri gizle
+        if (!this.bannerWanted) { try { await AdMob.hideBanner(); } catch (e) { /* yoksay */ } }
       } else {
         // Small delay to allow Android WebView layout to settle before calculating native overlay positioning
         await new Promise(r => setTimeout(r, 500));
-        
+        // 500ms dolmadan kullanıcı ekrandan çıktıysa banner'ı OLUŞTURMA. Aksi halde menüde/
+        // başka ekranda alt banner takılı kalır (router hideBanner'ı bannerCreated=false
+        // olduğu için erken dönmüştü). Bu kontrol o yarış durumunu kapatır.
+        if (!this.bannerWanted) return;
         await AdMob.showBanner({
           adId: this.adUnits.banner,
           adSize: BannerAdSize.ADAPTIVE_BANNER,
@@ -257,6 +279,8 @@ class AdServiceManager {
           margin: 0
         });
         this.bannerCreated = true;
+        // Oluşturma tamamlanana kadar hide istendiyse hemen gizle.
+        if (!this.bannerWanted) { try { await AdMob.hideBanner(); } catch (e) { /* yoksay */ } }
       }
     } catch (e) {
       console.warn('Banner show error:', e);
@@ -264,6 +288,9 @@ class AdServiceManager {
   }
 
   async hideBanner() {
+    // Önce niyeti kaydet: banner henüz oluşturulmamış olsa bile (init/500ms beklemede),
+    // askıdaki showBanner bu bayrağı görüp açmaktan vazgeçer.
+    this.bannerWanted = false;
     if (!Capacitor.isNativePlatform() || !this.bannerCreated) return;
     try {
       await AdMob.hideBanner();

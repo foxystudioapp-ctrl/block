@@ -144,6 +144,7 @@ export class HexEngine {
 
 
   placePiece(trayIndex, targetQ, targetR) {
+    if (this.gameOver) return false; // oyun bittikten sonra tahta/skor mutasyonunu engelle
     const piece = this.activePieces[trayIndex];
     if (!piece) return false;
     if (!this.canPlace(piece, targetQ, targetR)) return false;

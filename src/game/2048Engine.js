@@ -283,6 +283,9 @@ export class Engine2048 {
       }
       this.spawnTile();
       this.checkGameOver();
+      // Aynı hamlede hedef skora ulaşıp tahta da dolarsa: hak edilen seviye-geçme,
+      // oyun-bitti'ye ezilmesin (x2Engine ile aynı koruma).
+      if (this.levelUpReady) this.gameOver = false;
       this.saveGameState();
       return { moved: true, score: result.score, merges: result.merges };
     } else {

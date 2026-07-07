@@ -67,6 +67,7 @@ export default {
   "tut_arrow_zoom_desc": "Use two fingers to pinch and zoom in on large puzzles. Swipe to pan around the board.",
   "lives": "أرواح",
   "max_hearts": "القلوب ممتلئة!",
+  "max_boost_reached": "لقد وصلت إلى الحد الأقصى من الأرواح الإضافية في هذه اللعبة!",
   "task_arrow_clear": "لغز الأسهم: أكمل مستويين",
   "stat_arrow_level": "مستوى لغز الأسهم",
   "badge_arrow_master": "سيد الأسهم",

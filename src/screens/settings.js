@@ -1,4 +1,5 @@
 import { createTopBar } from '../components/topBar.js';
+import { Router } from '../router.js';
 import { Storage } from '../utils/storage.js';
 import { Sounds } from '../utils/sounds.js';
 import { Haptics } from '../utils/haptics.js';
@@ -105,8 +106,20 @@ export function showSettingsModal() {
 
   // Language Dropdown
   const langOptions = availableLanguages.map(l => ({ value: l.code, label: l.name }));
-  togglesContainer.appendChild(createSelect('select-lang', 'language', t('settings_lang'), '', langOptions, getCurrentLang(), (val) => {
-    setLang(val);
+  // Oyun ekranları: dil değişince tam reload/Router.resolve oyunu (macera seviyesi + tahta)
+  // sıfırlar. Bu ekranlar altta canlıyken yalnız Ayarlar modalını yeni dilde yeniden açarız;
+  // oyun dokunulmadan altta çalışmaya devam eder. Diğer ekranlarda (menü, profil...) tam
+  // reload güvenlidir ve tüm arayüzü yeni dile çevirir.
+  const GAME_ROUTES = ['#/classic', '#/hex', '#/sort', '#/2048', '#/x2', '#/merge', '#/duel', '#/match', '#/bubble', '#/arrow'];
+  togglesContainer.appendChild(createSelect('select-lang', 'language', t('settings_lang'), '', langOptions, getCurrentLang(), async (val) => {
+    await setLang(val);
+    const routePath = (Router.currentPath || '').split('?')[0];
+    overlay.remove();
+    if (GAME_ROUTES.includes(routePath)) {
+      showSettingsModal(); // alttaki oyunu koru, sadece modalı yeni dilde yeniden aç
+    } else {
+      window.location.reload(); // oyun yok → tam reload güvenli
+    }
   }));
 
   togglesContainer.appendChild(createToggle('toggle-sfx', 'volume_up', t('settings_sfx'), '', sfxEnabled, (val) => {

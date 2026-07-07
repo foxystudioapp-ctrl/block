@@ -109,7 +109,10 @@ export function BubbleShooter() {
 
   // === Sub-controls (Yardım ve +2 Atış) ===
   let extraShotsCount = 0;
-  let endlessDiamondChunks = 0; // endless skor-eşiği ödül sayacı (her 5000 puanda +5 elmas)
+  // endless skor-eşiği ödül sayacı (her 5000 puanda +5 elmas). Kaydedilen oyun diskten
+  // geri yüklendiyse (engine.loadState) skora göre TOHUMLA — aksi halde her yeniden açışta
+  // floor(skor/5000)*5 elmas TEKRAR verilir (sınırsız bedava elmas açığı).
+  let endlessDiamondChunks = (mode === 'endless') ? Math.floor((engine.score || 0) / 5000) : 0;
   const extraShotsCosts = [50, 150, 300];
   const maxExtraShots = 3;
 

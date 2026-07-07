@@ -66,6 +66,7 @@ export default {
   "tut_arrow_zoom_desc": "Use two fingers to pinch and zoom in on large puzzles. Swipe to pan around the board.",
   "lives": "Vidas",
   "max_hearts": "Vidas cheias!",
+  "max_boost_reached": "Você atingiu o máximo de vidas extras nesta partida!",
   "task_arrow_clear": "Quebra-cabeça de Setas: Complete 2 níveis",
   "stat_arrow_level": "Nível do Quebra-cabeça de Setas",
   "badge_arrow_master": "Mestre das Setas",

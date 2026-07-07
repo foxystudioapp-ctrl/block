@@ -420,7 +420,15 @@ export const syncToCloud = async () => {
       minerCurrentArea: PlayerState.state.minerCurrentArea,
       bestScoreJewel: PlayerState.state.bestScoreJewel,
       pastSeasons: PlayerState.state.pastSeasons,
-      globalTrophies: safeNum(PlayerState.state.globalTrophies, 10_000_000)
+      globalTrophies: safeNum(PlayerState.state.globalTrophies, 10_000_000),
+      // globalTrophies'in AİT OLDUĞU ay: loadFromCloud aylık sıfırlamayı bununla korur
+      // (geçen sezonun kupaları max-merge ile geri gelmesin).
+      globalTrophiesMonth: PlayerState.state.currentMonthKey,
+      // Günlük ödül + sezon ödülü alanları (eskiden senkronlanmıyordu → cihazlar arası
+      // çift alma / kayıp). loadFromCloud bunları ekonomi zaman-damgasına göre birleştirir.
+      lastLoginRewardTime: PlayerState.state.lastLoginRewardTime,
+      loginStreak: PlayerState.state.loginStreak,
+      pendingSeasonRewards: PlayerState.state.pendingSeasonRewards
     };
 
     await updateDoc(userRef, {

@@ -41,13 +41,15 @@ class PlayerStateManager {
       Storage.set('player_past_seasons', pastSeasons);
       
       const pendingRewards = Storage.get('player_pending_season_rewards', null);
-      if (!pendingRewards) {
-         Storage.set('player_pending_season_rewards', {
-           league: pastLeagueInfo.id,
-           diamonds: reward,
-           month: storedMonthKey
-         });
-      }
+      // Önceki sezon ödülü henüz ALINMADIYSA yeni sezonunkini üstüne EKLE (kaybolmasın).
+      // Eskiden `if (!pendingRewards)` ile yeni ödül hiç yazılmıyordu → alınmamış ödül
+      // sonraki sezonunkini kalıcı olarak bloke ediyordu.
+      const carriedDiamonds = (pendingRewards && Number(pendingRewards.diamonds)) || 0;
+      Storage.set('player_pending_season_rewards', {
+        league: pastLeagueInfo.id,
+        diamonds: reward + carriedDiamonds,
+        month: storedMonthKey
+      });
     }
 
     // Load state from local storage or set default values
@@ -155,6 +157,14 @@ class PlayerStateManager {
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'hidden') this.saveNow();
       });
+      // NATIVE (Capacitor): Android/iOS'ta arka plana alınınca `visibilitychange` GENELDE
+      // tetiklenmez (bkz. sounds.js); asıl güvenilir sinyal `appStateChange`. Bekleyen
+      // ekonomi/ilerleme yazımları OS process'i öldürmeden önce diske insin.
+      import('@capacitor/app').then(({ App }) => {
+        App.addListener('appStateChange', ({ isActive }) => {
+          if (!isActive) this.saveNow();
+        });
+      }).catch(() => { /* App yoksa (saf web) yoksay */ });
     }
   }
 
@@ -222,7 +232,8 @@ class PlayerStateManager {
       'currentAdventureLevel', 'adventureStars', 'profileName', 'profileTitle', 'avatarSeed',
       'unlockedAvatars', 'jewelCrushLevel', 'sortAdventureLevel', 'sortEndlessLevel',
       'g2048AdventureLevel', 'mergeAdventureLevel', 'bubbleAdventureLevel', 'x2AdventureLevel', 'arrowAdventureLevel',
-      'minerCurrentArea', 'bestScoreJewel', 'pastSeasons', 'globalTrophies'
+      'minerCurrentArea', 'bestScoreJewel', 'pastSeasons', 'globalTrophies',
+      'lastLoginRewardTime', 'loginStreak', 'pendingSeasonRewards'
     ];
 
     // Para/sayaç gibi DÜŞEBİLEN alanlar Math.max ile birleştirilmemeli — aksi halde
@@ -231,6 +242,11 @@ class PlayerStateManager {
     const cloudAuthoritativeFields = new Set([
       'diamonds', 'isVip', 'lastVipRewardTime', 'theme', 'profileTitle',
     ]);
+
+    // Ekonomi zaman-damgasına bağlı alanlar: yalnız bulut daha yeniyse uygulanır (senkronlanmamış
+    // yerel kazanç/harcama/ödül-alma ezilmez). Günlük ödül alanları da buraya dahil → cihazlar
+    // arası çift-alma/kayıp önlenir (günlük ödül alımı zaten _touchEconomy tetikler).
+    const econGatedFields = new Set(['diamonds', 'lastLoginRewardTime', 'loginStreak']);
 
     // ELMAS için zaman-damgalı son-yazan-kazanır: yerelde senkronlanmamış elmas
     // değişikliği (kazanç/harcama/satın alma) varsa eski bulut değeriyle EZME.
@@ -246,26 +262,40 @@ class PlayerStateManager {
     const cloudWinsEconomy = firstCloudLoad || cloudLastSync >= localEconChange;
 
     fieldsToImport.forEach(key => {
-      if (progress[key] !== undefined) {
-        if (key === 'diamonds') {
-          // Yalnızca bulut daha yeniyse elması bulut değeriyle değiştir.
-          if (cloudWinsEconomy) {
-            this.state.diamonds = progress.diamonds;
-            changed = true;
-          }
-          // değilse: yereli koru (senkronlanmamış değişiklik var), bir sonraki sync düzeltir.
-        } else if (cloudAuthoritativeFields.has(key)) {
-          this.state[key] = progress[key];
-          changed = true;
-        } else if (typeof this.state[key] === 'number') {
-          // Yalnız monoton artan alanlar (skor/seviye/yıldız) için max birleştirme.
-          const cloudVal = Number(progress[key]);
-          this.state[key] = Math.max(this.state[key] || 0, Number.isFinite(cloudVal) ? cloudVal : 0);
-          changed = true;
-        } else {
+      if (progress[key] === undefined && key !== 'pendingSeasonRewards') return;
+
+      if (econGatedFields.has(key)) {
+        // Elmas + günlük ödül alanları: yalnız bulut daha yeniyse uygula (dupe/kayıp önler).
+        if (progress[key] !== undefined && cloudWinsEconomy) {
           this.state[key] = progress[key];
           changed = true;
         }
+      } else if (key === 'pendingSeasonRewards') {
+        // Yerelde YENİ oluşmuş (ay dönümü) sezon ödülünü EZME; yalnız yerelde yokken buluttakini al.
+        if (!this.state.pendingSeasonRewards && progress.pendingSeasonRewards) {
+          this.state.pendingSeasonRewards = progress.pendingSeasonRewards;
+          changed = true;
+        }
+      } else if (key === 'globalTrophies') {
+        // Sezon (ay) sınırı: bulut değeri GEÇEN aya aitse aylık sıfırlama korunur; aksi halde
+        // (aynı ay veya eski istemci — month alanı yok) monoton max-merge.
+        const cloudMonth = progress.globalTrophiesMonth;
+        if (cloudMonth === undefined || cloudMonth === this.state.currentMonthKey) {
+          const cloudVal = Number(progress.globalTrophies);
+          this.state.globalTrophies = Math.max(this.state.globalTrophies || 0, Number.isFinite(cloudVal) ? cloudVal : 0);
+          changed = true;
+        }
+      } else if (cloudAuthoritativeFields.has(key)) {
+        this.state[key] = progress[key];
+        changed = true;
+      } else if (typeof this.state[key] === 'number') {
+        // Yalnız monoton artan alanlar (skor/seviye/yıldız) için max birleştirme.
+        const cloudVal = Number(progress[key]);
+        this.state[key] = Math.max(this.state[key] || 0, Number.isFinite(cloudVal) ? cloudVal : 0);
+        changed = true;
+      } else {
+        this.state[key] = progress[key];
+        changed = true;
       }
     });
     

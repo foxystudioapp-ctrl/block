@@ -256,7 +256,10 @@ export class MergeEngine {
     if (maxBlock >= 256) this.maxSpawnValue = 32;
 
     this.checkGameOver();
-    
+    // Aynı hamlede seviye-geçme hazır olduysa, dolu tahtadan gelen oyun-bitti onu ezmesin
+    // (x2Engine ile aynı koruma).
+    if (this.levelUpReady) this.gameOver = false;
+
     return { success: true, merged };
   }
 

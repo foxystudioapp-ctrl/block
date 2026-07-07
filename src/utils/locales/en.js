@@ -69,6 +69,7 @@ export default {
   "tut_arrow_zoom_desc": "Büyük bulmacalarda iki parmağını kullanarak ekranı yakınlaştırabilir ve kaydırabilirsin.",
   "lives": "Lives",
   "max_hearts": "Hearts full!",
+  "max_boost_reached": "You've reached the maximum extra lives in this game!",
   "task_arrow_clear": "Arrow Puzzle: Complete 2 levels",
   "stat_arrow_level": "Arrow Puzzle Level",
   "badge_arrow_master": "Arrow Master",

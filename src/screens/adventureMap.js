@@ -93,11 +93,15 @@ export function AdventureMap(router) {
 
   // Sabit Header (Glassmorphism)
   const headerWrap = document.createElement('div');
-  headerWrap.className = 'fixed top-0 left-0 right-0 z-50 bg-white/70 dark:bg-gray-900/70 backdrop-blur-lg border-b border-black/5 dark:border-white/5 shadow-sm';
+  // Header OPAK olmalı: scrollWrap `absolute inset-0` olduğundan seviye satırları header'ın
+  // ALTINDAN geçerek kayar. Yarı saydam (bg-white/70) header'da, current level'a otomatik
+  // ortalama sonrası hemen üstteki tamamlanmış seviye header'ın (geri tuşunun) arkasında
+  // hayalet gibi görünüyordu. Tam opak arka plan bu sızmayı tamamen keser.
+  headerWrap.className = 'fixed top-0 left-0 right-0 z-50 bg-white dark:bg-gray-900 backdrop-blur-lg border-b border-black/5 dark:border-white/5 shadow-sm';
 
   // Top bar
   const header = document.createElement('div');
-  header.className = 'absolute top-0 left-0 w-full z-10 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 shadow-sm transition-all pb-safe-top';
+  header.className = 'absolute top-0 left-0 w-full z-10 bg-white dark:bg-slate-900 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 shadow-sm transition-all pb-safe-top';
 
   const topBar = document.createElement('div');
   topBar.className = 'flex items-center justify-between px-4 py-3 mt-safe-top';

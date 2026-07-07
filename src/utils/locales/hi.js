@@ -61,6 +61,7 @@ export default {
   "tut_arrow_zoom_desc": "Use two fingers to pinch and zoom in on large puzzles. Swipe to pan around the board.",
   "lives": "जीवन",
   "max_hearts": "जीवन भरे हुए!",
+  "max_boost_reached": "आपने इस गेम में अधिकतम अतिरिक्त जीवन प्राप्त कर लिए!",
   "task_arrow_clear": "एरो पज़ल: 2 स्तर पूरे करें",
   "stat_arrow_level": "एरो पज़ल स्तर",
   "badge_arrow_master": "एरो मास्टर",

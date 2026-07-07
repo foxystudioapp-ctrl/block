@@ -12,6 +12,8 @@
  * en güncel anlık görüntü doğru yazılır.
  */
 
+import { App } from '@capacitor/app';
+
 const pending = new Map(); // rawKey -> { value, timer, firstAt }
 const DELAY = 400;
 const MAX_WAIT = 2000;
@@ -63,4 +65,12 @@ function ensureFlushRegistered() {
   });
   // pagehide → sayfa/uygulama kapanışında son güvence.
   window.addEventListener('pagehide', flushPersist);
+  // NATIVE (Capacitor): Android/iOS'ta arka plana alınınca WebView "görünür" sayıldığından
+  // `visibilitychange` GENELDE tetiklenmez (bkz. sounds.js). Bekleyen oyun-durumu/görev
+  // yazımları OS process'i öldürünce kaybolmasın diye `appStateChange`'de de flush et.
+  try {
+    App.addListener('appStateChange', ({ isActive }) => {
+      if (!isActive) flushPersist();
+    });
+  } catch (e) { /* App yoksa (saf web) yoksay */ }
 }

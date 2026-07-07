@@ -301,6 +301,12 @@ export function ColorSort(router) {
         if (engine.checkWin()) {
       TaskState.updateProgress('sort_level', 1);
           setTimeout(showWinModal, 400);
+        } else if (mode === 'endless') {
+          // Sonsuz modda 'kaybetme' yok ve puzzle bitene kadar levelup molası oluşmaz.
+          // Diğer sonsuz modlarla aynı sigorta: her geçerli (ve kazanmayan) hamle oturmuş
+          // bir andır → reklam sayacı dolmuşsa burada tam ekran reklam çıkar. Böylece zor bir
+          // puzzle'da uzun süre takılan oyuncu da açta kalmaz.
+          AdService.showForcedInterstitial('periodic');
         }
       } else {
         // Invalid move

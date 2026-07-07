@@ -67,6 +67,7 @@ export default {
   "tut_arrow_zoom_desc": "Büyük bulmacalarda iki parmağını kullanarak ekranı yakınlaştırabilir ve kaydırabilirsin.",
   "lives": "Vidas",
   "max_hearts": "¡Vidas llenas!",
+  "max_boost_reached": "¡Has alcanzado el máximo de vidas extra en esta partida!",
   "task_arrow_clear": "Puzzle de Flechas: Completa 2 niveles",
   "stat_arrow_level": "Nivel de Puzzle de Flechas",
   "badge_arrow_master": "Maestro de Flechas",

@@ -21,7 +21,16 @@ class SoundManager {
     if (this.ctx) return;
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
     if (AudioContextClass) {
-      this.ctx = new AudioContextClass();
+      // latencyHint:'playback' → tarayıcı DAHA BÜYÜK ses tamponu seçer. Varsayılan
+      // 'interactive' ~5ms'lik minik tampon kullanır ve CPU sıçramasında (ör. ekran kaydı
+      // açılması, ağır kare) anında boşalıp CIZIRDAR (buffer underrun). Arka plan müziğinde
+      // gecikme önemsiz; büyük tampon bu ani yükleri yutar. Eski WebView options nesnesini
+      // reddederse sade kurucuya düş.
+      try {
+        this.ctx = new AudioContextClass({ latencyHint: 'playback' });
+      } catch (e) {
+        this.ctx = new AudioContextClass();
+      }
     }
     this.setupVisibilityHandler();
   }
@@ -797,28 +806,13 @@ class SoundManager {
     this.musicTimeouts = []; // Track all timeouts
     this.isPlayingMusic = true;
 
-    // Create a lush reverb using a synthesized impulse response
-    const reverb = this.ctx.createConvolver();
-    const length = this.ctx.sampleRate * 3.5; // 3.5 seconds reverb
-    const impulse = this.ctx.createBuffer(2, length, this.ctx.sampleRate);
-    for (let i = 0; i < 2; i++) {
-      const channel = impulse.getChannelData(i);
-      for (let j = 0; j < length; j++) {
-        // Exponential decay envelope on white noise
-        channel[j] = (Math.random() * 2 - 1) * Math.pow(1 - j / length, 4);
-      }
-    }
-    reverb.buffer = impulse;
+    // Düşük/orta cihaz tespiti (main.js açılışta <html>'e 'low-end' ekliyor). Convolution
+    // reverb grafiğin EN PAHALI düğümü; zayıf cihazlarda underrun/cızırtının ana kaynağı.
+    const lowEnd = document.documentElement.classList.contains('low-end');
 
     // Master volume for music
     const masterGain = this.ctx.createGain();
     masterGain.gain.value = this.musicVolume * 0.8; // Scale down slightly to account for reverb
-    
-    // Mix dry and wet signals for spaciousness
-    const dryGain = this.ctx.createGain();
-    const wetGain = this.ctx.createGain();
-    dryGain.gain.value = 0.5;
-    wetGain.gain.value = 0.32; // 0.6→0.32: ağır/gürültülü reverb tail cızırtıya yol açıyordu
 
     // CIZIRTI DÜZELTME: master limiter. Çakışan notalar + reverb toplamı 1.0'ı aşınca
     // çıkış sert kırpılıp (clipping) cızırdıyordu. Limiter tepe seviyeyi sınırlayıp temiz tutar.
@@ -828,15 +822,40 @@ class SoundManager {
     limiter.ratio.value = 20;
     limiter.attack.value = 0.003;
     limiter.release.value = 0.25;
-
-    masterGain.connect(dryGain);
-    masterGain.connect(reverb);
-    reverb.connect(wetGain);
-
-    dryGain.connect(limiter);
-    wetGain.connect(limiter);
     limiter.connect(this.ctx.destination);
     this._musicLimiter = limiter; // stopMusic teardown'da bağlantı kesimi için
+
+    if (lowEnd) {
+      // Düşük cihazlarda reverb'i TAMAMEN atla → CPU yükü düşer, cızırtı kaybolur.
+      // Müzik biraz daha "kuru" ama akıcı çalar.
+      masterGain.connect(limiter);
+    } else {
+      // Lush reverb — KISALTILDI: 3.5s → 1.5s. Convolution maliyeti IR uzunluğuyla orantılı
+      // olduğundan bu ~%55 CPU tasarrufu sağlar; ekran kaydı gibi ani yüklerde underrun'ı önler.
+      const reverb = this.ctx.createConvolver();
+      const length = Math.floor(this.ctx.sampleRate * 1.5);
+      const impulse = this.ctx.createBuffer(2, length, this.ctx.sampleRate);
+      for (let i = 0; i < 2; i++) {
+        const channel = impulse.getChannelData(i);
+        for (let j = 0; j < length; j++) {
+          // Exponential decay envelope on white noise
+          channel[j] = (Math.random() * 2 - 1) * Math.pow(1 - j / length, 4);
+        }
+      }
+      reverb.buffer = impulse;
+
+      // Mix dry and wet signals for spaciousness
+      const dryGain = this.ctx.createGain();
+      const wetGain = this.ctx.createGain();
+      dryGain.gain.value = 0.5;
+      wetGain.gain.value = 0.32; // 0.6→0.32: ağır/gürültülü reverb tail cızırtıya yol açıyordu
+
+      masterGain.connect(dryGain);
+      masterGain.connect(reverb);
+      reverb.connect(wetGain);
+      dryGain.connect(limiter);
+      wetGain.connect(limiter);
+    }
 
     // Scales (Pentatonic for beautiful generative melodies that never clash)
     let scale = [];

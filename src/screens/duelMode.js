@@ -986,6 +986,9 @@ export function DuelMode(router) {
             playedPiece: piece,
             newPieces: engine.activePieces
          });
+         // Skoru RTDB'ye yaz: rakibin cihazı skorumu bu alandan okur. Eskiden updateScore
+         // HİÇ çağrılmıyordu → rakip skoru hep 0 kalıp yanlış kazanan ilan edilebiliyordu.
+         Multiplayer.updateScore(myPlayerNumber === 1 ? engine.player1Score : engine.player2Score);
          engine.turn = myPlayerNumber === 1 ? 2 : 1;
          startTurnTimer();
       } else {
@@ -1049,6 +1052,10 @@ export function DuelMode(router) {
     // ayrılmış ekranda showGameOver()/navigate() çalıştırır.
     Multiplayer.onRoomStateChange = null;
     Multiplayer.onOpponentMove = null;
+    // Bağlantı-koptu modalı document.body'ye ekleniyor (router container'ı değil), bu yüzden
+    // ekran değişince otomatik temizlenmiyordu → menü üstünde tıklanamaz siyah overlay kalıyordu.
+    if (disconnectModal && disconnectModal.parentNode) disconnectModal.remove();
+    disconnectModal = null;
     if (topBar.cleanup) topBar.cleanup();
     AdService.hideBanner();
     clearInterval(turnTimerInterval);

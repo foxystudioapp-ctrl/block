@@ -66,6 +66,7 @@ export default {
   "tut_arrow_zoom_desc": "Use two fingers to pinch and zoom in on large puzzles. Swipe to pan around the board.",
   "lives": "ライフ",
   "max_hearts": "ライフ満タン！",
+  "max_boost_reached": "このゲームで追加ライフを最大まで使いました！",
   "task_arrow_clear": "矢印パズル：2レベルクリア",
   "stat_arrow_level": "矢印パズルのレベル",
   "badge_arrow_master": "矢印マスター",

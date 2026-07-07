@@ -201,6 +201,8 @@ export class ClassicEngine {
       board: this.board.map(row => [...row]),
       activePieces: this.activePieces.map(p => p ? { ...p, matrix: p.matrix.map(row => [...row]) } : null),
       score: this.score,
+      levelScore: this.levelScore,
+      levelUpReady: this.levelUpReady,
       comboCount: this.comboCount,
       justClearedLines: this.justClearedLines
     });
@@ -411,6 +413,10 @@ export class ClassicEngine {
     this.board = previousState.board;
     this.activePieces = previousState.activePieces;
     this.score = previousState.score;
+    // levelScore/levelUpReady de geri alınmalı; aksi halde maceradа yerleştir→geri al
+    // ile levelScore şişip seviye hak edilenden az puanla tamamlanıyordu.
+    if (previousState.levelScore !== undefined) this.levelScore = previousState.levelScore;
+    this.levelUpReady = previousState.levelUpReady || false;
     this.comboCount = previousState.comboCount;
     this.justClearedLines = previousState.justClearedLines;
     this.gameOver = false;
@@ -446,6 +452,8 @@ export class ClassicEngine {
       board: this.board.map(row => [...row]),
       activePieces: this.activePieces.map(p => p ? { ...p, matrix: p.matrix.map(row => [...row]) } : null),
       score: this.score,
+      levelScore: this.levelScore,
+      levelUpReady: this.levelUpReady,
       comboCount: this.comboCount,
       justClearedLines: this.justClearedLines
     });

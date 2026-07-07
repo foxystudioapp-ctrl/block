@@ -1,4 +1,6 @@
 export function formatBlockValue(val) {
+  // Geçersiz/sonlu olmayan değerde "NaNundefined" üretmesin.
+  if (!Number.isFinite(val)) return '0';
   if (val < 1000) return val.toString();
   
   const suffixes = ["", "K", "M", "B", "T", "aa", "bb", "cc", "dd", "ee", "ff", "gg", "hh", "ii", "jj", "kk", "ll", "mm", "nn", "oo", "pp", "qq", "rr", "ss", "tt", "uu", "vv", "ww", "xx", "yy", "zz"];

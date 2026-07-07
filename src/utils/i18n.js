@@ -107,7 +107,10 @@ export async function setLang(langCode) {
 
     document.documentElement.lang = langCode;
     applyTextDirection(langCode);
-    window.location.reload();
+    // NOT: Eskiden burada window.location.reload() vardı. Ancak Ayarlar bir MODAL overlay'dir
+    // ve altında canlı oyun ekranı durur; tam reload o oturumu (macera seviyesi, tahta durumu)
+    // sıfırlıyordu. Reload kaldırıldı; çağıran (settings.js) dili oyun-güvenli biçimde uygular:
+    // oyun altta ise sadece Ayarlar modalını yeni dilde yeniden açar, değilse tam reload yapar.
   }
 }
 

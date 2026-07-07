@@ -66,6 +66,7 @@ export default {
   "tut_arrow_zoom_desc": "Büyük bulmacalarda iki parmağını kullanarak ekranı yakınlaştırabilir ve kaydırabilirsin.",
   "lives": "Vite",
   "max_hearts": "Vite piene!",
+  "max_boost_reached": "Hai raggiunto il massimo di vite extra in questa partita!",
   "task_arrow_clear": "Puzzle delle Frecce: Completa 2 livelli",
   "stat_arrow_level": "Livello Puzzle Frecce",
   "badge_arrow_master": "Maestro delle Frecce",

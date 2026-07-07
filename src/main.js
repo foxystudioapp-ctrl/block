@@ -113,7 +113,9 @@ App.addListener('backButton', () => {
   } else if (routePath === '#/arrow') {
     // Ok Bulmacası: oyun içi geri → seviye haritası
     Router.navigate('#/adventure-map?game=arrow');
-  } else if (gameModes.includes(hash)) {
+  } else if (gameModes.includes(routePath)) {
+    // routePath (query'siz) kullan: oyunlar menüden '#/classic?mode=endless' gibi query ile
+    // açılıyor; tam hash ile karşılaştırınca eşleşmiyor ve "oyundan çık?" onayı ATLANIYORDU.
     createModal({
       title: t('quit_game') || 'Oyundan Çıkış',
       content: `<p class="text-center font-bold">${t('confirm_quit_to_menu_msg')}</p>`,
@@ -122,7 +124,7 @@ App.addListener('backButton', () => {
         { text: t('yes'), primary: true, onClick: (close) => { close(); Router.navigate('#/menu'); } }
       ]
     });
-  } else if (subMenus.includes(hash)) {
+  } else if (subMenus.includes(routePath)) {
     Router.navigate('#/menu');
   } else if (hash === '#/settings' || hash === '#/shop') {
     if (Router.previousPath && Router.previousPath !== hash) {

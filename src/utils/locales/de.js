@@ -67,6 +67,7 @@ export default {
   "tut_arrow_zoom_desc": "Büyük bulmacalarda iki parmağını kullanarak ekranı yakınlaştırabilir ve kaydırabilirsin.",
   "lives": "Leben",
   "max_hearts": "Leben voll!",
+  "max_boost_reached": "Du hast die maximale Anzahl an Extraleben in diesem Spiel erreicht!",
   "task_arrow_clear": "Pfeil-Puzzle: Schließe 2 Level ab",
   "stat_arrow_level": "Pfeil-Puzzle-Level",
   "badge_arrow_master": "Pfeil-Meister",

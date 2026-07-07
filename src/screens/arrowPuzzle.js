@@ -56,10 +56,13 @@ export function ArrowPuzzle(router) {
   // tek ipucu (50) ödülün katı olup elmas kanatıyordu. Macera ödülü büyük → standart maliyet.
   // Ekonomi yeniden dengelendi: maliyetler düştü (ipucu/can artık seviye ödülüyle uyumlu).
   const HINT_COSTS = mode === 'endless' ? [15, 30, 50] : [30, 80, 150];
-  const HEART_BOOST_COST = 50;   // mid-level +1 can booster'ı (AYARLANABİLİR)
+  // +Can booster maliyeti KADEMELİ (klasik "geri al"/"çekiç" ile aynı desen): her kullanımda
+  // artar; 3 kullanımdan sonra buton "MAX" gösterip devre dışı kalır (heartBoostCount tavanı).
+  const HEART_BOOST_COSTS = [50, 150, 300];
   const MAX_BOOST_HEARTS = 9;    // can dolma tavanı (HUD taşmasını önler)
   let clearStreak = 0;           // ardışık başarılı temizleme (yanlış dokunuşta sıfırlanır)
   let hintUsages = 0;
+  let heartBoostCount = 0;       // bu seviyede satın alınan +can sayısı (tavan: HEART_BOOST_COSTS.length)
   let lastWrongAt = 0;           // son yanlış dokunuş zamanı (grace/tolerans penceresi için)
 
   // Dark mode'u bir kez değerlendir; her karo/karede window.matchMedia(...) parse etmek
@@ -82,7 +85,8 @@ export function ArrowPuzzle(router) {
       onClick: (closeFn) => {
         closeFn();
         engine.init(engine.level);
-        hintUsages = 0; clearStreak = 0; // B2: yeniden başlatınca ipucu/kombo da sıfırlansın
+        hintUsages = 0; clearStreak = 0; heartBoostCount = 0; // B2: yeniden başlatınca ipucu/kombo/+can da sıfırlansın
+        updateHeartBoostUI();
         captureShape();
         reveals.clear();
         winGlowT0 = 0; viewScale = 1; viewX = 0; viewY = 0; renderHearts(); renderHintBadge(); resize(); startEntrance(); resetHintTimer(); ensureLoop();
@@ -107,10 +111,10 @@ export function ArrowPuzzle(router) {
     <div class="flex items-center space-x-2">
       <button id="arrow-heart-boost" class="flex items-center gap-1.5 px-2.5 md:px-3 lg:px-4 py-1 md:py-1.5 rounded-full bg-white dark:bg-primary-container border border-black/5 dark:border-white/5 shadow-sm active:scale-95 transition-all shrink-0">
         <span class="material-symbols-outlined text-[14px] md:text-[16px] lg:text-[18px] text-pink-500" style="font-variation-settings:'FILL' 1;">favorite</span>
-        <span class="text-[9px] md:text-[11px] lg:text-[13px] font-black tracking-tight leading-none uppercase text-gray-700 dark:text-gray-200">+3 ${(t('lives') || 'CAN')}</span>
-        <div class="flex items-center gap-0.5 bg-cyan-500/10 dark:bg-cyan-500/20 px-1.5 py-0.5 rounded-full ml-0.5 transition-all">
+        <span class="text-[9px] md:text-[11px] lg:text-[13px] font-black tracking-tight leading-none uppercase text-gray-700 dark:text-gray-200">+1 ${(t('lives') || 'CAN')}</span>
+        <div id="arrow-heart-badge" class="flex items-center gap-0.5 bg-cyan-500/10 dark:bg-cyan-500/20 px-1.5 py-0.5 rounded-full ml-0.5 transition-all">
           <span class="material-symbols-outlined text-[10px] md:text-[12px] lg:text-[14px] fill text-cyan-500 dark:text-cyan-400">diamond</span>
-          <span class="text-[10px] md:text-[11px] lg:text-[13px] font-black text-cyan-600 dark:text-cyan-300 leading-none">${HEART_BOOST_COST}</span>
+          <span id="arrow-heart-cost" class="text-[10px] md:text-[11px] lg:text-[13px] font-black text-cyan-600 dark:text-cyan-300 leading-none">${HEART_BOOST_COSTS[0]}</span>
         </div>
       </button>
     </div>
@@ -123,6 +127,30 @@ export function ArrowPuzzle(router) {
       if (Sounds && Sounds.playSfx) Sounds.playSfx('button-tap');
       checkAndShowTutorial('arrow', true);
     };
+  }
+
+  // +Can butonu görünümünü kademeli maliyet/MAX durumuna göre günceller
+  // (klasik moddaki geri-al/çekiç butonlarıyla birebir aynı davranış).
+  function updateHeartBoostUI() {
+    const btn = subControls.querySelector('#arrow-heart-boost');
+    const costEl = subControls.querySelector('#arrow-heart-cost');
+    const badgeEl = subControls.querySelector('#arrow-heart-badge');
+    if (!btn || !costEl) return;
+    const icon = badgeEl && badgeEl.querySelector('.material-symbols-outlined');
+    if (heartBoostCount >= HEART_BOOST_COSTS.length) {
+      // 3 kullanım doldu → MAX + tıklanamaz
+      btn.classList.add('opacity-50', 'pointer-events-none');
+      costEl.textContent = 'MAX';
+      if (icon) icon.style.display = 'none';
+      costEl.classList.remove('text-cyan-600', 'dark:text-cyan-300');
+      costEl.classList.add('text-gray-500', 'dark:text-gray-400');
+    } else {
+      btn.classList.remove('opacity-50', 'pointer-events-none');
+      costEl.textContent = HEART_BOOST_COSTS[heartBoostCount];
+      if (icon) icon.style.display = '';
+      costEl.classList.remove('text-gray-500', 'dark:text-gray-400');
+      costEl.classList.add('text-cyan-600', 'dark:text-cyan-300');
+    }
   }
 
   // ===== HUD (diğer modlarla aynı: seviye rozeti / canlar / rekor rozeti) =====
@@ -233,6 +261,7 @@ export function ArrowPuzzle(router) {
     }
   }
   renderHintBadge();
+  updateHeartBoostUI();
 
   // ===== Canvas =====
   const canvasWrap = document.createElement('div');
@@ -1313,11 +1342,15 @@ canvas.addEventListener('wheel', onWheel, { passive: false });
     const btn = ev.target.closest('#arrow-heart-boost');
     if (!btn) return;
     if (engine.win || engine.fail || modalOpen) return;
+    if (heartBoostCount >= HEART_BOOST_COSTS.length) { Toast.show(t('max_boost_reached') || 'Maksimum can hakkını doldurdun!', 'warning'); return; }
     if (engine.hearts >= MAX_BOOST_HEARTS) { Toast.show(t('max_hearts') || 'Canın dolu!', 'warning'); return; }
+    const cost = HEART_BOOST_COSTS[heartBoostCount];
     Sounds.playSfx?.('button-tap');
-    if (PlayerState.useDiamonds(HEART_BOOST_COST)) {
+    if (PlayerState.useDiamonds(cost)) {
+      heartBoostCount++;
       engine.addHearts(1);
       renderHearts();
+      updateHeartBoostUI();
       Haptics.vibrate?.('block-place');
       const pop = document.createElement('div');
       pop.className = 'absolute -top-4 left-1/2 -translate-x-1/2 text-pink-400 font-black text-lg z-50 pointer-events-none drop-shadow-sm';
@@ -1418,7 +1451,8 @@ canvas.addEventListener('wheel', onWheel, { passive: false });
               history.replaceState(null, '', `#/arrow?level=${nextLvl}`);
               engine.init(nextLvl);
             }
-            hintUsages = 0; clearStreak = 0; // B3: yeni tahtada kombo sayacı sıfırlansın
+            hintUsages = 0; clearStreak = 0; heartBoostCount = 0; // B3: yeni tahtada kombo/+can sayacı sıfırlansın
+            updateHeartBoostUI();
             captureShape();
             reveals.clear();
             winGlowT0 = 0; viewScale = 1; viewX = 0; viewY = 0; renderHearts(); renderHintBadge(); resize(); startEntrance(); resetHintTimer(); ensureLoop();
@@ -1513,7 +1547,8 @@ canvas.addEventListener('wheel', onWheel, { passive: false });
     modal.querySelector('#arrow-revive-retry').addEventListener('click', () => {
       modal.remove();
       modalOpen = false;
-      hintUsages = 0; clearStreak = 0;
+      hintUsages = 0; clearStreak = 0; heartBoostCount = 0;
+      updateHeartBoostUI();
       engine.init(engine.level); captureShape(); reveals.clear(); winGlowT0 = 0;
       viewScale = 1; viewX = 0; viewY = 0;
       renderHearts(); renderHintBadge(); resize(); startEntrance(); resetHintTimer(); ensureLoop();

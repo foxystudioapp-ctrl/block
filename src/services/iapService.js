@@ -28,30 +28,35 @@ class IAPService {
       this.isInitialized = true;
       console.log('RevenueCat initialized successfully!');
 
-      // Abonelik durumu uygulama AÇIKKEN değişirse (yenileme/satın alma/iptal/expire)
-      // anında yakala. Aksi halde VIP aylık maaşı ve VIP düşmesi yalnızca bir sonraki
-      // soğuk başlatmada işlenirdi (checkSubscriptions sadece initialize'da çağrılıyordu).
+      // Fetch the offerings
+      await this.fetchOfferings();
+
+      // Müşteri bilgisini al, VIP'i işle ve tüketilebilirleri uzlaştır. ÖNEMLİ SIRA: bu
+      // (tohumlayabilen) uzlaştırma, aşağıdaki CANLI listener'DAN ÖNCE çalışır. Böylece:
+      //  - İlk çalıştırmada geçmiş işlemler burada "verildi" tohumlanır (güncelleme sonrası
+      //    çift ödül önlenir).
+      //  - Canlı listener tohumlamadan SONRA kaydedildiğinden, satın alma anında gelen event
+      //    asla bir "tohum" çalıştırması olmaz → gerçek satın alma yutulmaz.
+      try {
+        const { customerInfo } = await Purchases.getCustomerInfo();
+        await this.checkSubscriptions(customerInfo);
+        this.reconcileConsumables(customerInfo, { seedIfFirstRun: true });
+      } catch (ciErr) {
+        // getCustomerInfo başarısız olsa bile tohumlamayı reconcile'ın içine bırakmıyoruz;
+        // seedIfFirstRun yalnız buradan geçtiği için satın alma yolu yine güvenli (yutmaz).
+        console.warn('init getCustomerInfo warn:', ciErr);
+      }
+
+      // Abonelik/tüketilebilir uygulama AÇIKKEN değişirse (yenileme/iptal/expire, kesinti
+      // sonrası geç gelen satın alma) anında yakala. Tohumlamadan SONRA kaydedilir.
       try {
         await Purchases.addCustomerInfoUpdateListener((customerInfo) => {
           this.checkSubscriptions(customerInfo);
-          // Uygulama açıkken RevenueCat yeni bir tüketilebilir işlem doğrularsa
-          // (örn. kesinti sonrası geç gelen satın alma) burada anında kurtarılır.
-          this.reconcileConsumables(customerInfo);
+          this.reconcileConsumables(customerInfo); // her zaman TESLİM (seed değil)
         });
       } catch (e) {
         console.warn('addCustomerInfoUpdateListener warn:', e);
       }
-
-      // Fetch the offerings
-      await this.fetchOfferings();
-
-      // Check active subscriptions (VIP)
-      const { customerInfo } = await Purchases.getCustomerInfo();
-      await this.checkSubscriptions(customerInfo);
-      // Açılış kurtarması: "para çekildi ama elmas verilmedi" durumundaki doğrulanmış
-      // satın almaları teslim et. İlk çalıştırmada geçmiş işlemleri "verildi" olarak
-      // tohumlar (güncelleme sonrası çift ödül önlenir).
-      this.reconcileConsumables(customerInfo);
     } catch (e) {
       console.error('Error initializing RevenueCat:', e);
     }
@@ -168,14 +173,17 @@ class IAPService {
   //  - İlk çalıştırma (seed): mevcut tüm işlemleri sadece "verildi" işaretler; bu sürümden
   //    önce eski mantıkla zaten teslim edilmiş satın almalar güncellemede TEKRAR ödül vermesin.
   //  - Sonraki çağrılar: yalnız yeni/teslim edilmemiş işlemler ödüllendirilir (idempotent).
-  reconcileConsumables(customerInfo, { silent = false } = {}) {
+  reconcileConsumables(customerInfo, { silent = false, seedIfFirstRun = false } = {}) {
     const txns = customerInfo && Array.isArray(customerInfo.nonSubscriptionTransactions)
       ? customerInfo.nonSubscriptionTransactions
       : [];
 
     const granted = this._getGrantedTxIds();
 
-    if (!Storage.get('iap_reconcile_seeded', false)) {
+    // Tohumlama YALNIZ açılış (init) yolundan gelen ilk çalıştırmada yapılır (seedIfFirstRun).
+    // Satın alma ve canlı-güncelleme yolları buraya ASLA seedIfFirstRun ile girmez → gerçek
+    // bir satın alma "verildi" olarak tohumlanıp yutulamaz (para gitti, elmas gelmedi hatası).
+    if (seedIfFirstRun && !Storage.get('iap_reconcile_seeded', false)) {
       txns.forEach(tx => { if (tx && tx.transactionIdentifier) granted.add(tx.transactionIdentifier); });
       this._saveGrantedTxIds(granted);
       try { Storage.set('iap_reconcile_seeded', true); } catch (e) { /* yoksay */ }

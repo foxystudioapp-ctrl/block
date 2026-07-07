@@ -69,6 +69,7 @@ export default {
   "tut_arrow_zoom_desc": "Büyük bulmacalarda iki parmağını kullanarak ekranı yakınlaştırabilir ve kaydırabilirsin.",
   "lives": "Can",
   "max_hearts": "Canın dolu!",
+  "max_boost_reached": "Bu oyunda maksimum can hakkını doldurdun!",
   "task_arrow_clear": "Ok Bulmacası: 2 seviye tamamla",
   "stat_arrow_level": "Ok Bulmacası Seviyesi",
   "badge_arrow_master": "Ok Ustası",

@@ -62,6 +62,10 @@ export function createModal({ title, content, actions = [], onClose = null }) {
   modalContainer.close = () => {
     if (modalContainer._closed) return;
     modalContainer._closed = true;
+    // Kapanış animasyonu 300ms sürüyor ve düğüm o süre boyunca DOM'da kalıyor. İçerideki
+    // butonlar (revive-elmas, booster vb.) tıklanabilir kalırsa hızlı çift-dokunuşta elmas
+    // İKİ KEZ harcanabiliyordu. Kapanış başlar başlamaz tüm etkileşimi senkron kes.
+    modalBody.style.pointerEvents = 'none';
     const idx = window.__activeModals.indexOf(modalContainer);
     if (idx !== -1) window.__activeModals.splice(idx, 1);
 
