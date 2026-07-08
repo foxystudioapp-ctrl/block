@@ -59,7 +59,7 @@
 	<key>GIDClientID</key>
 	<string>244495803529-3tp5i6k3p7qaed99l17pc0vmuk7m3fu4.apps.googleusercontent.com</string>
 	<key>NSUserTrackingUsageDescription</key>
-	<string>Size daha alakalı reklamlar gösterebilmemiz için cihazınızdaki reklam tanıtıcısını kullanmamıza izin verin.</string>
+	<string>Allow us to use your device's advertising identifier so we can show you more relevant ads.</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>GADApplicationIdentifier</key>
