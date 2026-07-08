@@ -44,14 +44,17 @@ export class X2Engine {
   //  eğrisini ters çeviriyordu. Artık hedef seviyeyle pürüzsüz artar ve daima ulaşılabilir.)
   getTargetScore() {
     const floor = this._getSpawnFloorForLevel(this.level);
-    // Gerekli birleşme sayısı PLATOYA oturtuldu (tavan 16). Eskiden sınırsız büyüyordu
-    // (Sv700'de 188, Sv800'de 214) → 35 hücrelik tahtada tek seviyede o kadar birleşme
-    // fiziksel olarak imkânsızdı. Zorluk artık tabanın seviyeyle yükselmesinden gelir
-    // (her 30 seviyede katlanır); hedef tabanla orantılı ama daima ulaşılabilir kalır.
-    const requiredMerges = Math.min(16, 14 + Math.floor(this.level / 8) * 2);
+    // Gerekli "ortalama birleşme" sayısı seviyeyle PÜRÜZSÜZ artar (düz DEĞİL).
+    // Eskiden Math.min(16, ...) ile seviye ~16'da platoya oturuyordu; taban değer de
+    // yalnız her 30 seviyede değiştiği için 1.–30. seviye hedefi ~224'te SABİT kalıyor,
+    // seviyeler ~1 dk'da geçiyordu. Artık hedef her seviye biraz daha yükselir →
+    // ilerledikçe yavaşça zorlaşır. Yüksek seviyede tabanın katlanması zorluğu taşır.
+    // AYARLANABİLİR: taban birleşme (18) ve seviye başı artış (1.6). Değerleri
+    // büyütmek seviyeleri yavaşlatır, küçültmek hızlandırır.
+    const mergesNeeded = 18 + this.level * 1.6;
     // Ortalama birleşme puanı ≈ taban değerin ~7 katı (birleşme + küçük cascade)
     const avgMergeScore = floor * 7;
-    return Math.round(requiredMerges * avgMergeScore);
+    return Math.round(mergesNeeded * avgMergeScore);
   }
 
   // Seviye tamamlama ödülü (ekonomi faucet'i) — emsal modlarla aynı ölçek

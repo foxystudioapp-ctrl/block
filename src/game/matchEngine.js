@@ -347,8 +347,14 @@ export class MatchEngine {
     for (const b of blasted) {
       if (!specialKeys.has(`${b.r},${b.c}`)) {
         if (b.cell && b.cell.cage) {
+          // Kafesli blok TEK eşleşmede PATLAR (rengiyle eşleşmeye girince yok olur).
+          // Eskiden yalnız kafesi kırılıp blok normal olarak tahtada KALIYORDU → oyuncuya
+          // "kafesli bloklar patlamıyor" gibi görünüyordu; üstelik kafesten çıkan blok
+          // sonraki yerçekiminde düşüp "yer değiştiriyordu". Artık normal blok gibi
+          // temizlenir, eşleşene kadar da executeFalls onu sabit tutar (asla oynamaz).
           brokenCages.push(b);
-          this.grid[b.r][b.c] = { ...b.cell, cage: false };
+          actuallyBlasted.push(b);
+          this.grid[b.r][b.c] = null;
         } else if (b.cell && b.cell.type === 'diamond_1') {
           actuallyBlasted.push(b);
           this.grid[b.r][b.c] = { color: b.cell.color, type: 'diamond_2', gem: null };

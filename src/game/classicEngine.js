@@ -67,13 +67,17 @@ export class ClassicEngine {
   }
 
   getTargetScore() {
-    // Linear scaling with soft cap to keep targets reachable at high levels
-    const linear = 500 + (this.level - 1) * 800;
-    const softCap = 100000; // ~level 125
+    // ÖNEMLİ: Macerada game-over→"Vazgeç" seviye skorunu sıfırlar (restartCurrentLevel),
+    // yani hedef TEK CANDA (tahta dolmadan) yapılabilmeli. Eski Sv1=500 birçok oyuncunun
+    // tek-can tavanının üstündeydi → seviye 1 bile geçilemiyordu. Ayrıca klasik modun
+    // puanlama hızı seviyeyle ARTMAZ (aynı 8x8), o yüzden hedef DÜŞÜK başlayıp NAZİK artar.
+    // AYARLANABİLİR: base (Sv1 hedefi), slope (seviye başı artış), softCap, cap sonrası hız.
+    const linear = 200 + (this.level - 1) * 110;
+    const softCap = 2600;              // ~Sv23'ten sonra büyüme belirgin yavaşlar
     if (linear <= softCap) return linear;
-    // After soft cap, growth slows to 30%
+    // Tavandan sonra büyüme %25'e iner → yüksek seviyeler ulaşılabilir kalır
     const excess = linear - softCap;
-    return Math.floor(softCap + excess * 0.3);
+    return Math.floor(softCap + excess * 0.25);
   }
 
   initLevel(lvl, keepBoard = false) {
