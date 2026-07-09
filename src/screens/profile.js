@@ -549,7 +549,7 @@ export function Profile(router) {
             if (res.success) {
               Toast.show(t('apple_linked_success') || 'Hesap başarıyla Apple\'a bağlandı!', 'success');
               renderAccountCard();
-            } else {
+            } else if (!res.canceled) {
               Toast.show(res.msg, 'error');
             }
           });

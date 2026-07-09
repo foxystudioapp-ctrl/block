@@ -306,15 +306,22 @@ const sha256Hex = async (str) => {
   return Array.from(new Uint8Array(digest), (b) => ('0' + b.toString(16)).slice(-2)).join('');
 };
 
+// Kullanıcı Apple giriş penceresini kapattığında plugin, error 1001 (canceled)
+// ile reddeder. Bunu gerçek bir "hata" gibi göstermemek için ayırt ediyoruz.
+const isAppleCancelError = (error) =>
+  /error 1001/i.test(error?.message || '');
+
 // Apple ile giriş yapıp Firebase kimlik bilgisi (credential) üretir.
+// Not: Apple butonu yalnızca iOS'ta gösterilir. Plugin'in iOS native tarafı yalnızca
+// scopes/state/nonce okur; clientId/redirectURI sadece web akışında anlamlıdır, bu
+// yüzden gönderilmez. Kimlik, uygulamanın bundle id + Sign in with Apple entitlement'ı
+// ile belirlenir (App ID'de bu capability açık olmalı; aksi halde native taraf
+// AuthorizationError 1000 döner).
 const appleFirebaseCredential = async () => {
   const rawNonce = generateRawNonce();
   const hashedNonce = await sha256Hex(rawNonce);
 
   const result = await withTimeout(SignInWithApple.authorize({
-    // clientId/redirectURI yalnızca web akışında kullanılır; iOS native'de bundle id + entitlement kullanılır.
-    clientId: 'com.askar.blockblast',
-    redirectURI: 'https://bloxyapp.blogspot.com/',
     scopes: 'email name',
     nonce: hashedNonce,
   }), 60000, 'Apple girişi');
@@ -349,6 +356,7 @@ export const linkAccountWithApple = async () => {
     PlayerState.save();
     return { success: true, user: authInstance.currentUser };
   } catch (error) {
+    if (isAppleCancelError(error)) return { success: false, canceled: true };
     console.error('Apple Link Error', error);
     const detail = error?.code ? `${error.code}: ${error.message}` : (error?.message || 'bilinmeyen hata');
     return { success: false, msg: t('auth_link_error') + detail };
@@ -364,6 +372,7 @@ export const recoverAccountWithApple = async () => {
     PlayerState.save();
     return { success: true, user: userCredential.user };
   } catch (error) {
+    if (isAppleCancelError(error)) return { success: false, canceled: true };
     console.error('Apple Recovery Error', error);
     const detail = error?.code ? `${error.code}: ${error.message}` : (error?.message || 'bilinmeyen hata');
     return { success: false, msg: t('auth_signin_error') + detail };
