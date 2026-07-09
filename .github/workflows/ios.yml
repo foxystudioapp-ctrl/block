@@ -107,18 +107,19 @@ jobs:
           </plist>
           EOF
           
-          # NOT: SPM bağımlılık target'ları (GoogleSignIn, AppAuth, RevenueCat, GoogleUtilities...)
-          # provisioning profile DESTEKLEMEZ. Komut satırından profil verirsek xcodebuild onu
-          # TÜM target'lara uygulamaya çalışır ve "does not support provisioning profiles" ile
-          # patlar. Bu yüzden arşivi İMZASIZ üretiyoruz; imzalama + entitlement gömme işi
-          # aşağıdaki Export adımına ait (ExportOptions ile yalnızca App target'ı imzalanır).
+          # İmzalama App target'ına özel olarak pbxproj'da tanımlı (Manual + profil + entitlement).
+          # Böylece App.entitlements (Sign in with Apple) arşive DERLENİR, ama profil yalnızca
+          # App target'ına uygulandığı için SPM bağımlılıkları (GoogleSignIn, AppAuth...) "does
+          # not support provisioning profiles" hatası vermez. Komut satırından yalnızca takım
+          # kimliğini geçiyoruz (SPM framework'lerinin imzalanması için; profil DEĞİL).
           cd ios/App
           xcodebuild archive \
             -project App.xcodeproj \
             -scheme App \
             -archivePath $RUNNER_TEMP/App.xcarchive \
             -configuration Release \
-            CODE_SIGNING_ALLOWED=NO
+            -destination 'generic/platform=iOS' \
+            DEVELOPMENT_TEAM=HAU68SJV7T
 
       - name: Export IPA
         run: |
