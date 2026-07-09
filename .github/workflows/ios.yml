@@ -8,7 +8,10 @@ on:
 jobs:
   build:
     name: Build iOS App
-    runs-on: macos-latest
+    # macos-latest, 15 Haziran 2026'da brand-new macOS 26'ya geçti; o havuz daha az
+    # kapasiteli ve runner ataması güvenilmez ("job not acquired"). Kararlı macOS 15'e
+    # sabitliyoruz (Xcode 16 latest-stable — bu proje için yeterli).
+    runs-on: macos-15
 
     steps:
       - name: Checkout code
