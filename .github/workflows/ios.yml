@@ -62,6 +62,15 @@ jobs:
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles
 
+          # TEŞHİS: Profil "Sign in with Apple" entitlement'ını taşıyor mu? (build'den ÖNCE gösterir)
+          echo "=== Provisioning profile entitlements ==="
+          security cms -D -i $PP_PATH | plutil -p - | sed -n '/Entitlements/,/}/p' || true
+          if security cms -D -i $PP_PATH | plutil -p - | grep -q applesignin; then
+            echo "✅ Profil applesignin entitlement'ı TAŞIYOR"
+          else
+            echo "❌ Profil applesignin EKSİK — App ID'de capability'yi açıp profili YENİDEN ÜRET, secret'ı güncelle"
+          fi
+
       - name: Sync Capacitor
         run: npx cap sync ios
 

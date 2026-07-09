@@ -40,7 +40,7 @@ export function Splash(router) {
           <h1 class="text-4xl font-black text-white tracking-widest drop-shadow-[0_0_15px_rgba(255,255,255,0.5)]">
             BLOXY
           </h1>
-          <p class="text-sm font-semibold text-white/60 tracking-[0.3em] mt-2">ALL-IN-ONE PUZZLE</p>
+          <p class="text-sm font-semibold text-white/60 tracking-[0.2em] mt-2">BLOCK PUZZLE &amp; ARROW</p>
         </div>
       </div>
 

@@ -180,7 +180,7 @@ export function showSettingsModal() {
   const aboutSection = document.createElement('div');
   aboutSection.className = 'flex flex-col items-center mt-12 opacity-50';
   aboutSection.innerHTML = `
-    <span class="text-xl font-black mb-1 text-center">BLOXY:<br>ALL-IN-ONE PUZZLE</span>
+    <span class="text-xl font-black mb-1 text-center">BLOXY:<br>BLOCK PUZZLE &amp; ARROW</span>
   `;
   content.appendChild(aboutSection);
 
