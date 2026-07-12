@@ -225,9 +225,36 @@ const withTimeout = (promise, ms, label) =>
     )
   ]);
 
+// Firebase kimlik bilgisini mevcut misafir (anonim) oturuma bağlar; aktif oturum
+// yoksa doğrudan o kimlikle giriş yapar. Anonim giriş ertelenmiş (main.js setTimeout)
+// ve asenkron olduğundan, kullanıcı butona anonim oturum kurulmadan basabilir; bu
+// durumda "aktif kullanıcı yok" hatası yerine kimliğiyle doğrudan giriş yaparız.
+const linkOrSignIn = async (authInstance, credential) => {
+  const currentUser = authInstance.currentUser;
+  if (!currentUser) {
+    await signInWithCredential(authInstance, credential);
+    return;
+  }
+  try {
+    await linkWithCredential(currentUser, credential);
+  } catch (err) {
+    if (
+      err.code === 'auth/credential-already-in-use' ||
+      err.code === 'auth/email-already-in-use' ||
+      // Mevcut oturumda zaten bu sağlayıcı bağlıysa (ör. hesap silindikten sonra
+      // kalan hayalet oturum) link yerine doğrudan o kimlikle giriş yap.
+      err.code === 'auth/provider-already-linked'
+    ) {
+      await signInWithCredential(authInstance, credential);
+    } else {
+      throw err;
+    }
+  }
+};
+
 export const linkAccountWithGoogle = async () => {
   const authInstance = getAuth();
-  if (!authInstance || !authInstance.currentUser) return { success: false, msg: t('auth_no_active_user') };
+  if (!authInstance) return { success: false, msg: t('auth_no_active_user') };
   try {
     await withTimeout(GoogleSignIn.initialize({
       clientId: '244495803529-6iro7uhsrf9hkt641ch0cr1v03vrke06.apps.googleusercontent.com',
@@ -238,24 +265,8 @@ export const linkAccountWithGoogle = async () => {
     if (!idToken) throw new Error(t('auth_google_token_failed'));
 
     const credential = GoogleAuthProvider.credential(idToken);
-    
-    try {
-      await linkWithCredential(authInstance.currentUser, credential);
-    } catch (err) {
-      if (
-        err.code === 'auth/credential-already-in-use' ||
-        err.code === 'auth/email-already-in-use' ||
-        // Mevcut oturumda zaten google.com bağlıysa (ör. hesap silindikten sonra
-        // kalan hayalet oturum) link yerine doğrudan o kimlikle giriş yap.
-        err.code === 'auth/provider-already-linked'
-      ) {
-        // Eğer bu hesap zaten varsa, o hesaba giriş yapalım
-        await signInWithCredential(authInstance, credential);
-      } else {
-        throw err;
-      }
-    }
-    
+    await linkOrSignIn(authInstance, credential);
+
     PlayerState.state.linkedProvider = 'google.com';
     PlayerState.save();
     return { success: true, user: authInstance.currentUser };
@@ -335,23 +346,15 @@ const appleFirebaseCredential = async () => {
 
 export const linkAccountWithApple = async () => {
   const authInstance = getAuth();
-  if (!authInstance || !authInstance.currentUser) return { success: false, msg: t('auth_no_active_user') };
+  if (!authInstance) return { success: false, msg: t('auth_no_active_user') };
   try {
+    // Apple giriş penceresini HER durumda aç: anonim oturum henüz kurulmamış olsa
+    // bile (main.js'te init ertelenmiş + anonim giriş asenkron) kullanıcı Apple ile
+    // giriş yapabilsin. Önce credential al (native Apple diyaloğu burada açılır),
+    // sonra mevcut misafir oturuma bağla ya da doğrudan giriş yap. Böylece buton
+    // erken "aktif kullanıcı yok" hatası vermez.
     const credential = await appleFirebaseCredential();
-    try {
-      await linkWithCredential(authInstance.currentUser, credential);
-    } catch (err) {
-      if (
-        err.code === 'auth/credential-already-in-use' ||
-        err.code === 'auth/email-already-in-use' ||
-        err.code === 'auth/provider-already-linked'
-      ) {
-        // Bu Apple kimliği zaten bir hesaba bağlıysa, o hesaba giriş yap.
-        await signInWithCredential(authInstance, credential);
-      } else {
-        throw err;
-      }
-    }
+    await linkOrSignIn(authInstance, credential);
     PlayerState.state.linkedProvider = 'apple.com';
     PlayerState.save();
     return { success: true, user: authInstance.currentUser };
