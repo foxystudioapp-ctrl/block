@@ -1,4 +1,4 @@
-import { AdMob, BannerAdSize, BannerAdPosition, RewardAdPluginEvents, InterstitialAdPluginEvents } from '@capacitor-community/admob';
+import { AdMob, BannerAdSize, BannerAdPosition, BannerAdPluginEvents, RewardAdPluginEvents, InterstitialAdPluginEvents } from '@capacitor-community/admob';
 import { Capacitor } from '@capacitor/core';
 import { Sounds } from '../utils/sounds.js';
 import { Toast } from '../components/toast.js';
@@ -26,8 +26,8 @@ class AdServiceManager {
     //  - Seviyeli modlar levelup molasında, ölümlü sonsuz modlar gameover'da, hiç bitmeyen
     //    sonsuz modlar (Jewel/Color Sort) her oturmuş hamlede 'periodic' ile tetikler.
     this.AD_CONFIG = {
-      firstDelaySec: 180,  // İlk reklam: oturum başından 3 dk sonraki ilk mola
-      intervalSec: 300,    // Sonraki reklamlar: son reklamdan 5 dk sonra
+      firstDelaySec: 300,  // İlk reklam: oturum başından 5 dk sonraki ilk mola
+      intervalSec: 480,    // Sonraki reklamlar: son reklamdan 8 dk sonra
     };
 
     // Real Ad Units
@@ -80,6 +80,29 @@ class AdServiceManager {
         AdMob.addListener(RewardAdPluginEvents.Dismissed, () => {
           this.rewardedLoaded = false;
           this.prepareRewardVideoAd();
+        });
+
+        // Banner YÜKLEME onayı buradan gelir. bannerCreated'ı ARTIK optimistik olarak
+        // showBanner() içinde DEĞİL, gerçekten reklam yüklendiğinde true yapıyoruz.
+        // Native taraf banner subview'ini yalnızca yükleme başarılıysa hiyerarşiye ekler;
+        // dolayısıyla resumeBanner() sadece daha önce başarılı yüklenmiş bir banner için
+        // çalışır. Eskiden bannerCreated ilk showBanner çağrısında true'ya sabitleniyordu →
+        // ilk yükleme başarısız olursa (iOS no-fill / layout zamanlaması) tüm oturum boyunca
+        // sonraki her ekran yalnızca (başarısız) resumeBanner çağırıyor, bir daha hiç
+        // showBanner denemiyordu. Sonuç: iOS'ta tüm modlarda banner kalıcı olarak ölüyordu.
+        AdMob.addListener(BannerAdPluginEvents.Loaded, () => {
+          this.bannerCreated = true;
+          // Yükleme tamamlandığında kullanıcı çoktan ekrandan çıkmışsa (bannerWanted=false)
+          // banner yanlış ekranda (menü vb.) görünmesin diye hemen gizle.
+          if (!this.bannerWanted) { AdMob.hideBanner().catch(() => {}); }
+        });
+
+        // Yükleme başarısız olursa bayrağı SIFIRLA ki bir sonraki ekran taze bir showBanner
+        // denesin — tek bir no-fill artık tüm oturumu banner'sız bırakmaz. Ayrıca gerçek
+        // AdMob hata kodunu logla (no-fill=3, invalid-request=1 vb.) → panel mi kod mu ayrımı.
+        AdMob.addListener(BannerAdPluginEvents.FailedToLoad, (info) => {
+          this.bannerCreated = false;
+          console.warn('Banner failed to load:', info);
         });
 
         this.prepareInterstitial();
@@ -262,29 +285,41 @@ class AdServiceManager {
 
     try {
       if (this.bannerCreated) {
-        await AdMob.resumeBanner();
-        // resume sonrası hide istendiyse geri gizle
-        if (!this.bannerWanted) { try { await AdMob.hideBanner(); } catch (e) { /* yoksay */ } }
+        // Banner daha önce başarıyla yüklenmiş ve native hiyerarşide gizli duruyor →
+        // sadece görünür yap. Beklenmedik şekilde subview yoksa (ör. OS belleği temizledi)
+        // resumeBanner reject eder; o zaman bayrağı sıfırlayıp taze bir banner oluştururuz,
+        // böylece banner kalıcı ölmez.
+        try {
+          await AdMob.resumeBanner();
+          if (!this.bannerWanted) { try { await AdMob.hideBanner(); } catch (e) { /* yoksay */ } }
+        } catch (e) {
+          console.warn('Banner resume failed, recreating:', e);
+          this.bannerCreated = false;
+          await this._createBanner();
+        }
       } else {
-        // Small delay to allow Android WebView layout to settle before calculating native overlay positioning
-        await new Promise(r => setTimeout(r, 500));
-        // 500ms dolmadan kullanıcı ekrandan çıktıysa banner'ı OLUŞTURMA. Aksi halde menüde/
-        // başka ekranda alt banner takılı kalır (router hideBanner'ı bannerCreated=false
-        // olduğu için erken dönmüştü). Bu kontrol o yarış durumunu kapatır.
-        if (!this.bannerWanted) return;
-        await AdMob.showBanner({
-          adId: this.adUnits.banner,
-          adSize: BannerAdSize.ADAPTIVE_BANNER,
-          position: BannerAdPosition.BOTTOM_CENTER,
-          margin: 0
-        });
-        this.bannerCreated = true;
-        // Oluşturma tamamlanana kadar hide istendiyse hemen gizle.
-        if (!this.bannerWanted) { try { await AdMob.hideBanner(); } catch (e) { /* yoksay */ } }
+        await this._createBanner();
       }
     } catch (e) {
       console.warn('Banner show error:', e);
     }
+  }
+
+  // Sıfırdan banner oluşturur. bannerCreated'ı BURADA true YAPMAYIZ — gerçek yükleme
+  // onayını BannerAdPluginEvents.Loaded listener'ı verir (initialize'da). Böylece ilk
+  // yükleme başarısız olursa bannerCreated false kalır ve bir sonraki ekran yeniden dener.
+  async _createBanner() {
+    // Small delay to allow WebView layout to settle before calculating native overlay positioning
+    await new Promise(r => setTimeout(r, 500));
+    // 500ms dolmadan kullanıcı ekrandan çıktıysa banner'ı OLUŞTURMA. Aksi halde menüde/
+    // başka ekranda alt banner takılı kalır. Bu kontrol o yarış durumunu kapatır.
+    if (!this.bannerWanted) return;
+    await AdMob.showBanner({
+      adId: this.adUnits.banner,
+      adSize: BannerAdSize.ADAPTIVE_BANNER,
+      position: BannerAdPosition.BOTTOM_CENTER,
+      margin: 0
+    });
   }
 
   async hideBanner() {

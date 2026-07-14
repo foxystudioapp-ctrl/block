@@ -97,7 +97,17 @@ export class MultiplayerService {
     try {
       const lbRef = ref(rtdb, 'leaderboards/global');
       const q = query(lbRef, orderByChild('globalTrophies'), limitToLast(50));
-      const snap = await get(q);
+      // KRİTİK: RTDB get() bağlantı kurulamazsa (özellikle iOS WKWebView'de WebSocket
+      // stuck-connecting durumunda) HİÇ settle OLMAYABİLİR — ne resolve ne reject.
+      // Leaderboard renderContent'i bu await'e takılıp "yükleniyor" spinner'ını sonsuza
+      // kilitliyordu. get()'i bir zaman yarışıyla sınırla: 8sn'de dönmezse boş dön →
+      // tablo botlar + oyuncu ile render edilir (arka uç hatası zaten [] ile ele alınıyor).
+      const snap = await Promise.race([
+        get(q),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('getTopPlayers timeout')), 8000)
+        )
+      ]);
 
       if (!snap.exists()) return [];
 
